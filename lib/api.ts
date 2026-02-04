@@ -115,7 +115,8 @@ export async function generateComments(
   baseUrl: string,
   payload: GenerateRequest,
   accessToken: string,
-  authToken: string
+  authToken: string,
+  signal?: AbortSignal
 ): Promise<GenerateResponse> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
@@ -125,6 +126,7 @@ export async function generateComments(
     method: "POST",
     headers,
     body: JSON.stringify(payload),
+    signal,
   });
 
   const body = await readBody(res);

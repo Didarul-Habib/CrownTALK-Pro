@@ -1,6 +1,7 @@
 // Keep this aligned with the UI + backend prompt options.
-export type Tone = "professional" | "casual" | "bold" | "friendly";
-export type Intent = "neutral" | "agree" | "question" | "soft_pushback";
+// NOTE: "auto" means "let the backend decide" (we omit the field in the request).
+export type Tone = "auto" | "professional" | "casual" | "bold" | "friendly";
+export type Intent = "auto" | "neutral" | "agree" | "question" | "soft_pushback";
 
 export type GenerateRequest = {
   urls: string[];
