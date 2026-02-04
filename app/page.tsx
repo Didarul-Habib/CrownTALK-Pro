@@ -165,7 +165,8 @@ export default function Home() {
   const failedUrls = useMemo(() => {
     const out: string[] = [];
     for (const it of items) {
-      if (!it.ok) out.push(it.url);
+      // ResultItem doesn't have a boolean `ok`; success is encoded in `status`.
+      if (it.status !== "ok") out.push(it.url);
     }
     return out;
   }, [items]);
