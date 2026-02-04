@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
-import { Lock, User, X, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Lock, ShieldCheck, Trash2, User, X } from "lucide-react";
 import { login, signup, verifyAccess } from "@/lib/api";
 import { LS, lsGetJson, lsSetJson } from "@/lib/storage";
 import type { UserProfile } from "@/lib/persist";
@@ -155,13 +155,36 @@ export default function SignupGate({
         >
           <motion.div
             className={clsx(
-              "w-full max-w-lg rounded-3xl border p-5 shadow-2xl backdrop-blur-xl",
+              "relative w-full max-w-lg overflow-hidden rounded-3xl border p-5 shadow-2xl backdrop-blur-xl",
               "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)]"
             )}
             initial={{ y: 16, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 10, scale: 0.98, opacity: 0 }}
           >
+            {/* Premium animated glow */}
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -inset-24 opacity-60 blur-3xl"
+              style={{
+                background:
+                  "radial-gradient(700px 380px at 20% 15%, color-mix(in srgb, var(--ct-accent) 28%, transparent), transparent 62%)," +
+                  "radial-gradient(640px 420px at 80% 25%, color-mix(in srgb, var(--ct-accent-2) 24%, transparent), transparent 64%)," +
+                  "radial-gradient(720px 460px at 55% 85%, rgba(255,255,255,0.05), transparent 70%)",
+              }}
+              animate={{ opacity: [0.45, 0.65, 0.45] }}
+              transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-25"
+              style={{
+                background:
+                  "linear-gradient(135deg, color-mix(in srgb, var(--ct-accent) 18%, transparent), transparent 40%, color-mix(in srgb, var(--ct-accent-2) 14%, transparent))",
+              }}
+            />
+
+            <div className="relative z-10">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-lg font-semibold tracking-tight">
@@ -179,6 +202,15 @@ export default function SignupGate({
                   <ShieldCheck className="h-4 w-4 opacity-80" />
                   Access-gated
                 </span>
+
+                <button
+                  type="button"
+                  className="ct-btn ct-btn-xs ct-btn-ghost"
+                  onClick={onClose}
+                  title="Close"
+                >
+                  <X className="h-4 w-4 opacity-80" />
+                </button>
               </div>
             </div>
 
@@ -282,6 +314,7 @@ export default function SignupGate({
                 </button>
               </div>
             </div>
+            </div>
           </motion.div>
         </motion.div>
       ) : null}
@@ -306,6 +339,10 @@ function Field({
   type?: string;
   autoFocus?: boolean;
 }) {
+  const isPassword = type === "password";
+  const [reveal, setReveal] = useState(false);
+  const inputType = isPassword && reveal ? "text" : type;
+
   return (
     <div className="space-y-2">
       <label className="text-xs opacity-70">{label}</label>
@@ -314,16 +351,32 @@ function Field({
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          type={type}
+          type={inputType}
           autoFocus={autoFocus}
           className={clsx(
             "w-full rounded-2xl border px-10 py-3 text-sm outline-none",
+            isPassword ? "pr-11" : "pr-10",
             "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]",
             "focus:ring-2 focus:ring-white/15"
           )}
           placeholder={placeholder}
           spellCheck={false}
         />
+
+        {isPassword ? (
+          <button
+            type="button"
+            onClick={() => setReveal((v) => !v)}
+            className={clsx(
+              "absolute right-3 top-1/2 -translate-y-1/2",
+              "opacity-70 hover:opacity-100 transition"
+            )}
+            aria-label={reveal ? "Hide password" : "Show password"}
+            title={reveal ? "Hide" : "Show"}
+          >
+            {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        ) : null}
       </div>
     </div>
   );

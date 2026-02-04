@@ -22,13 +22,31 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
   const idx = stepIndex(stage);
   const active = idx >= 0 && stage !== "done";
 
+  // UI-only "feel" progress. We don't get real-time % from the backend,
+  // but this gives users a confident sense of forward motion.
+  const progress = stage === "idle" ? 0 : stage === "done" ? 100 : Math.round(((idx + 1) / STEPS.length) * 100);
+
   return (
-    <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
+    <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">Pipeline</div>
         <div className={clsx("text-xs", active ? "opacity-80" : "opacity-60")}>
           {stage === "idle" ? "Ready" : stage === "done" ? "Completed" : "Working…"}
         </div>
+      </div>
+
+      {/* Premium progress rail */}
+      <div className="mt-3 h-2 w-full overflow-hidden rounded-full border border-[color:var(--ct-border)] bg-white/5">
+        <motion.div
+          className="h-full rounded-full"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--ct-accent), color-mix(in srgb, var(--ct-accent-2) 85%, white 15%))",
+          }}
+          initial={false}
+          animate={{ width: `${progress}%` }}
+          transition={{ type: "spring", stiffness: 220, damping: 28 }}
+        />
       </div>
 
       {/* Use `lg` so "Desktop site" on mobile doesn't squeeze the pipeline grid */}
@@ -41,7 +59,8 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
               key={s.id}
               className={clsx(
                 "relative overflow-hidden rounded-2xl border px-3 py-3",
-                "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]"
+                "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]",
+                current ? "shadow-[0_18px_60px_rgba(0,0,0,.45)]" : ""
               )}
             >
               <div className="flex items-center justify-between">
@@ -73,6 +92,16 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
                   initial={{ x: "-120%" }}
                   animate={{ x: "120%" }}
                   transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                />
+              ) : null}
+
+              {current ? (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    boxShadow:
+                      "0 0 0 1px rgba(255,255,255,.08) inset, 0 0 40px color-mix(in srgb, var(--ct-accent) 16%, transparent)",
+                  }}
                 />
               ) : null}
             </div>

@@ -89,7 +89,14 @@ export default function Results({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+      <div
+        className={clsx(
+          "relative z-30 overflow-visible",
+          "flex flex-col gap-2 rounded-[var(--ct-radius)] border border-[color:var(--ct-border)]",
+          "bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl",
+          "lg:flex-row lg:items-center lg:justify-between"
+        )}
+      >
         <div>
           <div className="text-sm font-semibold tracking-tight">Results</div>
           <div className="text-xs opacity-70">
@@ -110,7 +117,7 @@ export default function Results({
             Retry failed only
           </button>
 
-          <div className="relative" data-results-menu>
+          <div className="relative z-40" data-results-menu>
             <button
               type="button"
               className="ct-btn ct-btn-sm"
@@ -124,7 +131,7 @@ export default function Results({
             {menuOpen ? (
               <div
                 className={clsx(
-                  "absolute right-0 mt-2 w-72 overflow-hidden rounded-3xl border shadow-2xl",
+                  "absolute right-0 mt-2 w-72 overflow-hidden rounded-3xl border shadow-2xl z-40",
                   "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)] backdrop-blur-xl"
                 )}
               >

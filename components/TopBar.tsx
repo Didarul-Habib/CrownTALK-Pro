@@ -27,14 +27,14 @@ export default function TopBar({
       */}
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-2xl border border-[color:var(--ct-border)] bg-black/10 grid place-items-center overflow-hidden">
+          <div className="h-9 w-9 rounded-full border border-[color:var(--ct-border)] bg-black/10 grid place-items-center overflow-hidden">
             <Image
               src="/logo.png"
               alt="CrownTALK logo"
               width={36}
               height={36}
               priority
-              className="h-9 w-9 object-contain"
+              className="h-9 w-9 object-cover"
             />
           </div>
           <div>

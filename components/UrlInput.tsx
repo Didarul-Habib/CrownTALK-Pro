@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { useMemo } from "react";
 import { classifyLines, parseUrls } from "@/lib/validate";
+import UrlScanner from "@/components/UrlScanner";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -90,6 +91,7 @@ export default function UrlInput({
         <div className="text-xs opacity-70">{helper ?? " "}</div>
 
         <div className="flex items-center gap-2 text-[11px]">
+          <UrlScanner valid={urls.length} invalid={invalidLines} />
           <span
             className="rounded-full border px-2 py-1"
             style={{

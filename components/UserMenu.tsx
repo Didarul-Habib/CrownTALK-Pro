@@ -45,14 +45,14 @@ export default function UserMenu({
         title={user.name}
       >
         <span
-          className="grid h-7 w-7 place-items-center rounded-full border border-white/15"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/15 leading-none"
           style={{
             background:
               "linear-gradient(135deg, color-mix(in srgb, var(--ct-accent) 45%, transparent), color-mix(in srgb, var(--ct-accent-2) 45%, transparent))",
             boxShadow: "0 0 0 1px rgba(255,255,255,.10) inset",
           }}
         >
-          <span className="text-[11px] font-bold">{initials}</span>
+          <span className="text-[11px] font-bold leading-none">{initials}</span>
         </span>
         <span className="hidden sm:inline text-xs opacity-90 max-w-[160px] truncate">{user.name}</span>
       </button>

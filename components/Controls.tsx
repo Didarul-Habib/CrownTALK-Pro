@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Lock, Wand2 } from "lucide-react";
+import { Ban, Eraser, Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone } from "@/lib/types";
 
 const NATIVE_LANGS = [
@@ -31,7 +31,10 @@ export default function Controls({
   setIncludeAlternates,
   baseUrl,
   onGenerate,
+  onCancel,
+  onClear,
   loading,
+  clearDisabled,
 }: {
   langEn: boolean;
   setLangEn: (v: boolean) => void;
@@ -47,20 +50,54 @@ export default function Controls({
   setIncludeAlternates: (v: boolean) => void;
   baseUrl: string;
   onGenerate: () => void;
+  onCancel?: () => void;
+  onClear?: () => void;
   loading: boolean;
+  clearDisabled?: boolean;
 }) {
   return (
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">Controls</div>
-        <button
-          onClick={onGenerate}
-          disabled={loading}
-          className={clsx("ct-btn ct-btn-primary", loading ? "opacity-70 cursor-not-allowed" : "")}
-        >
-          <Wand2 className="h-4 w-4 opacity-80" />
-          {loading ? "Generating…" : "Generate"}
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            onClick={onGenerate}
+            disabled={loading}
+            className={clsx("ct-btn ct-btn-primary", loading ? "opacity-70 cursor-not-allowed" : "")}
+          >
+            <Wand2 className="h-4 w-4 opacity-80" />
+            {loading ? "Generating…" : "Generate"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={!loading}
+            className={clsx(
+              "ct-btn",
+              "ct-btn-danger",
+              !loading ? "opacity-55 cursor-not-allowed" : ""
+            )}
+            title={loading ? "Stop the current generation" : "Nothing running"}
+          >
+            <Ban className="h-4 w-4 opacity-80" />
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={!!clearDisabled || loading}
+            className={clsx(
+              "ct-btn",
+              (clearDisabled || loading) ? "opacity-55 cursor-not-allowed" : ""
+            )}
+            title={loading ? "Stop first, then clear" : "Clear input + results"}
+          >
+            <Eraser className="h-4 w-4 opacity-80" />
+            Clear
+          </button>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -139,6 +176,7 @@ export default function Controls({
                 "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]"
               )}
             >
+              <option value="auto">Auto (recommended)</option>
               <option value="professional">Professional</option>
               <option value="casual">Casual</option>
               <option value="bold">Bold</option>
@@ -156,6 +194,7 @@ export default function Controls({
                 "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]"
               )}
             >
+              <option value="auto">Auto (recommended)</option>
               <option value="neutral">Neutral</option>
               <option value="agree">Agree+</option>
               <option value="question">Question</option>

@@ -11,7 +11,11 @@ export type ThemeId =
   | "sunset"
   | "matrix"
   | "midnight"
-  | "mono";
+  | "mono"
+  | "ocean"
+  | "royal"
+  | "ember"
+  | "cosmic";
 
 const THEMES: Array<{
   id: ThemeId;
@@ -25,6 +29,12 @@ const THEMES: Array<{
   { id: "matrix", label: "Matrix", swatches: ["rgba(34,197,94,1)", "rgba(16,185,129,1)"] },
   { id: "midnight", label: "Midnight", swatches: ["rgba(96,165,250,1)", "rgba(99,102,241,1)"] },
   { id: "mono", label: "Mono", swatches: ["rgba(230,230,230,1)", "rgba(160,160,160,1)"] },
+
+  // Premium extras
+  { id: "ocean", label: "Ocean", swatches: ["rgba(56,189,248,1)", "rgba(34,211,238,1)"] },
+  { id: "royal", label: "Royal", swatches: ["rgba(167,139,250,1)", "rgba(250,204,21,1)"] },
+  { id: "ember", label: "Ember", swatches: ["rgba(251,146,60,1)", "rgba(244,63,94,1)"] },
+  { id: "cosmic", label: "Cosmic", swatches: ["rgba(217,70,239,1)", "rgba(34,211,238,1)"] },
 ];
 
 export default function ThemeStudioBar({
@@ -34,7 +44,10 @@ export default function ThemeStudioBar({
   value: ThemeId;
   onChange: (t: ThemeId) => void;
 }) {
-  const idx = useMemo(() => THEMES.findIndex((t) => t.id === value), [value]);
+  const idx = useMemo(() => {
+    const i = THEMES.findIndex((t) => t.id === value);
+    return i < 0 ? 0 : i;
+  }, [value]);
 
   // keyboard: ctrl+arrow left/right cycles themes (desktop power feature)
   useEffect(() => {
