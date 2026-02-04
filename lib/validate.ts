@@ -1,13 +1,41 @@
+export const X_URL_RE =
+  /(https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]+\/status\/\d+[^\s]*)|(https?:\/\/(?:www\.)?x\.com\/i\/status\/\d+[^\s]*)/gi;
+
+export function extractUrls(raw: string): string[] {
+  const s = String(raw || "");
+  const found: string[] = [];
+  let m: RegExpExecArray | null;
+  const re = new RegExp(X_URL_RE); // clone w/ state
+  while ((m = re.exec(s)) !== null) {
+    const u = (m[1] || m[2] || "").trim();
+    if (u) found.push(u);
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const u of found) {
+    const key = u.replace(/[?#].*$/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(u);
+  }
+  return out;
+}
+
 export function parseUrls(raw: string): string[] {
+  // Accepts one-per-line, but also extracts URLs from messy paste.
   const lines = raw
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const urls = Array.from(new Set(lines));
+  const extracted = extractUrls(lines.join("\n"));
+  return extracted;
+}
 
-  // Accept x.com or twitter.com status URLs
-  return urls.filter((u) =>
-    /https?:\/\/(x\.com|twitter\.com)\/.+\/status\/\d+/i.test(u)
-  );
+export function classifyLines(raw: string): Array<{ line: string; urls: string[] }> {
+  const lines = raw.split(/\r?\n/);
+  return lines.map((line) => {
+    const urls = extractUrls(line);
+    return { line, urls };
+  });
 }
