@@ -4,32 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import { Lock, User, X, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
-import { verifyAccess } from "@/lib/api";
+import { login, signup, verifyAccess } from "@/lib/api";
 import { LS, lsGetJson, lsSetJson } from "@/lib/storage";
 import type { UserProfile } from "@/lib/persist";
 
-async function sha256Hex(input: string): Promise<string> {
-  try {
-    if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") {
-      // Very old browsers; fall back to a plain string (still stored only locally).
-      return `plain:${input}`;
-    }
-    const enc = new TextEncoder().encode(input);
-    const hash = await crypto.subtle.digest("SHA-256", enc);
-    return Array.from(new Uint8Array(hash))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  } catch {
-    return `plain:${input}`;
-  }
-}
-
 function normalizeXUrl(raw: string) {
-  const v = (raw || "").trim();
+  let v = (raw || "").trim();
   if (!v) return "";
-  // Accept x.com or twitter.com URLs; add protocol if missing.
+  if (v.startsWith("@")) v = v.slice(1).trim();
+
+  // Already a URL
   if (/^https?:\/\//i.test(v)) return v;
-  return `https://${v}`;
+
+  // Domain/path without protocol
+  if (/^(?:www\.)?(?:x\.com|twitter\.com)\//i.test(v)) return `https://${v}`;
+
+  // Assume handle
+  const handle = v.split("/")[0].trim();
+  return `https://x.com/${handle}`;
 }
 
 export default function SignupGate({
@@ -41,7 +33,7 @@ export default function SignupGate({
   open: boolean;
   baseUrl: string;
   onClose: () => void;
-  onAuthed: (profile: UserProfile, token: string) => void;
+  onAuthed: (profile: UserProfile, accessToken: string, authToken: string) => void;
 }) {
   const stored = useMemo(() => lsGetJson<UserProfile | null>(LS.user, null), [open]);
 
@@ -56,6 +48,7 @@ export default function SignupGate({
   useEffect(() => {
     if (!open) return;
     setErr(null);
+
     // If a profile exists, default to sign-in; otherwise sign-up.
     setMode(stored ? "signin" : "signup");
 
@@ -89,44 +82,61 @@ export default function SignupGate({
     const pw = (password || "").trim();
     const code = (accessCode || "").trim();
 
+    if (!code) return setErr("Access code is required.");
+
     if (mode === "signup") {
       if (trimmedName.length < 2) return setErr("Please enter your name.");
+      if (!normX) return setErr("Please enter your X profile link (or handle).");
       if (pw.length < 6) return setErr("Password must be at least 6 characters.");
-      if (!code) return setErr("Access code is required.");
     } else {
+      if (!normX) return setErr("Please enter your X profile link (or handle).");
       if (pw.length < 1) return setErr("Enter your password.");
-      if (!code) return setErr("Access code is required.");
     }
 
     setBusy(true);
     try {
-      // Verify the access code with backend and receive the access token.
-      const out = await verifyAccess(baseUrl, code);
-      if (!out.ok) throw new Error("Invalid access code");
+      // 1) Verify site access code -> we get a site access token
+      const access = await verifyAccess(baseUrl, code);
+      if (!access?.ok) throw new Error("Invalid access code");
 
-      const pwHash = await sha256Hex(pw);
+      // 2) Server-side signup/login -> we get a session token
+      if (mode === "signup") {
+        const out = await signup(
+          baseUrl,
+          { name: trimmedName, x_link: normX, password: pw },
+          access.token || ""
+        );
 
-      if (mode === "signin") {
-        if (!stored) throw new Error("No account found on this device. Please sign up first.");
-        if (stored.passwordHash && stored.passwordHash !== pwHash) {
-          throw new Error("Wrong password.");
-        }
+        const profile: UserProfile = {
+          id: out.user.id,
+          name: out.user.name,
+          xUrl: out.user.x_link,
+          createdAt: Date.now(),
+        };
 
-        onAuthed(stored, out.token || "");
+        lsSetJson(LS.user, profile);
+        onAuthed(profile, access.token || "", out.token || "");
+        onClose();
+        return;
+      } else {
+        const out = await login(
+          baseUrl,
+          { x_link: normX, password: pw },
+          access.token || ""
+        );
+
+        const profile: UserProfile = {
+          id: out.user.id,
+          name: out.user.name,
+          xUrl: out.user.x_link,
+          createdAt: Date.now(),
+        };
+
+        lsSetJson(LS.user, profile);
+        onAuthed(profile, access.token || "", out.token || "");
         onClose();
         return;
       }
-
-      const profile: UserProfile = {
-        name: trimmedName,
-        xUrl: normX,
-        passwordHash: pwHash,
-        createdAt: Date.now(),
-      };
-
-      lsSetJson(LS.user, profile);
-      onAuthed(profile, out.token || "");
-      onClose();
     } catch (e: any) {
       setErr(e?.message || "Failed");
     } finally {
@@ -155,12 +165,12 @@ export default function SignupGate({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-lg font-semibold tracking-tight">
-                  {mode === "signup" ? "Sign up to generate" : "Welcome back"}
+                  {mode === "signup" ? "Sign up to generate" : "Sign in to generate"}
                 </div>
                 <p className="mt-1 text-sm opacity-75">
                   {mode === "signup"
-                    ? "Create your local profile and unlock CrownTALK using your site access code."
-                    : "Enter your password and site access code to unlock CrownTALK."}
+                    ? "Create your CrownTALK account and unlock generation with your site access code."
+                    : "Log in with your X link + password, then unlock with your site access code."}
                 </p>
               </div>
 
@@ -184,7 +194,7 @@ export default function SignupGate({
                     autoFocus
                   />
                   <Field
-                    label="X profile link"
+                    label="X profile link / handle"
                     icon={<X className="h-4 w-4" />}
                     value={xUrl}
                     onChange={setXUrl}
@@ -192,20 +202,24 @@ export default function SignupGate({
                   />
                 </div>
               ) : (
-                <div className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3 text-sm">
-                  <div className="opacity-80">Signing in as</div>
-                  <div className="mt-1 font-semibold tracking-tight break-words">{stored?.name}</div>
-                  {stored?.xUrl ? (
-                    <a
-                      href={stored.xUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-2 text-xs opacity-80 hover:opacity-100 break-all"
-                    >
-                      <X className="h-4 w-4" />
-                      {stored.xUrl}
-                    </a>
-                  ) : null}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="X profile link / handle"
+                    icon={<X className="h-4 w-4" />}
+                    value={xUrl}
+                    onChange={setXUrl}
+                    placeholder="https://x.com/yourhandle"
+                    autoFocus={!stored}
+                  />
+                  <div className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3 text-sm">
+                    <div className="opacity-80">Using profile</div>
+                    <div className="mt-1 font-semibold tracking-tight break-words">
+                      {stored?.name || ""}
+                    </div>
+                    <div className="mt-1 text-xs opacity-70 break-all">
+                      {stored?.xUrl || ""}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -233,35 +247,29 @@ export default function SignupGate({
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                {stored ? (
-                  <button
-                    type="button"
-                    className="ct-btn ct-btn-xs"
-                    onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
-                  >
-                    {mode === "signup" ? "Already signed up? Sign in" : "New on this device? Sign up"}
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className="ct-btn ct-btn-xs"
+                  onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
+                >
+                  {mode === "signup" ? "Already have an account? Sign in" : "New here? Sign up"}
+                </button>
 
                 {stored ? (
                   <button
                     type="button"
                     className="ct-btn ct-btn-xs ct-btn-danger"
                     onClick={clearLocalAccount}
-                    title="Remove the saved account from this device"
+                    title="Remove the saved profile from this device"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Reset local account
+                    Reset local profile
                   </button>
                 ) : null}
               </div>
 
               <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={onClose}
-                  className="ct-btn ct-btn-sm"
-                  type="button"
-                >
+                <button onClick={onClose} className="ct-btn ct-btn-sm" type="button">
                   Cancel
                 </button>
                 <button
