@@ -1,12 +1,10 @@
 import type { Intent, ResultItem, Tone } from "./types";
 
 export type UserProfile = {
+  id?: number;
   name: string;
   xUrl: string;
-  // Stored as a SHA-256 hex digest when available.
-  // This is NOT a replacement for real server-side auth.
-  passwordHash: string;
-  createdAt: number;
+  createdAt?: number;
 };
 
 export type RunRequestSnapshot = {

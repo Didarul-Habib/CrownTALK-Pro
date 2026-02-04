@@ -1,6 +1,7 @@
 export const LS = {
   theme: "ct_theme_v2",
   token: "ct_token_v2",
+  auth: "ct_auth_v2",
   lastRun: "ct_last_run_v2",
   user: "ct_user_v2",
   runs: "ct_runs_v2",
