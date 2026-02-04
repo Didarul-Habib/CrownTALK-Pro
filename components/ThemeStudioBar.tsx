@@ -54,14 +54,19 @@ export default function ThemeStudioBar({
   }, [value, onChange]);
 
   return (
-    <div className="relative">
-      <div
-        className={clsx(
-          "relative flex items-center gap-2 rounded-2xl border px-2 py-2",
-          "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)]",
-          "shadow-[0_16px_60px_rgba(0,0,0,.35)]"
-        )}
-      >
+    <div className="relative max-w-full">
+      {/*
+        Make the theme studio horizontally scrollable so it never overflows
+        on narrow devices (including mobile browsers in "Desktop site" mode).
+      */}
+      <div className="ct-scroll-x max-w-full">
+        <div
+          className={clsx(
+            "relative flex min-w-max items-center gap-2 rounded-2xl border px-2 py-2",
+            "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)]",
+            "shadow-[0_16px_60px_rgba(0,0,0,.35)]"
+          )}
+        >
         {/* Active slider */}
         <motion.div
           className="absolute top-1 bottom-1 rounded-2xl border"
@@ -78,7 +83,7 @@ export default function ThemeStudioBar({
           transition={{ type: "spring", stiffness: 420, damping: 36 }}
         />
 
-        {THEMES.map((t) => {
+          {THEMES.map((t) => {
           const active = t.id === value;
           return (
             <button
@@ -113,12 +118,11 @@ export default function ThemeStudioBar({
               />
             </button>
           );
-        })}
+          })}
+        </div>
       </div>
 
-      <div className="mt-1 text-[11px] opacity-60">
-        Theme Studio • Ctrl + ←/→ to cycle
-      </div>
+      <div className="mt-1 text-[11px] opacity-60">Theme Studio • Ctrl + ←/→ to cycle</div>
     </div>
   );
 }

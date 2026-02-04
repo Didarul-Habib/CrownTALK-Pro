@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone } from "@/lib/types";
 
 const NATIVE_LANGS = [
@@ -10,6 +11,9 @@ const NATIVE_LANGS = [
   { value: "ur", label: "Urdu (ur)" },
   { value: "id", label: "Indonesian (id)" },
   { value: "es", label: "Spanish (es)" },
+  { value: "zh", label: "Chinese (zh)" },
+  { value: "ja", label: "Japanese (ja)" },
+  { value: "ko", label: "Korean (ko)" },
 ];
 
 export default function Controls({
@@ -26,7 +30,6 @@ export default function Controls({
   includeAlternates,
   setIncludeAlternates,
   baseUrl,
-  setBaseUrl,
   onGenerate,
   loading,
 }: {
@@ -43,7 +46,6 @@ export default function Controls({
   includeAlternates: boolean;
   setIncludeAlternates: (v: boolean) => void;
   baseUrl: string;
-  setBaseUrl: (v: string) => void;
   onGenerate: () => void;
   loading: boolean;
 }) {
@@ -54,37 +56,50 @@ export default function Controls({
         <button
           onClick={onGenerate}
           disabled={loading}
-          className={clsx(
-            "rounded-2xl px-4 py-2 text-sm font-semibold transition",
-            "border border-[color:var(--ct-border)]",
-            loading
-              ? "opacity-70 cursor-not-allowed bg-white/10"
-              : "bg-[color:var(--ct-accent)]/15 hover:bg-[color:var(--ct-accent)]/25"
-          )}
+          className={clsx("ct-btn ct-btn-primary", loading ? "opacity-70 cursor-not-allowed" : "")}
         >
+          <Wand2 className="h-4 w-4 opacity-80" />
           {loading ? "Generating…" : "Generate"}
         </button>
       </div>
 
       <div className="mt-4">
         <label className="text-xs opacity-70">Backend URL</label>
-        <input
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          className={clsx(
-            "mt-2 w-full rounded-2xl border px-3 py-2 text-sm outline-none",
-            "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]",
-            "focus:ring-2 focus:ring-white/15"
-          )}
-          placeholder="https://crowntalk.onrender.com"
-          spellCheck={false}
-        />
+        <div className="mt-2 flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              value={baseUrl}
+              readOnly
+              className={clsx(
+                "w-full rounded-2xl border px-3 py-2 pr-10 text-sm outline-none",
+                "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]",
+                "opacity-90"
+              )}
+              spellCheck={false}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-70">
+              <Lock className="h-4 w-4" />
+            </div>
+          </div>
+          <span className="ct-chip text-[11px]">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{
+                background: "var(--ct-ok)",
+                boxShadow: "0 0 18px color-mix(in srgb, var(--ct-accent) 25%, transparent)",
+                animation: "ct-float 1.8s ease-in-out infinite",
+              }}
+            />
+            Locked
+          </span>
+        </div>
         <div className="mt-1 text-[11px] opacity-60">
-          Tip: keep your old site + new site both pointing to the same backend.
+          Locked to avoid mistakes. Change it via <span className="font-mono">NEXT_PUBLIC_BACKEND_URL</span>.
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
+      {/* Use `lg` so mobile "Desktop site" doesn't squeeze the controls */}
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="space-y-2">
           <div className="text-xs opacity-70">Languages</div>
           <div className="flex gap-2">

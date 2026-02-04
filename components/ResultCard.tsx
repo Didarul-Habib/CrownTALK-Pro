@@ -1,6 +1,5 @@
 "use client";
 
-import clsx from "clsx";
 import { RotateCcw, Copy, ExternalLink } from "lucide-react";
 import type { ResultItem } from "@/lib/types";
 
@@ -11,9 +10,11 @@ function copyText(text: string) {
 export default function ResultCard({
   item,
   onReroll,
+  onCopy,
 }: {
   item: ResultItem;
   onReroll: () => void;
+  onCopy?: (text: string, url?: string) => void;
 }) {
   return (
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-xl">
@@ -27,14 +28,7 @@ export default function ResultCard({
           <ExternalLink className="h-4 w-4 opacity-70" />
           {item.url}
         </a>
-        <button
-          type="button"
-          className={clsx(
-            "text-xs rounded-2xl border px-3 py-2 transition inline-flex items-center gap-2",
-            "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)] hover:bg-white/5"
-          )}
-          onClick={onReroll}
-        >
+        <button type="button" className="ct-btn ct-btn-xs" onClick={onReroll}>
           <RotateCcw className="h-4 w-4 opacity-80" />
           Reroll
         </button>
@@ -54,16 +48,16 @@ export default function ResultCard({
           key={idx}
           className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3 space-y-2"
         >
-          <div className="text-sm leading-6 whitespace-pre-wrap">{c.text}</div>
+          <div className="text-sm leading-6 whitespace-pre-wrap break-words">{c.text}</div>
           <div className="flex items-center justify-between">
             <div className="text-xs opacity-70">{c.provider ? `via ${c.provider}` : ""}</div>
             <button
               type="button"
-              className={clsx(
-                "text-xs rounded-2xl border px-3 py-2 transition inline-flex items-center gap-2",
-                "bg-transparent border-[color:var(--ct-border)] hover:bg-white/5"
-              )}
-              onClick={() => copyText(c.text)}
+              className="ct-btn ct-btn-xs"
+              onClick={() => {
+                copyText(c.text);
+                onCopy?.(c.text, item.url);
+              }}
             >
               <Copy className="h-4 w-4 opacity-80" />
               Copy
@@ -80,11 +74,11 @@ export default function ResultCard({
                     <div className="mt-2">
                       <button
                         type="button"
-                        className={clsx(
-                          "text-xs rounded-2xl border px-3 py-2 transition inline-flex items-center gap-2",
-                          "bg-transparent border-[color:var(--ct-border)] hover:bg-white/5"
-                        )}
-                        onClick={() => copyText(a)}
+                        className="ct-btn ct-btn-xs"
+                        onClick={() => {
+                          copyText(a);
+                          onCopy?.(a, item.url);
+                        }}
                       >
                         <Copy className="h-4 w-4 opacity-80" />
                         Copy

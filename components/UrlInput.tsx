@@ -49,11 +49,7 @@ export default function UrlInput({
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             onClick={onCleanInvalid}
-            className={clsx(
-              "rounded-xl border px-3 py-2 text-xs transition",
-              "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]",
-              "hover:brightness-110"
-            )}
+            className={clsx("ct-btn ct-btn-sm", !hasAny ? "opacity-50 cursor-not-allowed" : "")}
             disabled={!hasAny}
             title="Remove invalid lines and keep only valid URLs"
           >
@@ -61,11 +57,7 @@ export default function UrlInput({
           </button>
           <button
             onClick={onSort}
-            className={clsx(
-              "rounded-xl border px-3 py-2 text-xs transition",
-              "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]",
-              "hover:brightness-110"
-            )}
+            className={clsx("ct-btn ct-btn-sm", urls.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
             disabled={urls.length < 2}
             title="Sort URLs A → Z"
           >
@@ -73,11 +65,7 @@ export default function UrlInput({
           </button>
           <button
             onClick={onShuffle}
-            className={clsx(
-              "rounded-xl border px-3 py-2 text-xs transition",
-              "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]",
-              "hover:brightness-110"
-            )}
+            className={clsx("ct-btn ct-btn-sm", urls.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
             disabled={urls.length < 2}
             title="Shuffle URL order"
           >
@@ -131,11 +119,11 @@ export default function UrlInput({
         )}
       >
         {urls.length ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 min-w-0">
             {urls.slice(0, 20).map((u) => (
               <span
                 key={u}
-                className="max-w-full truncate rounded-full border px-3 py-1 text-[11px]"
+                className="max-w-full min-w-0 truncate rounded-full border px-3 py-1 text-[11px]"
                 style={{
                   borderColor: "rgba(255,255,255,.14)",
                   background: "rgba(0,0,0,.12)",

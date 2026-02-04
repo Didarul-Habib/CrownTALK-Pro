@@ -31,7 +31,8 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* Use `lg` so "Desktop site" on mobile doesn't squeeze the pipeline grid */}
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {STEPS.map((s, i) => {
           const done = idx > i || stage === "done";
           const current = idx === i && stage !== "done";
@@ -71,7 +72,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
                   }}
                   initial={{ x: "-120%" }}
                   animate={{ x: "120%" }}
-                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
                 />
               ) : null}
             </div>
