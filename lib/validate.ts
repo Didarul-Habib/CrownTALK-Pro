@@ -39,3 +39,21 @@ export function classifyLines(raw: string): Array<{ line: string; urls: string[]
     return { line, urls };
   });
 }
+
+
+// Like extractUrls, but returns all matches (including duplicates).
+export function extractUrlsAll(raw: string): string[] {
+  const s = String(raw || "");
+  const found: string[] = [];
+  let m: RegExpExecArray | null;
+  const re = new RegExp(X_URL_RE);
+  while ((m = re.exec(s)) !== null) {
+    const u = (m[1] || m[2] || "").trim();
+    if (u) found.push(u);
+  }
+  return found;
+}
+
+export function normalizeXUrl(u: string): string {
+  return String(u || "").trim().replace(/[?#].*$/, "");
+}
