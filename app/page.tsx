@@ -16,7 +16,7 @@ import Footer from "@/components/Footer";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 import { parseUrls } from "@/lib/validate";
-import { generateComments } from "@/lib/api";
+import { ApiError, generateComments, logout as apiLogout } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
@@ -40,6 +40,7 @@ export default function Home() {
   const [includeAlternates, setIncludeAlternates] = useState(false);
 
   const [token, setToken] = useState<string>("");
+  const [authToken, setAuthToken] = useState<string>("");
   const [theme, setTheme] = useState<ThemeId>("neon");
 
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -61,6 +62,7 @@ export default function Home() {
   useEffect(() => {
     const savedTheme = (lsGet(LS.theme, "neon") as ThemeId) || "neon";
     const savedToken = lsGet(LS.token, "");
+    const savedAuth = lsGet(LS.auth, "");
     const savedUser = lsGetJson<UserProfile | null>(LS.user, null);
     const savedRuns = lsGetJson<RunRecord[]>(LS.runs, []);
     const savedClipboard = lsGetJson<ClipboardRecord[]>(LS.clipboard, []);
@@ -68,6 +70,7 @@ export default function Home() {
 
     setTheme(savedTheme);
     setToken(savedToken);
+    setAuthToken(savedAuth);
     setUser(savedUser);
     setRuns(savedRuns);
     setClipboard(savedClipboard);
@@ -101,6 +104,16 @@ export default function Home() {
     } catch {}
     lsSet(LS.token, token);
   }, [token]);
+
+  useEffect(() => {
+    try {
+      if (!authToken) {
+        localStorage.removeItem(LS.auth);
+        return;
+      }
+    } catch {}
+    lsSet(LS.auth, authToken);
+  }, [authToken]);
 
   useEffect(() => {
     try {
@@ -149,7 +162,7 @@ export default function Home() {
   }
 
   function ensureAuth() {
-    if (!user || !token) {
+    if (!user || !token || !authToken) {
       setSignupOpen(true);
       return false;
     }
@@ -175,7 +188,8 @@ export default function Home() {
           intent,
           include_alternates: includeAlternates,
         },
-        token
+        token,
+        authToken
       );
 
       const results = resp.results || [];
@@ -214,8 +228,24 @@ export default function Home() {
       setError(msg);
       setStage("idle");
 
-      // If backend gate is enabled and we didn't send a token, show gate automatically.
-      if (String(msg).includes("403") && String(msg).includes("missing_access")) {
+      const status: number | undefined =
+        e && typeof e.status === "number" ? (e.status as number) : undefined;
+      const code = e?.body?.code;
+
+      // If auth or access gate fails, prompt the login/signup modal.
+      if (
+        status === 401 ||
+        code === "missing_auth" ||
+        code === "bad_auth" ||
+        code === "expired_auth" ||
+        code === "revoked_auth" ||
+        code === "inactive_user"
+      ) {
+        setAuthToken("");
+        setSignupOpen(true);
+      }
+
+      if (status === 403 || code === "missing_access" || code === "forbidden") {
         setSignupOpen(true);
       }
     } finally {
@@ -302,12 +332,20 @@ export default function Home() {
   }
 
   function logout() {
+    // Best-effort server logout (revokes the session token)
+    if (token && authToken) {
+      apiLogout(baseUrl, token, authToken).catch(() => {});
+    }
+
     try {
       localStorage.removeItem(LS.user);
       localStorage.removeItem(LS.token);
+      localStorage.removeItem(LS.auth);
     } catch {}
+
     setUser(null);
     setToken("");
+    setAuthToken("");
   }
 
   return (
@@ -318,9 +356,10 @@ export default function Home() {
         open={signupOpen}
         baseUrl={baseUrl}
         onClose={() => setSignupOpen(false)}
-        onAuthed={(profile, t) => {
+        onAuthed={(profile, accessToken, sessionToken) => {
           setUser(profile);
-          setToken(t);
+          setToken(accessToken);
+          setAuthToken(sessionToken);
         }}
       />
 
