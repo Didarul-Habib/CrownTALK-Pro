@@ -114,6 +114,7 @@ html[data-theme="cosmic"]{
 }
 
 body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   background: radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.06), transparent 60%),
               radial-gradient(900px 520px at 80% 30%, color-mix(in srgb, var(--ct-accent) 20%, transparent), transparent 55%),
               radial-gradient(1000px 650px at 60% 90%, color-mix(in srgb, var(--ct-accent-2) 18%, transparent), transparent 60%),
@@ -427,3 +428,56 @@ body::before {
   .ct-radar__dot { animation: none; }
 }
 
+
+
+/* Ultra premium button depth + glossy highlight */
+.ct-btn3d{
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateZ(0);
+}
+.ct-btn3d::after{
+  content:"";
+  position:absolute;
+  inset:1px;
+  border-radius: inherit;
+  background: radial-gradient(120% 80% at 20% 0%, rgba(255,255,255,0.14), transparent 55%);
+  pointer-events:none;
+  opacity:0.7;
+  mix-blend-mode: screen;
+}
+
+/* Skeleton shimmer */
+.ct-skeleton{
+  position:relative;
+  overflow:hidden;
+  border: 1px solid color-mix(in srgb, var(--ct-border) 85%, transparent);
+  background: color-mix(in srgb, var(--ct-surface) 88%, rgba(255,255,255,0.02));
+}
+.ct-skeleton::before{
+  content:"";
+  position:absolute;
+  inset:-40% -60%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+  transform: translateX(-120%);
+  animation: ct-shimmer 1.25s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce){
+  .ct-skeleton::before{ animation:none; }
+}
+
+/* Small shimmer badge */
+.ct-badge-pro{
+  position:relative;
+  overflow:hidden;
+}
+.ct-badge-pro::before{
+  content:"";
+  position:absolute;
+  inset:-60% -60%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+  transform: translateX(-120%);
+  animation: ct-shimmer 2.4s ease-in-out infinite;
+  opacity:0.35;
+}

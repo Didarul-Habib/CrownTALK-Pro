@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import confetti from "canvas-confetti";
+import { prefersReducedMotion } from "@/lib/motion";
 
 import TopBar from "@/components/TopBar";
+import WelcomePopup from "@/components/WelcomePopup";
 import UrlInput, { cleanInvalidInRaw, shuffleUrlsInRaw, sortUrlsInRaw } from "@/components/UrlInput";
 import Controls from "@/components/Controls";
 import Results from "@/components/Results";
@@ -231,6 +235,28 @@ export default function Home() {
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
       setStage("done");
+
+      // Premium success moment
+      toast.success(`Generation finished (${okCount} ok${failedCount ? `, ${failedCount} failed` : ""})`);
+
+      // Confetti (subtle) — respects reduced-motion
+      if (okCount > 0 && !prefersReducedMotion()) {
+        try {
+          confetti({
+            particleCount: 70,
+            spread: 65,
+            startVelocity: 18,
+            origin: { y: 0.35 },
+          });
+        } catch {}
+      }
+
+      // Auto-scroll to results for convenience
+      window.requestAnimationFrame(() => {
+        const el = document.getElementById("ct-results");
+        el?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+      });
+
     } catch (e: any) {
       // User aborted the request (Cancel button).
       if (e?.name === "AbortError") {
@@ -278,6 +304,7 @@ export default function Home() {
 
   function cancelRun() {
     suppressAbortRef.current = false;
+    try { toast("Canceled"); } catch {}
     clearTimers();
     setStage("idle");
     abortRef.current?.abort();
@@ -285,6 +312,7 @@ export default function Home() {
 
   function clearAll() {
     // In case something is still running, stop it.
+    try { toast("Cleared"); } catch {}
     suppressAbortRef.current = true;
     abortRef.current?.abort();
     setRaw("");
@@ -297,6 +325,7 @@ export default function Home() {
   async function onGenerate() {
     if (!urls.length) {
       setError("Paste at least 1 valid X status URL.");
+      try { toast.error("Please paste at least one valid X post URL"); } catch {}
       return;
     }
     await run(urls);
@@ -388,6 +417,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
+      <WelcomePopup />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
 
       <SignupGate
@@ -459,6 +489,7 @@ export default function Home() {
             setError("");
           }}
           onCopy={onCopied}
+          loading={loading}
         />
 
         {error ? (
