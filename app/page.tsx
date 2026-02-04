@@ -35,8 +35,8 @@ export default function Home() {
   const [langEn, setLangEn] = useState(true);
   const [langNative, setLangNative] = useState(false);
   const [nativeLang, setNativeLang] = useState("bn");
-  const [tone, setTone] = useState<Tone>("professional");
-  const [intent, setIntent] = useState<Intent>("neutral");
+  const [tone, setTone] = useState<Tone>("auto");
+  const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
 
   const [token, setToken] = useState<string>("");
@@ -51,6 +51,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
   const timers = useRef<number[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const suppressAbortRef = useRef(false);
 
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
@@ -172,6 +174,11 @@ export default function Home() {
   async function run(requestUrls: string[]) {
     if (!ensureAuth()) return;
 
+    // If a previous run is still in-flight, abort it first.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setError("");
     setLoading(true);
     startPipeline();
@@ -184,12 +191,13 @@ export default function Home() {
           lang_en: langEn,
           lang_native: langNative,
           native_lang: langNative ? nativeLang : undefined,
-          tone,
-          intent,
+          tone: tone === "auto" ? undefined : tone,
+          intent: intent === "auto" ? undefined : intent,
           include_alternates: includeAlternates,
         },
         token,
-        authToken
+        authToken,
+        controller.signal
       );
 
       const results = resp.results || [];
@@ -224,6 +232,16 @@ export default function Home() {
       lsSet(LS.dismissResume, "");
       setStage("done");
     } catch (e: any) {
+      // User aborted the request (Cancel button).
+      if (e?.name === "AbortError") {
+        if (!suppressAbortRef.current) {
+          setError("Generation cancelled.");
+        }
+        suppressAbortRef.current = false;
+        setStage("idle");
+        return;
+      }
+
       const msg = e?.message || "Unknown error";
       setError(msg);
       setStage("idle");
@@ -249,11 +267,31 @@ export default function Home() {
         setSignupOpen(true);
       }
     } finally {
+      // Only clear the controller if this run is still the active one.
+      if (abortRef.current === controller) abortRef.current = null;
       clearTimers();
       setLoading(false);
       // return to idle after a short moment
       window.setTimeout(() => setStage("idle"), 1600);
     }
+  }
+
+  function cancelRun() {
+    suppressAbortRef.current = false;
+    clearTimers();
+    setStage("idle");
+    abortRef.current?.abort();
+  }
+
+  function clearAll() {
+    // In case something is still running, stop it.
+    suppressAbortRef.current = true;
+    abortRef.current?.abort();
+    setRaw("");
+    setItems([]);
+    setRunId("");
+    setError("");
+    setStage("idle");
   }
 
   async function onGenerate() {
@@ -399,7 +437,10 @@ export default function Home() {
               setIncludeAlternates={setIncludeAlternates}
               baseUrl={baseUrl}
               onGenerate={onGenerate}
+              onCancel={cancelRun}
+              onClear={clearAll}
               loading={loading}
+              clearDisabled={!raw.trim() && !items.length && !error}
             />
 
             <ProgressStepper stage={loading ? stage : "idle"} />
