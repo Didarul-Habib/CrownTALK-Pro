@@ -1,8 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { motion } from "framer-motion";
+import { motion, type HTMLMotionProps } from "framer-motion";
 import { MOTION } from "@/lib/motion";
+
+type PremiumButtonProps = HTMLMotionProps<"button">;
 
 export default function PremiumButton({
   className,
@@ -10,7 +12,7 @@ export default function PremiumButton({
   children,
   type,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: PremiumButtonProps) {
   return (
     <motion.button
       {...props}
