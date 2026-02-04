@@ -7,18 +7,28 @@ import TopBar from "@/components/TopBar";
 import UrlInput, { cleanInvalidInRaw, shuffleUrlsInRaw, sortUrlsInRaw } from "@/components/UrlInput";
 import Controls from "@/components/Controls";
 import Results from "@/components/Results";
-import AccessGate from "@/components/AccessGate";
+import SignupGate from "@/components/SignupGate";
 import ProgressStepper, { Stage } from "@/components/ProgressStepper";
+import ResumeBanner from "@/components/ResumeBanner";
+import RunHistoryPanel from "@/components/RunHistoryPanel";
+import ClipboardHistoryPanel from "@/components/ClipboardHistoryPanel";
+import Footer from "@/components/Footer";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 import { parseUrls } from "@/lib/validate";
 import { generateComments } from "@/lib/api";
-import { LS, lsGet, lsSet } from "@/lib/storage";
+import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
+import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
+import { nowId } from "@/lib/persist";
 
 const DEFAULT_BACKEND = "https://crowntalk.onrender.com";
 
 export default function Home() {
+  const [baseUrl] = useState<string>(() =>
+    (process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND).replace(/\/+$/, "")
+  );
+
   const [raw, setRaw] = useState<string>("");
   const urls = useMemo(() => parseUrls(raw), [raw]);
 
@@ -29,9 +39,13 @@ export default function Home() {
   const [intent, setIntent] = useState<Intent>("neutral");
   const [includeAlternates, setIncludeAlternates] = useState(false);
 
-  const [baseUrl, setBaseUrl] = useState<string>(DEFAULT_BACKEND);
   const [token, setToken] = useState<string>("");
   const [theme, setTheme] = useState<ThemeId>("neon");
+
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [runs, setRuns] = useState<RunRecord[]>([]);
+  const [clipboard, setClipboard] = useState<ClipboardRecord[]>([]);
+  const [resumeCandidate, setResumeCandidate] = useState<RunRecord | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
@@ -41,18 +55,22 @@ export default function Home() {
   const [items, setItems] = useState<ResultItem[]>([]);
   const [runId, setRunId] = useState<string>("");
 
-  const [gateOpen, setGateOpen] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(false);
 
   // Restore persisted UI state
   useEffect(() => {
     const savedTheme = (lsGet(LS.theme, "neon") as ThemeId) || "neon";
-    const savedBackend = lsGet(LS.backend, "");
     const savedToken = lsGet(LS.token, "");
+    const savedUser = lsGetJson<UserProfile | null>(LS.user, null);
+    const savedRuns = lsGetJson<RunRecord[]>(LS.runs, []);
+    const savedClipboard = lsGetJson<ClipboardRecord[]>(LS.clipboard, []);
     const lastRun = lsGet(LS.lastRun, "");
 
     setTheme(savedTheme);
-    setBaseUrl(savedBackend || process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND);
     setToken(savedToken);
+    setUser(savedUser);
+    setRuns(savedRuns);
+    setClipboard(savedClipboard);
 
     if (lastRun) {
       try {
@@ -75,12 +93,32 @@ export default function Home() {
   }, [theme]);
 
   useEffect(() => {
-    lsSet(LS.backend, baseUrl);
-  }, [baseUrl]);
-
-  useEffect(() => {
+    try {
+      if (!token) {
+        localStorage.removeItem(LS.token);
+        return;
+      }
+    } catch {}
     lsSet(LS.token, token);
   }, [token]);
+
+  useEffect(() => {
+    try {
+      if (!user) {
+        localStorage.removeItem(LS.user);
+        return;
+      }
+    } catch {}
+    lsSetJson(LS.user, user);
+  }, [user]);
+
+  useEffect(() => {
+    lsSetJson(LS.runs, runs);
+  }, [runs]);
+
+  useEffect(() => {
+    lsSetJson(LS.clipboard, clipboard);
+  }, [clipboard]);
 
   useEffect(() => {
     const snapshot = {
@@ -104,13 +142,23 @@ export default function Home() {
     clearTimers();
     setStage("fetching");
     timers.current.push(
-      window.setTimeout(() => setStage("generating"), 280),
-      window.setTimeout(() => setStage("polishing"), 900),
-      window.setTimeout(() => setStage("finalizing"), 1500)
+      window.setTimeout(() => setStage("generating"), 650),
+      window.setTimeout(() => setStage("polishing"), 1850),
+      window.setTimeout(() => setStage("finalizing"), 2900)
     );
   }
 
+  function ensureAuth() {
+    if (!user || !token) {
+      setSignupOpen(true);
+      return false;
+    }
+    return true;
+  }
+
   async function run(requestUrls: string[]) {
+    if (!ensureAuth()) return;
+
     setError("");
     setLoading(true);
     startPipeline();
@@ -130,8 +178,36 @@ export default function Home() {
         token
       );
 
-      setItems(resp.results || []);
-      setRunId(resp.meta?.run_id || "");
+      const results = resp.results || [];
+      const rid = resp.meta?.run_id || nowId("run");
+
+      setItems(results);
+      setRunId(rid);
+
+      // Persist to run history (and enable "Resume last run" after reload)
+      const okCount = results.filter((i) => i.status === "ok").length;
+      const failedCount = results.filter((i) => i.status !== "ok").length;
+      const request: RunRequestSnapshot = {
+        urls: requestUrls,
+        langEn,
+        langNative,
+        nativeLang,
+        tone,
+        intent,
+        includeAlternates,
+      };
+      const record: RunRecord = {
+        id: rid,
+        at: Date.now(),
+        request,
+        results,
+        okCount,
+        failedCount,
+      };
+
+      setRuns((prev) => [record, ...prev.filter((r) => r.id !== record.id)].slice(0, 20));
+      lsSet(LS.lastRunResult, record.id);
+      lsSet(LS.dismissResume, "");
       setStage("done");
     } catch (e: any) {
       const msg = e?.message || "Unknown error";
@@ -140,13 +216,13 @@ export default function Home() {
 
       // If backend gate is enabled and we didn't send a token, show gate automatically.
       if (String(msg).includes("403") && String(msg).includes("missing_access")) {
-        setGateOpen(true);
+        setSignupOpen(true);
       }
     } finally {
       clearTimers();
       setLoading(false);
       // return to idle after a short moment
-      window.setTimeout(() => setStage("idle"), 900);
+      window.setTimeout(() => setStage("idle"), 1600);
     }
   }
 
@@ -176,20 +252,85 @@ export default function Home() {
     await run(failedUrls);
   }
 
+  // Resume banner selection
+  useEffect(() => {
+    const lastId = lsGet(LS.lastRunResult, "");
+    const dismissed = lsGet(LS.dismissResume, "");
+    if (!lastId) {
+      setResumeCandidate(null);
+      return;
+    }
+    if (dismissed && dismissed === lastId) {
+      setResumeCandidate(null);
+      return;
+    }
+    const found = runs.find((r) => r.id === lastId) || null;
+    setResumeCandidate(found);
+  }, [runs]);
+
+  function resumeLastRun() {
+    if (!resumeCandidate) return;
+    const r = resumeCandidate;
+    setRaw(r.request.urls.join("\n"));
+    setLangEn(r.request.langEn);
+    setLangNative(r.request.langNative);
+    setNativeLang(r.request.nativeLang);
+    setTone(r.request.tone);
+    setIntent(r.request.intent);
+    setIncludeAlternates(r.request.includeAlternates);
+    setItems(r.results);
+    setRunId(r.id);
+    setError("");
+    setResumeCandidate(null);
+    lsSet(LS.dismissResume, r.id);
+  }
+
+  function dismissResume() {
+    if (!resumeCandidate) return;
+    lsSet(LS.dismissResume, resumeCandidate.id);
+    setResumeCandidate(null);
+  }
+
+  function onCopied(text: string, url?: string) {
+    const rec: ClipboardRecord = {
+      id: nowId("clip"),
+      at: Date.now(),
+      url,
+      text,
+    };
+    setClipboard((prev) => [rec, ...prev].slice(0, 30));
+  }
+
+  function logout() {
+    try {
+      localStorage.removeItem(LS.user);
+      localStorage.removeItem(LS.token);
+    } catch {}
+    setUser(null);
+    setToken("");
+  }
+
   return (
     <div className="min-h-screen">
-      <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} />
+      <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
 
-      <AccessGate
-        open={gateOpen}
+      <SignupGate
+        open={signupOpen}
         baseUrl={baseUrl}
-        onClose={() => setGateOpen(false)}
-        onToken={(t) => setToken(t)}
+        onClose={() => setSignupOpen(false)}
+        onAuthed={(profile, t) => {
+          setUser(profile);
+          setToken(t);
+        }}
       />
 
       <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+        {resumeCandidate && !items.length ? (
+          <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
+        ) : null}
+
         <motion.div
-          className="grid gap-6 md:grid-cols-2"
+          className="grid gap-6 lg:grid-cols-2"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
@@ -218,7 +359,6 @@ export default function Home() {
               includeAlternates={includeAlternates}
               setIncludeAlternates={setIncludeAlternates}
               baseUrl={baseUrl}
-              setBaseUrl={setBaseUrl}
               onGenerate={onGenerate}
               loading={loading}
             />
@@ -233,6 +373,12 @@ export default function Home() {
           onRerollUrl={rerollUrl}
           onRetryFailed={retryFailedOnly}
           failedCount={failedUrls.length}
+          onClear={() => {
+            setItems([]);
+            setRunId("");
+            setError("");
+          }}
+          onCopy={onCopied}
         />
 
         {error ? (
@@ -240,7 +386,36 @@ export default function Home() {
             {error}
           </div>
         ) : null}
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <RunHistoryPanel
+            runs={runs}
+            onLoad={(id) => {
+              const r = runs.find((x) => x.id === id);
+              if (!r) return;
+              setRaw(r.request.urls.join("\n"));
+              setLangEn(r.request.langEn);
+              setLangNative(r.request.langNative);
+              setNativeLang(r.request.nativeLang);
+              setTone(r.request.tone);
+              setIntent(r.request.intent);
+              setIncludeAlternates(r.request.includeAlternates);
+              setItems(r.results);
+              setRunId(r.id);
+              setError("");
+            }}
+            onRemove={(id) => setRuns((prev) => prev.filter((r) => r.id !== id))}
+            onClear={() => setRuns([])}
+          />
+
+          <ClipboardHistoryPanel
+            items={clipboard}
+            onClear={() => setClipboard([])}
+          />
+        </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
