@@ -2,7 +2,8 @@
 
 import clsx from "clsx";
 import { useMemo } from "react";
-import { classifyLines, parseUrls } from "@/lib/validate";
+import { toast } from "sonner";
+import { classifyLines, parseUrls, extractUrlsAll, normalizeXUrl } from "@/lib/validate";
 import UrlScanner from "@/components/UrlScanner";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -37,6 +38,48 @@ export default function UrlInput({
     return lineInfo.filter((x) => x.line.trim().length > 0 && x.urls.length === 0).length;
   }, [lineInfo]);
 
+  const duplicates = useMemo(() => {
+    const all = extractUrlsAll(value);
+    const counts = new Map<string, number>();
+    for (const u of all) {
+      const key = normalizeXUrl(u);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const dups = [...counts.entries()].filter(([,n]) => n > 1).map(([k,n]) => ({ url: k, count: n }));
+    dups.sort((a,b) => b.count - a.count);
+    return dups;
+  }, [value]);
+
+  const invalidExamples = useMemo(() => {
+    const out: string[] = [];
+    for (const x of lineInfo) {
+      const t = x.line.trim();
+      if (!t) continue;
+      if (x.urls.length === 0) out.push(t);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [lineInfo]);
+
+  const nonStatusXLinks = useMemo(() => {
+    const out: string[] = [];
+    const re = /(https?:\/\/[^\s]+)/g;
+    const s = String(value || "");
+    for (const m of s.matchAll(re)) {
+      const u = String(m[1] || "");
+      const lower = u.toLowerCase();
+      const isX = lower.includes("x.com") || lower.includes("twitter.com");
+      const isStatus = /\/status\/\d+/.test(lower) || /x\.com\/i\/status\/\d+/.test(lower);
+      if (isX && !isStatus) {
+        const clean = u.replace(/[)\]\},]+$/, "");
+        if (!out.includes(clean)) out.push(clean);
+      }
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [value]);
+
+
   const hasAny = urls.length > 0 || invalidLines > 0;
 
   return (
@@ -49,7 +92,7 @@ export default function UrlInput({
 
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
-            onClick={onCleanInvalid}
+            onClick={() => { onCleanInvalid?.(); toast.success("Cleaned invalid lines"); }}
             className={clsx("ct-btn ct-btn-sm", !hasAny ? "opacity-50 cursor-not-allowed" : "")}
             disabled={!hasAny}
             title="Remove invalid lines and keep only valid URLs"
@@ -57,7 +100,7 @@ export default function UrlInput({
             Clean invalid
           </button>
           <button
-            onClick={onSort}
+            onClick={() => { onSort?.(); toast.success("Sorted URLs"); }}
             className={clsx("ct-btn ct-btn-sm", urls.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
             disabled={urls.length < 2}
             title="Sort URLs A → Z"
@@ -65,7 +108,7 @@ export default function UrlInput({
             Sort A–Z
           </button>
           <button
-            onClick={onShuffle}
+            onClick={() => { onShuffle?.(); toast.success("Shuffled URLs"); }}
             className={clsx("ct-btn ct-btn-sm", urls.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
             disabled={urls.length < 2}
             title="Shuffle URL order"
@@ -112,6 +155,55 @@ export default function UrlInput({
           </span>
         </div>
       </div>
+
+
+      {(duplicates.length || invalidLines || nonStatusXLinks.length) ? (
+        <div className={clsx("mt-3 rounded-2xl border p-3", "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]")}>
+          <div className="text-xs font-semibold tracking-tight">Validation</div>
+          <div className="mt-1 text-[11px] opacity-70">We'll only process valid X post URLs. Fix the items below for best results.</div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+              <div className="text-[11px] font-semibold">Duplicates</div>
+              {duplicates.length ? (
+                <div className="mt-2 space-y-1">
+                  {duplicates.slice(0,3).map((d) => (
+                    <div key={d.url} className="text-[11px] opacity-80 break-all">{d.count}× {d.url}</div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-60">None</div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+              <div className="text-[11px] font-semibold">Invalid lines</div>
+              {invalidLines ? (
+                <div className="mt-2 space-y-1">
+                  {invalidExamples.map((t, i) => (
+                    <div key={i} className="text-[11px] opacity-80 truncate" title={t}>{t}</div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-60">None</div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+              <div className="text-[11px] font-semibold">Non-post X links</div>
+              {nonStatusXLinks.length ? (
+                <div className="mt-2 space-y-1">
+                  {nonStatusXLinks.map((u) => (
+                    <div key={u} className="text-[11px] opacity-80 truncate" title={u}>{u}</div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-60">None</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* URL queue preview chips */}
       <div

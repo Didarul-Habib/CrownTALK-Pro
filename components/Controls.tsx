@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import PremiumButton from "@/components/PremiumButton";
 import { Ban, Eraser, Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone } from "@/lib/types";
 
@@ -60,16 +61,16 @@ export default function Controls({
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">Controls</div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <button
+          <PremiumButton
             onClick={onGenerate}
             disabled={loading}
-            className={clsx("ct-btn ct-btn-primary", loading ? "opacity-70 cursor-not-allowed" : "")}
+            className={clsx("ct-btn-primary", loading ? "opacity-70 cursor-not-allowed" : "")}
           >
             <Wand2 className="h-4 w-4 opacity-80" />
             {loading ? "Generating…" : "Generate"}
-          </button>
+          </PremiumButton>
 
-          <button
+          <PremiumButton
             type="button"
             onClick={onCancel}
             disabled={!loading}
@@ -82,9 +83,9 @@ export default function Controls({
           >
             <Ban className="h-4 w-4 opacity-80" />
             Cancel
-          </button>
+          </PremiumButton>
 
-          <button
+          <PremiumButton
             type="button"
             onClick={onClear}
             disabled={!!clearDisabled || loading}
@@ -96,7 +97,7 @@ export default function Controls({
           >
             <Eraser className="h-4 w-4 opacity-80" />
             Clear
-          </button>
+          </PremiumButton>
         </div>
       </div>
 

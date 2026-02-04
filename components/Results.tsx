@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Menu, Trash2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import type { ResultItem } from "@/lib/types";
 import ResultCard from "./ResultCard";
 
@@ -31,6 +32,7 @@ export default function Results({
   failedCount,
   onClear,
   onCopy,
+  loading,
 }: {
   items: ResultItem[];
   runId: string;
@@ -39,10 +41,30 @@ export default function Results({
   failedCount: number;
   onClear?: () => void;
   onCopy?: (text: string, url?: string) => void;
+  loading?: boolean;
 }) {
   if (!items.length) {
+    if (loading) {
+      return (
+        <div id="ct-results" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
+          <div className="text-sm font-semibold tracking-tight">Results</div>
+          <div className="mt-1 text-xs opacity-70">Generating…</div>
+
+          <div className="mt-4 space-y-3">
+            {[0,1,2].map((i) => (
+              <div key={i} className="ct-skeleton rounded-[var(--ct-radius)] p-4">
+                <div className="h-3 w-2/5 rounded-full bg-white/10" />
+                <div className="mt-3 h-8 rounded-2xl bg-white/10" />
+                <div className="mt-2 h-8 rounded-2xl bg-white/10" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-6 text-sm opacity-70 backdrop-blur-xl">
+      <div id="ct-results" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-6 text-sm opacity-70 backdrop-blur-xl">
         Results will appear here.
       </div>
     );
@@ -88,7 +110,7 @@ export default function Results({
   const failedUrlsText = useMemo(() => failedItems.map((i) => i.url).join("\n"), [failedItems]);
 
   return (
-    <div className="space-y-4">
+    <div id="ct-results" className="space-y-4">
       <div
         className={clsx(
           "relative z-30 overflow-visible",
@@ -122,7 +144,7 @@ export default function Results({
               type="button"
               className="ct-btn ct-btn-sm"
               onClick={() => setMenuOpen((v) => !v)}
-              title="Run menu"
+              title="Run menu" aria-label="Run menu"
             >
               <Menu className="h-4 w-4 opacity-80" />
               Menu
@@ -141,6 +163,7 @@ export default function Results({
                     label="Copy all comments"
                     onClick={() => {
                       copyText(allCommentsText || "");
+                      toast.success("Copied all comments");
                       setMenuOpen(false);
                     }}
                     disabled={!allCommentsText}
@@ -150,6 +173,7 @@ export default function Results({
                     label="Download .txt"
                     onClick={() => {
                       downloadTxt("crowntalk-comments.txt", exportText || "");
+                      toast.success("Downloaded .txt");
                       setMenuOpen(false);
                     }}
                     disabled={!exportText}
@@ -162,6 +186,7 @@ export default function Results({
                     label="Copy all URLs"
                     onClick={() => {
                       copyText(allUrlsText);
+                      toast.success("Copied all URLs");
                       setMenuOpen(false);
                     }}
                     disabled={!items.length}
@@ -171,6 +196,7 @@ export default function Results({
                     label="Copy failed URLs"
                     onClick={() => {
                       copyText(failedUrlsText);
+                      toast.success("Copied failed URLs");
                       setMenuOpen(false);
                     }}
                     disabled={!failedItems.length}
@@ -185,6 +211,7 @@ export default function Results({
                         danger
                         onClick={() => {
                           onClear();
+                          toast("Cleared results");
                           setMenuOpen(false);
                         }}
                       />
@@ -235,7 +262,7 @@ export default function Results({
                     <button
                       type="button"
                       className="ct-btn ct-btn-xs"
-                      onClick={() => copyText(f.url)}
+                      onClick={() => { copyText(f.url); toast.success("Copied URL"); }}
                     >
                       <Copy className="h-4 w-4 opacity-80" />
                       Copy
