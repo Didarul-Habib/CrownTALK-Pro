@@ -1,0 +1,47 @@
+import type { Intent, ResultItem, Tone } from "./types";
+
+export type UserProfile = {
+  name: string;
+  xUrl: string;
+  // Stored as a SHA-256 hex digest when available.
+  // This is NOT a replacement for real server-side auth.
+  passwordHash: string;
+  createdAt: number;
+};
+
+export type RunRequestSnapshot = {
+  urls: string[];
+  langEn: boolean;
+  langNative: boolean;
+  nativeLang: string;
+  tone: Tone;
+  intent: Intent;
+  includeAlternates: boolean;
+};
+
+export type RunRecord = {
+  id: string;
+  at: number;
+  request: RunRequestSnapshot;
+  results: ResultItem[];
+  okCount: number;
+  failedCount: number;
+};
+
+export type ClipboardRecord = {
+  id: string;
+  at: number;
+  url?: string;
+  text: string;
+};
+
+export function nowId(prefix = "ct") {
+  // 12 chars base36 is plenty for client-side ids.
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${Date.now().toString(36)}_${rand}`;
+}
+
+export function safeTrim(s: string, max = 240) {
+  const t = (s || "").trim();
+  return t.length > max ? t.slice(0, max - 1) + "…" : t;
+}

@@ -1,4 +1,5 @@
-export type Tone = "professional" | "neutral" | "playful";
+// Keep this aligned with the UI + backend prompt options.
+export type Tone = "professional" | "casual" | "bold" | "friendly";
 export type Intent = "neutral" | "agree" | "question" | "soft_pushback";
 
 export type GenerateRequest = {
