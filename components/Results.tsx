@@ -26,7 +26,7 @@ export default function Results({
     );
   }
 
-  const okCount = items.filter((i) => i.ok).length;
+  const okCount = items.filter((i) => i.status === "ok").length;
 
   return (
     <div className="space-y-4">
