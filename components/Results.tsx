@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Menu, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { ResultItem } from "@/lib/types";
+import { detectSpammy, findNearDuplicates } from "@/lib/similarity";
 import ResultCard from "./ResultCard";
-import VirtualResultList from "@/components/VirtualResultList";
 
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -69,14 +69,71 @@ export default function Results({
     }
 
     return (
-      <div id="ct-results" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-6 text-sm opacity-70 backdrop-blur-xl">
-        Results will appear here.
+      <div
+        id="ct-results"
+        className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-6 backdrop-blur-xl"
+      >
+        <div className="text-sm font-semibold tracking-tight">Results</div>
+        <div className="mt-1 text-sm opacity-70">Paste X post URLs, select the ones you want, then hit Generate.</div>
+        <div className="mt-4 ct-card-surface p-4 text-xs opacity-75">
+          Tip: you can paste messy text—CrownTALK will extract valid status links.
+        </div>
       </div>
     );
   }
 
   const okCount = items.filter((i) => i.status === "ok").length;
-  const failedItems = useMemo(() => items.filter((i) => i.status !== "ok"), [items]);
+  const failedItems = useMemo(
+    () => items.filter((i) => i.status !== "ok" && i.status !== "pending"),
+    [items]
+  );
+
+  const primaryPairs = useMemo(() => {
+    return items
+      .filter((i) => i.status === "ok")
+      .map((i) => ({ url: i.url, text: i.comments?.[0]?.text || "" }))
+      .filter((p) => p.text.trim());
+  }, [items]);
+
+  const similarMap = useMemo(() => {
+    // Tune threshold for X replies: high similarity means “reads the same”.
+    return findNearDuplicates(primaryPairs, 0.84);
+  }, [primaryPairs]);
+
+  const spamMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const it of items) {
+      if (it.status !== "ok") continue;
+      const t = it.comments?.[0]?.text || "";
+      const reason = detectSpammy(t);
+      if (reason) m.set(it.url, reason);
+    }
+    return m;
+  }, [items]);
+
+  const similarCount = similarMap.size;
+  const [hideNearDuplicates, setHideNearDuplicates] = useState(false);
+
+  const hideSet = useMemo(() => {
+    if (!hideNearDuplicates) return new Set<string>();
+    const toHide = new Set<string>();
+    let keptOne = false;
+    for (const it of items) {
+      if (it.status !== "ok") continue;
+      if (!similarMap.has(it.url)) continue;
+      if (!keptOne) {
+        keptOne = true;
+        continue;
+      }
+      toHide.add(it.url);
+    }
+    return toHide;
+  }, [hideNearDuplicates, items, similarMap]);
+
+  const displayItems = useMemo(() => {
+    if (!hideNearDuplicates) return items;
+    return items.filter((it) => !hideSet.has(it.url));
+  }, [hideNearDuplicates, items, hideSet]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -234,6 +291,40 @@ export default function Results({
         </div>
       </div>
 
+      {(similarCount || spamMap.size) && !loading ? (
+        <div className={clsx("ct-card", "p-4")}>
+          <div className="text-sm font-semibold tracking-tight">Quality checks</div>
+          <div className="mt-1 text-xs opacity-70">
+            {similarCount ? (
+              <span>
+                {similarCount} reply{similarCount === 1 ? "" : "ies"} look very similar across different URLs.
+              </span>
+            ) : null}
+            {similarCount && spamMap.size ? <span> • </span> : null}
+            {spamMap.size ? (
+              <span>
+                {spamMap.size} reply{spamMap.size === 1 ? "" : "ies"} might read as spammy.
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-3 text-xs opacity-70">
+            Tip: reroll flagged cards or tweak tone/intent to increase variety.
+          </div>
+          {similarCount ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={clsx("ct-btn ct-btn-xs", hideNearDuplicates ? "ct-btn-primary" : "")}
+                onClick={() => setHideNearDuplicates((v) => !v)}
+              >
+                {hideNearDuplicates ? "Showing uniques" : "Hide near-duplicates"}
+              </button>
+              <span className="text-xs opacity-70">(keeps the first, hides the rest)</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {failedItems.length ? (
         <div className={clsx("ct-card", "p-4")}
         >
@@ -285,8 +376,26 @@ export default function Results({
         </div>
       ) : null}
 
-      {/* Virtualized list for performance on large runs */}
-      <VirtualResultList items={items} onRerollUrl={onRerollUrl} onCopy={onCopy} />
+      {displayItems.map((it, idx) => {
+        const sim = similarMap.get(it.url);
+        const spam = spamMap.get(it.url) || null;
+        return (
+        <motion.div
+          key={it.url}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: idx * 0.03 }}
+        >
+          <ResultCard
+            item={it}
+            onReroll={() => onRerollUrl(it.url)}
+            onCopy={onCopy}
+            warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
+            warnSpam={spam}
+          />
+        </motion.div>
+        );
+      })}
     </div>
   );
 }

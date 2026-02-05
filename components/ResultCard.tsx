@@ -17,10 +17,14 @@ export default function ResultCard({
   item,
   onReroll,
   onCopy,
+  warnSimilar,
+  warnSpam,
 }: {
   item: ResultItem;
   onReroll: () => void;
   onCopy?: (text: string, url?: string) => void;
+  warnSimilar?: { score: number; withUrl?: string } | null;
+  warnSpam?: string | null;
 }) {
   const [copiedKey, setCopiedKey] = useState<string>("");
   const timerRef = useRef<number | null>(null);
@@ -49,13 +53,49 @@ export default function ResultCard({
           <ExternalLink className="h-4 w-4 opacity-70" />
           {item.url}
         </a>
-        <button type="button" className="ct-btn ct-btn-xs" onClick={onReroll}>
+        <button
+          type="button"
+          className="ct-btn ct-btn-xs"
+          onClick={onReroll}
+          aria-label="Reroll this URL"
+        >
           <RotateCcw className="h-4 w-4 opacity-80" />
           Reroll
         </button>
       </div>
 
-      {item.status !== "ok" ? (
+      {(warnSimilar || warnSpam) && item.status === "ok" ? (
+        <div className="flex flex-wrap gap-2">
+          {warnSimilar ? (
+            <span
+              className="ct-chip text-[11px] border border-yellow-400/30 bg-yellow-400/10 text-yellow-100"
+              title={warnSimilar.withUrl ? `Similar to: ${warnSimilar.withUrl}` : "Looks similar to another reply"}
+            >
+              Similar ({Math.round(warnSimilar.score * 100)}%)
+            </span>
+          ) : null}
+          {warnSpam ? (
+            <span
+              className="ct-chip text-[11px] border border-red-400/30 bg-red-400/10 text-red-100"
+              title={warnSpam}
+            >
+              Might feel spammy
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {item.status === "pending" ? (
+        <div className="space-y-2">
+          <div className="ct-skeleton rounded-2xl p-3">
+            <div className="h-3 w-1/3 rounded-full bg-white/10" />
+            <div className="mt-3 h-8 rounded-2xl bg-white/10" />
+            <div className="mt-2 h-8 rounded-2xl bg-white/10" />
+          </div>
+        </div>
+      ) : null}
+
+      {item.status !== "ok" && item.status !== "pending" ? (
         <div className="text-sm">
           <span className="inline-flex items-center rounded-full px-2 py-1 text-xs mr-2 border border-[color:var(--ct-border)] bg-white/5">
             {String(item.status).toUpperCase()}
@@ -64,7 +104,9 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {item.comments?.map((c, idx) => {
+	      {item.status === "pending" ? null : (
+	        <>
+	          {item.comments?.map((c, idx) => {
         const key = `c-${idx}`;
         const isCopied = copiedKey === key;
         return (
@@ -144,7 +186,9 @@ export default function ResultCard({
           ) : null}
         </div>
       );
-      })}
+	          })}
+	        </>
+	      )}
     </div>
   );
 }
