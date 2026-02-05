@@ -112,21 +112,10 @@ export default function UrlInput({
 
   const hasAny = urls.length > 0 || invalidLines > 0;
 
-  function toggle(u: string) {
-    if (!onSelectedChange) return;
-    const next = new Set(selectedSet);
-    if (next.has(u)) next.delete(u);
-    else next.add(u);
-    onSelectedChange([...next]);
-  }
-
-  function selectAll() {
-    onSelectedChange?.([...urls]);
-  }
-
-  function selectNone() {
-    onSelectedChange?.([]);
-  }
+  const selectedValidCount = useMemo(() => {
+    const current = selected ?? urls;
+    return current.filter((u) => urls.includes(u)).length;
+  }, [selected, urls]);
 
   function removeDuplicates() {
     const all = [...urls];
@@ -263,6 +252,16 @@ export default function UrlInput({
             >
               Clear
             </button>
+
+            <button
+              type="button"
+              className={clsx("ct-btn ct-btn-sm", duplicates.length ? "" : "opacity-50 cursor-not-allowed")}
+              disabled={!duplicates.length}
+              onClick={removeDuplicates}
+              title="Remove duplicate URLs from the input"
+            >
+              Remove dups
+            </button>
           </div>
         </div>
 
@@ -270,17 +269,18 @@ export default function UrlInput({
           <div className="mt-3 max-h-[220px] overflow-auto pr-1">
             <div className="space-y-2">
               {inbox.slice(0, 60).map((row) => {
-                const checked = selectedSet.has(row.url);
+                const checked = row.valid && selectedSet.has(row.url);
                 return (
                   <label key={row.url} className={clsx(
                     "flex items-start gap-3 rounded-2xl border px-3 py-2",
                     "border-white/10 bg-black/10",
-                    row.valid ? "" : "border-red-500/25"
+                    row.valid ? "" : "border-red-500/25 opacity-70"
                   )}>
                     <input
                       type="checkbox"
                       className="mt-0.5 accent-white"
                       checked={checked}
+                      disabled={!row.valid}
                       onChange={(e) => {
                         const next = new Set(selectedSet);
                         if (e.target.checked) next.add(row.url);
@@ -331,7 +331,7 @@ export default function UrlInput({
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] opacity-70">
           <div>
-            Selected: <span className="font-semibold text-white/90">{selectedSet.size}</span> / {urls.length} valid
+            Selected: <span className="font-semibold text-white/90">{selectedValidCount}</span> / {urls.length} valid
           </div>
           <div className="hidden sm:block">Tip: paste messy text — we extract links automatically.</div>
         </div>
@@ -386,97 +386,6 @@ export default function UrlInput({
         </div>
       ) : null}
 
-      {/* URL Inbox (parsing preview + selection) */}
-      <div
-        className={clsx(
-          "mt-3 rounded-2xl border p-3",
-          "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]"
-        )}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-xs font-semibold tracking-tight">URL Inbox</div>
-            <div className="text-[11px] opacity-70">Preview parsed URLs from your paste. Toggle what gets generated.</div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="ct-btn ct-btn-sm"
-              onClick={selectAll}
-              disabled={!urls.length}
-              title="Select all valid URLs"
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              className="ct-btn ct-btn-sm"
-              onClick={selectNone}
-              disabled={!urls.length}
-              title="Deselect all"
-            >
-              Select none
-            </button>
-            <button
-              type="button"
-              className="ct-btn ct-btn-sm"
-              onClick={removeDuplicates}
-              disabled={duplicates.length === 0}
-              title="Remove duplicate URLs"
-            >
-              Remove dups
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-3 max-h-[240px] overflow-auto rounded-2xl border border-white/10 bg-black/10">
-          {inbox.length ? (
-            <div className="divide-y divide-white/10">
-              {inbox.map((it) => {
-                const checked = selectedSet.has(it.url) && it.valid;
-                return (
-                  <label
-                    key={it.url}
-                    className={clsx(
-                      "flex items-start gap-3 px-3 py-2 cursor-pointer",
-                      it.valid ? "hover:bg-white/5" : "opacity-60"
-                    )}
-                    title={it.url}
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={checked}
-                      onChange={() => toggle(it.url)}
-                      disabled={!it.valid}
-                      aria-label={it.valid ? "Toggle URL" : "Invalid URL"}
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] break-all opacity-90">{it.url}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] opacity-70">
-                        <span className={clsx("rounded-full border px-2 py-0.5", it.valid ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10")}> 
-                          {it.valid ? "Post" : "Not a post"}
-                        </span>
-                        {it.duplicateCount > 1 ? (
-                          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5">{it.duplicateCount}× duplicate</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-3 text-xs opacity-70">Paste links above — we’ll extract them into your inbox automatically.</div>
-          )}
-        </div>
-
-        <div className="mt-2 text-[11px] opacity-70">
-          Selected: <span className="font-semibold">{[...selectedSet].filter((u) => urls.includes(u)).length}</span> / {urls.length} valid
-        </div>
-      </div>
     </div>
   );
 }

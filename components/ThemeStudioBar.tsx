@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { motion } from "framer-motion";
 
@@ -24,12 +24,13 @@ const THEMES: Array<{
   label: string;
   swatches: [string, string];
 }> = [
-  { id: "neon", label: "Neon", swatches: ["rgba(129,140,248,1)", "rgba(236,72,153,1)"] },
+  // Swatches mirror the actual CSS theme tokens in app/globals.css
+  { id: "neon", label: "Neon", swatches: ["rgba(120,160,255,1)", "rgba(255,110,199,1)"] },
   { id: "aurora", label: "Aurora", swatches: ["rgba(102,255,204,1)", "rgba(120,160,255,1)"] },
   { id: "sakura", label: "Sakura", swatches: ["rgba(255,128,196,1)", "rgba(255,200,120,1)"] },
-  { id: "sunset", label: "Sunset", swatches: ["rgba(255,173,102,1)", "rgba(255,74,111,1)"] },
-  { id: "matrix", label: "Matrix", swatches: ["rgba(34,197,94,1)", "rgba(16,185,129,1)"] },
-  { id: "midnight", label: "Midnight", swatches: ["rgba(96,165,250,1)", "rgba(99,102,241,1)"] },
+  { id: "sunset", label: "Sunset", swatches: ["rgba(255,170,80,1)", "rgba(255,90,160,1)"] },
+  { id: "matrix", label: "Matrix", swatches: ["rgba(64,255,140,1)", "rgba(80,220,255,1)"] },
+  { id: "midnight", label: "Midnight", swatches: ["rgba(130,120,255,1)", "rgba(90,255,220,1)"] },
   { id: "mono", label: "Mono", swatches: ["rgba(230,230,230,1)", "rgba(160,160,160,1)"] },
 
   // Premium extras
@@ -48,10 +49,38 @@ export default function ThemeStudioBar({
   value: ThemeId;
   onChange: (t: ThemeId) => void;
 }) {
-  const idx = useMemo(() => {
-    const i = THEMES.findIndex((t) => t.id === value);
-    return i < 0 ? 0 : i;
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const btnRefs = useRef<Record<ThemeId, HTMLButtonElement | null>>({} as any);
+  const [slider, setSlider] = useState<{ x: number; w: number }>(() => ({ x: 0, w: 110 }));
+
+  const measure = useCallback(() => {
+    const rail = railRef.current;
+    const btn = btnRefs.current[value];
+    if (!rail || !btn) return;
+    // `offsetLeft` is relative to the offsetParent (the rail container).
+    const x = btn.offsetLeft;
+    const w = btn.offsetWidth;
+    setSlider({ x, w });
   }, [value]);
+
+  useLayoutEffect(() => {
+    // Measure after layout so the active pill always aligns correctly.
+    measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  useEffect(() => {
+    // Re-measure on resize (mobile rotation / desktop window changes).
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+
+    // Also re-measure when fonts finish loading (affects button widths).
+    const anyDoc = document as any;
+    const fontPromise: Promise<any> | undefined = anyDoc?.fonts?.ready;
+    fontPromise?.then(() => measure()).catch(() => {});
+
+    return () => window.removeEventListener("resize", onResize);
+  }, [measure]);
 
   // keyboard: ctrl+arrow left/right cycles themes (desktop power feature)
   useEffect(() => {
@@ -78,6 +107,7 @@ export default function ThemeStudioBar({
       */}
       <div className="ct-scroll-x max-w-full">
         <div
+          ref={railRef}
           className={clsx(
             "relative flex min-w-max items-center gap-2 rounded-2xl border px-2 py-2",
             "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)]",
@@ -86,16 +116,16 @@ export default function ThemeStudioBar({
         >
         {/* Active slider */}
         <motion.div
-          className="absolute top-1 bottom-1 rounded-2xl border"
+          className="pointer-events-none absolute top-1 bottom-1 left-0 rounded-2xl border"
           style={{
-            width: 110,
             borderColor: "rgba(255,255,255,.10)",
             background: "rgba(255,255,255,.06)",
             boxShadow: "0 10px 40px rgba(0,0,0,.35)",
           }}
           initial={false}
           animate={{
-            x: Math.max(0, idx) * 114,
+            x: slider.x,
+            width: slider.w,
           }}
           transition={{ type: "spring", stiffness: 420, damping: 36 }}
         />
@@ -106,6 +136,9 @@ export default function ThemeStudioBar({
             <button
               key={t.id}
               onClick={() => onChange(t.id)}
+              ref={(el) => {
+                btnRefs.current[t.id] = el;
+              }}
               className={clsx(
                 "relative z-10 flex w-[110px] items-center justify-between gap-2 rounded-2xl px-3 py-2",
                 "transition",

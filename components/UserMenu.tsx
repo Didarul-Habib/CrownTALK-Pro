@@ -60,7 +60,10 @@ export default function UserMenu({
       {open ? (
         <div
           className={clsx(
-            "absolute right-0 mt-2 w-72 overflow-hidden rounded-3xl border shadow-2xl",
+            // Mobile: prefer opening to the right so the panel doesn't go off-screen.
+            // Desktop: anchor to the right edge of the trigger.
+            "absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 max-w-[calc(100vw-2rem)]",
+            "max-h-[calc(100vh-6.5rem)] overflow-auto rounded-3xl border shadow-2xl z-50",
             "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)] backdrop-blur-xl"
           )}
         >

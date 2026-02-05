@@ -39,10 +39,14 @@ export default function TopBar({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <div className="relative font-semibold tracking-tight ct-brand">
-                CrownTALK
+              <div className="relative">
+                <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
+                {/*
+                  NOTE: this badge must *not* inherit ct-brand's transparent text color.
+                  Keep it outside the gradient text node + explicitly set a readable color.
+                */}
                 <span
-                  className="ct-badge-pro absolute -top-2 -right-5 rounded-full border border-white/15 bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide"
+                  className="ct-badge-pro absolute -top-2 -right-5 rounded-full border border-white/15 bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-white/90"
                   aria-label="CrownTALK Pro"
                 >
                   PRO

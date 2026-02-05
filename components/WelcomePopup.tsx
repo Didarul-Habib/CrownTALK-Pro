@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MOTION } from "@/lib/motion";
+import { LS, lsGetJson } from "@/lib/storage";
+import type { UserProfile } from "@/lib/persist";
 
 const LS_KEY = "ct_welcome_bd_day_v1";
 const TZ = "Asia/Dhaka";
@@ -58,6 +60,7 @@ function bdDayKey(now: Date): string {
 
 export default function WelcomePopup() {
   const [open, setOpen] = useState(false);
+  const [name, setName] = useState<string>("");
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -70,6 +73,17 @@ export default function WelcomePopup() {
       }
     } catch {
       // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    // Optional personalization (uses cached profile, no network).
+    try {
+      const u = lsGetJson<UserProfile | null>(LS.user, null);
+      const first = (u?.name || "").trim().split(/\s+/)[0] || "";
+      setName(first);
+    } catch {
+      setName("");
     }
   }, []);
 
@@ -110,9 +124,15 @@ export default function WelcomePopup() {
             <div className="relative">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold tracking-tight">Welcome back 👋</div>
+                  <div className="text-sm font-semibold tracking-tight">
+                    {(() => {
+                      const h = bdParts(new Date()).h;
+                      const g = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+                      return name ? `${g}, ${name} 👋` : `${g} 👋`;
+                    })()}
+                  </div>
                   <div className="mt-1 text-xs opacity-70">
-                    Daily reset happens at <span className="font-semibold">6:00 AM</span> Bangladesh time.
+                    Paste X post URLs, choose your style, and hit <span className="font-semibold">Generate</span>.
                   </div>
                 </div>
                 <button
@@ -121,12 +141,8 @@ export default function WelcomePopup() {
                   onClick={() => setOpen(false)}
                   aria-label="Close welcome"
                 >
-                  Close
+                  Start
                 </button>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm opacity-90">
-                Tip: paste multiple X post URLs at once. We will auto-detect, validate, and generate premium comments.
               </div>
             </div>
           </motion.div>
