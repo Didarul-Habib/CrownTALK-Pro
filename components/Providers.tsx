@@ -5,10 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import { getUiLang, type UiLang } from "@/lib/uiLanguage";
 import { initAnalytics } from "@/lib/analytics";
+import SplashScreen from "@/components/SplashScreen";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [uiLang, setUiLangState] = useState<UiLang>("en");
   const [messages, setMessages] = useState<any>(null);
+  const [showSplash, setShowSplash] = useState(false);
 
   const queryClient = useMemo(
     () =>
@@ -24,6 +27,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initAnalytics();
     setUiLangState(getUiLang());
+    // Premium refresh splash (once per hard-load)
+    try {
+      const seen = sessionStorage.getItem("ct_splash_seen");
+      if (!seen) {
+        setShowSplash(true);
+        sessionStorage.setItem("ct_splash_seen", "1");
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -55,6 +66,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <NextIntlClientProvider locale={uiLang} messages={messages}>
+        <SplashScreen show={showSplash} onDone={() => setShowSplash(false)} />
+        <InstallPrompt />
         {children}
       </NextIntlClientProvider>
     </QueryClientProvider>

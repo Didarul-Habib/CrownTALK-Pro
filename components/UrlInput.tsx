@@ -15,6 +15,20 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function domainOf(u: string) {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function faviconFor(u: string) {
+  const d = domainOf(u);
+  // Simple, CORS-safe favicon endpoint.
+  return d ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : "";
+}
+
 export default function UrlInput({
   value,
   onChange,
@@ -24,6 +38,10 @@ export default function UrlInput({
   onSort,
   onCleanInvalid,
   onShuffle,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -33,6 +51,10 @@ export default function UrlInput({
   onSort?: () => void;
   onCleanInvalid?: () => void;
   onShuffle?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }) {
   const urls = useMemo(() => parseUrls(value), [value]);
   const lineInfo = useMemo(() => classifyLines(value), [value]);
@@ -141,6 +163,22 @@ export default function UrlInput({
 
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
+            onClick={() => onUndo?.()}
+            className={clsx("ct-btn ct-btn-sm", !canUndo ? "opacity-50 cursor-not-allowed" : "")}
+            disabled={!canUndo}
+            title="Undo"
+          >
+            Undo
+          </button>
+          <button
+            onClick={() => onRedo?.()}
+            className={clsx("ct-btn ct-btn-sm", !canRedo ? "opacity-50 cursor-not-allowed" : "")}
+            disabled={!canRedo}
+            title="Redo"
+          >
+            Redo
+          </button>
+          <button
             onClick={() => { onCleanInvalid?.(); toast.success("Cleaned invalid lines"); }}
             className={clsx("ct-btn ct-btn-sm", !hasAny ? "opacity-50 cursor-not-allowed" : "")}
             disabled={!hasAny}
@@ -178,6 +216,32 @@ export default function UrlInput({
         placeholder="https://x.com/i/status/1234567890"
         spellCheck={false}
       />
+
+      {/* Smart preview chips (favicon + domain) */}
+      {urls.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {urls.slice(0, 18).map((u) => {
+            let host = "x.com";
+            try { host = new URL(u).hostname.replace(/^www\./, ""); } catch {}
+            const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+            return (
+              <span
+                key={u}
+                className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px]"
+                style={{ borderColor: "var(--ct-border)", background: "rgba(255,255,255,.04)" }}
+                title={u}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={favicon} alt="" className="h-4 w-4 rounded-sm" />
+                <span className="max-w-[180px] truncate opacity-90">{host}</span>
+              </span>
+            );
+          })}
+          {urls.length > 18 ? (
+            <span className="text-[11px] opacity-60 self-center">+{urls.length - 18} more</span>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-2 flex items-center justify-between gap-3">
         <div className="text-xs opacity-70">{helper ?? " "}</div>
@@ -262,20 +326,92 @@ export default function UrlInput({
             >
               Remove dups
             </button>
+
+            <button
+              type="button"
+              className={clsx("ct-btn ct-btn-sm", inbox.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
+              disabled={inbox.length < 2}
+              onClick={() => {
+                const grouped = [...inbox]
+                  .map((x) => x.url)
+                  .sort((a, b) => domainOf(a).localeCompare(domainOf(b)) || a.localeCompare(b));
+                onChange(grouped.join("\n"));
+                toast.success("Grouped by domain");
+              }}
+              title="Sort URLs by domain"
+            >
+              Group domains
+            </button>
           </div>
         </div>
+
+        {/* Preview chips */}
+        {inbox.length ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {inbox.slice(0, 24).map((x) => (
+              <span
+                key={x.url}
+                className={clsx(
+                  "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]",
+                  "border-[color:var(--ct-border)] bg-white/5"
+                )}
+                title={x.url}
+              >
+                {faviconFor(x.url) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={faviconFor(x.url)} alt="" className="h-4 w-4 rounded" />
+                ) : null}
+                <span className="opacity-80">{domainOf(x.url) || "link"}</span>
+              </span>
+            ))}
+            {inbox.length > 24 ? <span className="text-[11px] opacity-60">+{inbox.length - 24} more</span> : null}
+          </div>
+        ) : null}
 
         {inbox.length ? (
           <div className="mt-3 max-h-[220px] overflow-auto pr-1">
             <div className="space-y-2">
-              {inbox.slice(0, 60).map((row) => {
+              {inbox.slice(0, 60).map((row, i) => {
                 const checked = row.valid && selectedSet.has(row.url);
                 return (
-                  <label key={row.url} className={clsx(
+                  <label
+                    key={row.url}
+                    draggable={row.valid}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", String(i));
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => {
+                      if (!row.valid) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = Number.parseInt(e.dataTransfer.getData("text/plain") || "-1", 10);
+                      const to = i;
+                      if (!Number.isFinite(from) || from < 0 || from === to) return;
+                      const arr = inbox.map((x) => x.url);
+                      const moved = arr.splice(from, 1)[0];
+                      arr.splice(to, 0, moved);
+                      onChange(arr.join("\n"));
+                      toast("Reordered");
+                    }}
+                    className={clsx(
                     "flex items-start gap-3 rounded-2xl border px-3 py-2",
                     "border-white/10 bg-black/10",
                     row.valid ? "" : "border-red-500/25 opacity-70"
                   )}>
+                    <span
+                      className={clsx(
+                        "mt-0.5 select-none rounded-lg border px-1.5 py-0.5 text-[10px] opacity-70",
+                        "border-white/10 bg-white/5"
+                      )}
+                      title={row.valid ? "Drag to reorder" : "Only valid posts can be reordered"}
+                      aria-hidden
+                    >
+                      ⋮⋮
+                    </span>
                     <input
                       type="checkbox"
                       className="mt-0.5 accent-white"
@@ -292,6 +428,13 @@ export default function UrlInput({
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] break-all opacity-85">{row.url}</div>
                       <div className="mt-0.5 flex flex-wrap gap-2 text-[10px]">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
+                          {faviconFor(row.url) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={faviconFor(row.url)} alt="" className="h-3 w-3 rounded" />
+                          ) : null}
+                          {domainOf(row.url) || ""}
+                        </span>
                         <span className={clsx(
                           "rounded-full border px-2 py-0.5",
                           row.valid ? "border-white/10 bg-white/5" : "border-red-500/25 bg-red-500/10"

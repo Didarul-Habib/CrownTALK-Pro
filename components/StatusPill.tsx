@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { useEffect, useState } from "react";
-import { ping } from "@/lib/api";
+import { pingWithLatency } from "@/lib/api";
 
 export default function StatusPill({ baseUrl }: { baseUrl: string }) {
   const [ok, setOk] = useState<boolean | null>(null);

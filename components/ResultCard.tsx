@@ -17,12 +17,14 @@ export default function ResultCard({
   item,
   onReroll,
   onCopy,
+  onRetry,
   warnSimilar,
   warnSpam,
 }: {
   item: ResultItem;
   onReroll: () => void;
   onCopy?: (text: string, url?: string) => void;
+  onRetry?: () => void;
   warnSimilar?: { score: number; withUrl?: string } | null;
   warnSpam?: string | null;
 }) {
@@ -85,7 +87,46 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {item.status === "pending" ? (
+      
+
+{item.timeline && item.timeline.length ? (
+  <details className="rounded-2xl border border-white/10 bg-black/10 p-3">
+    <summary className="cursor-pointer text-xs opacity-80">Timeline</summary>
+    <div className="mt-2 space-y-1 text-[11px] opacity-80">
+      {item.timeline.slice(-10).map((ev, i) => (
+        <div key={i} className="flex items-center justify-between gap-3">
+          <span className="capitalize">{ev.stage.replace(/_/g, " ")}</span>
+          <span className="font-mono opacity-70">{new Date(ev.at).toLocaleTimeString()}</span>
+        </div>
+      ))}
+    </div>
+  </details>
+) : null}
+
+{(warnSimilar || warnSpam) && item.status === "ok" ? (
+  <details className="rounded-2xl border border-white/10 bg-black/10 p-3">
+    <summary className="cursor-pointer text-xs opacity-80">Why flagged?</summary>
+    <div className="mt-2 space-y-2 text-[11px] opacity-80">
+      {warnSpam ? (
+        <div>
+          <div className="font-semibold">Spam signal</div>
+          <div className="opacity-80">{warnSpam}</div>
+          <div className="mt-1 opacity-70">Tip: reduce clichés, remove excessive praise, add a specific detail from the post.</div>
+        </div>
+      ) : null}
+      {warnSimilar ? (
+        <div>
+          <div className="font-semibold">Similarity signal</div>
+          <div className="opacity-80">
+            This reply is {Math.round(warnSimilar.score * 100)}% similar to another reply{warnSimilar.withUrl ? ` (${warnSimilar.withUrl})` : ""}.
+          </div>
+          <div className="mt-1 opacity-70">Tip: change the opening line, add a unique angle, or ask a different question.</div>
+        </div>
+      ) : null}
+    </div>
+  </details>
+) : null}
+{item.status === "pending" ? (
         <div className="space-y-2">
           <div className="ct-skeleton rounded-2xl p-3">
             <div className="h-3 w-1/3 rounded-full bg-white/10" />

@@ -22,11 +22,13 @@ export default function RunHistoryPanel({
   runs,
   onLoad,
   onRemove,
+  onShare,
   onClear,
 }: {
   runs: RunRecord[];
   onLoad: (id: string) => void;
   onRemove: (id: string) => void;
+  onShare?: (id: string) => void;
   onClear: () => void;
 }) {
   const rowHeight = 88;
@@ -89,6 +91,11 @@ export default function RunHistoryPanel({
                         <ChevronRight className="h-4 w-4 opacity-80" />
                         Load
                       </button>
+                      {onShare ? (
+                        <button type="button" className="ct-btn ct-btn-xs" onClick={() => onShare(r.id)} title="Share run">
+                          Share
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="ct-btn ct-btn-xs ct-btn-danger"

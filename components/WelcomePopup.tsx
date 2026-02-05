@@ -138,7 +138,12 @@ export default function WelcomePopup() {
                 <button
                   ref={closeBtnRef}
                   className="ct-btn ct-btn-sm"
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    setOpen(false);
+                    try {
+                      window.dispatchEvent(new Event("ct:open_onboarding"));
+                    } catch {}
+                  }}
                   aria-label="Close welcome"
                 >
                   Start

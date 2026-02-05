@@ -29,6 +29,7 @@ export default function Results({
   items,
   runId,
   onRerollUrl,
+  onRetryUrl,
   onRetryFailed,
   failedCount,
   queueTotal,
@@ -40,6 +41,7 @@ export default function Results({
   items: ResultItem[];
   runId: string;
   onRerollUrl: (url: string) => void;
+  onRetryUrl: (url: string) => void;
   onRetryFailed: () => void;
   failedCount: number;
   queueTotal?: number;
@@ -390,6 +392,7 @@ export default function Results({
             item={it}
             onReroll={() => onRerollUrl(it.url)}
             onCopy={onCopy}
+            onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
             warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
             warnSpam={spam}
           />
