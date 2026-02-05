@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
+import { track } from "@/lib/analytics";
 import confetti from "canvas-confetti";
+import { broadcast, onBroadcast } from "@/lib/syncChannel";
 import { prefersReducedMotion, shouldReduceEffects, applyFxMode } from "@/lib/motion";
 
 import TopBar from "@/components/TopBar";
@@ -15,13 +17,14 @@ import Results from "@/components/Results";
 import SignupGate from "@/components/SignupGate";
 import ProgressStepper, { Stage } from "@/components/ProgressStepper";
 import ResumeBanner from "@/components/ResumeBanner";
+import ThemeStudioPanel from "@/components/ThemeStudioPanel";
 import RunHistoryPanel from "@/components/RunHistoryPanel";
 import ClipboardHistoryPanel from "@/components/ClipboardHistoryPanel";
 import Footer from "@/components/Footer";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 import { parseUrls } from "@/lib/validate";
-import { ApiError, generateComments, logout as apiLogout } from "@/lib/api";
+import { ApiError, generateComments, generateCommentsSmart, logout as apiLogout } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
@@ -123,6 +126,8 @@ export default function Home() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     lsSet(LS.theme, theme);
+    broadcast({ type: "theme", value: theme, at: Date.now() });
+    track("theme_change", { theme });
   }, [theme]);
 
   // Auto battery-saver / reduced-motion FX mode (can be overridden via LS.fxMode)
@@ -163,11 +168,24 @@ export default function Home() {
 
   useEffect(() => {
     lsSetJson(LS.runs, runs);
+    broadcast({ type: "runs", value: runs, at: Date.now() });
   }, [runs]);
 
   useEffect(() => {
     lsSetJson(LS.clipboard, clipboard);
+    broadcast({ type: "clipboard", value: clipboard, at: Date.now() });
   }, [clipboard]);
+
+  useEffect(() => {
+    return onBroadcast((msg) => {
+      if (!msg || typeof msg !== "object") return;
+      if (msg.type === "draft" && typeof msg.value === "string" && msg.value !== raw) setRaw(msg.value);
+      if (msg.type === "runs" && Array.isArray(msg.value)) setRuns(msg.value);
+      if (msg.type === "clipboard" && Array.isArray(msg.value)) setClipboard(msg.value);
+      if (msg.type === "theme" && typeof msg.value === "string") setTheme(msg.value as ThemeId);
+    });
+  }, [raw]);
+
 
   useEffect(() => {
     const snapshot = {
@@ -183,6 +201,7 @@ export default function Home() {
     // "draft" is a live autosave; "lastRun" is kept for backward compatibility
     lsSet(LS.draft, JSON.stringify(snapshot));
     lsSet(LS.lastRun, JSON.stringify(snapshot));
+    broadcast({ type: "draft", value: raw, at: Date.now() });
   }, [raw, selectedUrls, langEn, langNative, nativeLang, tone, intent, includeAlternates]);
 
   // Keep selection consistent as the user edits the input.
@@ -221,6 +240,13 @@ export default function Home() {
     return true;
   }
 
+  function mergeByUrl(prev: ResultItem[], incoming: ResultItem[]) {
+    const map = new Map<string, ResultItem>();
+    for (const p of prev) map.set(p.url, p);
+    for (const n of incoming) map.set(n.url, n);
+    return Array.from(map.values());
+  }
+
   async function generateOneBatch(requestUrls: string[], opts: { append: boolean }) {
     // If a previous request is still in-flight, abort it first.
     abortRef.current?.abort();
@@ -229,7 +255,7 @@ export default function Home() {
 
     startPipeline();
 
-    const resp: GenerateResponse = await generateComments(
+    const resp: GenerateResponse = await generateCommentsSmart(
       baseUrl,
       {
         urls: requestUrls,
@@ -242,6 +268,11 @@ export default function Home() {
       },
       token,
       authToken,
+      (partial, meta) => {
+        const rid = meta?.run_id || nowId("run");
+        setRunId(rid);
+        setItems((prev) => (opts.append ? mergeByUrl(prev, partial) : mergeByUrl([], partial)));
+      },
       controller.signal
     );
 
@@ -402,10 +433,12 @@ export default function Home() {
       toast.error("Your selection contains no valid post URLs");
       return;
     }
+    track("generate", { count: requestUrls.length });
     await runQueue(requestUrls);
   }
 
   async function rerollUrl(url: string) {
+    track("reroll", { url });
     await runQueue([url]);
   }
 
@@ -420,6 +453,7 @@ export default function Home() {
 
   async function retryFailedOnly() {
     if (!failedUrls.length) return;
+    track("retry_failed", { count: failedUrls.length });
     await runQueue(failedUrls);
   }
 
@@ -471,6 +505,7 @@ export default function Home() {
       text,
     };
     setClipboard((prev) => [rec, ...prev].slice(0, 30));
+    track("copy", { url, length: (text || "").length });
   }
 
   function logout() {
@@ -493,7 +528,7 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <WelcomePopup />
-      <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
+      <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} onOpenThemeStudio={() => setThemeStudioOpen(true)} />
       <PerfPanel />
 
       <SignupGate

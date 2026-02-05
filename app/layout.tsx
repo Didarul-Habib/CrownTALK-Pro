@@ -6,6 +6,8 @@ import "@fontsource/inter/latin-700.css";
 import "./globals.css";
 
 import { Toaster } from "sonner";
+import Providers from "@/components/Providers";
+import PwaRegister from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "CrownTALK",
@@ -14,13 +16,17 @@ export const metadata: Metadata = {
     icon: "/logo.png",
     apple: "/logo.png",
   },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
+        <PwaRegister />
         <Toaster
           richColors
           position="top-right"
