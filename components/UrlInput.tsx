@@ -2,7 +2,6 @@
 
 import clsx from "clsx";
 import { useMemo } from "react";
-import { useUrlWorker } from "@/lib/useUrlWorker";
 import { toast } from "sonner";
 import { classifyLines, parseUrls, extractUrlsAll, normalizeXUrl } from "@/lib/validate";
 import UrlScanner from "@/components/UrlScanner";
@@ -35,8 +34,7 @@ export default function UrlInput({
   onCleanInvalid?: () => void;
   onShuffle?: () => void;
 }) {
-  const { result: workerResult, ready: workerReady } = useUrlWorker(value);
-  const urls = useMemo(() => (workerReady ? workerResult.urls : parseUrls(value)), [value, workerReady, workerResult.urls]);
+  const urls = useMemo(() => parseUrls(value), [value]);
   const lineInfo = useMemo(() => classifyLines(value), [value]);
 
   const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);

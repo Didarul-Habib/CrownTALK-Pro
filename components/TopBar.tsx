@@ -4,7 +4,6 @@ import Image from "next/image";
 import StatusPill from "@/components/StatusPill";
 import ThemeStudioBar, { ThemeId } from "@/components/ThemeStudioBar";
 import UserMenu from "@/components/UserMenu";
-import UiLangSelect from "@/components/UiLangSelect";
 import type { UserProfile } from "@/lib/persist";
 
 export default function TopBar({
@@ -13,14 +12,12 @@ export default function TopBar({
   baseUrl,
   user,
   onLogout,
-  onOpenThemeStudio,
 }: {
   theme: ThemeId;
   setTheme: (t: ThemeId) => void;
   baseUrl: string;
   user?: UserProfile | null;
   onLogout?: () => void;
-  onOpenThemeStudio?: () => void;
 }) {
   return (
     <div className="sticky top-0 z-40 border-b border-[color:var(--ct-border)] bg-[color:var(--ct-bg)]/70 backdrop-blur-xl">
@@ -56,9 +53,7 @@ export default function TopBar({
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <ThemeStudioBar value={theme} onChange={setTheme} />
-          <button type="button" onClick={onOpenThemeStudio} className="ct-btn ct-btn-sm hidden md:inline-flex" title="Theme Studio (desktop)">Studio</button>
           <div className="flex items-center flex-wrap gap-3 lg:justify-end">
-            <UiLangSelect compact />
             <StatusPill baseUrl={baseUrl} />
             {user ? <UserMenu user={user} onLogout={onLogout} /> : null}
           </div>
