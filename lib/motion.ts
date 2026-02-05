@@ -15,3 +15,33 @@ export function prefersReducedMotion(): boolean {
     return false;
   }
 }
+
+export type FxMode = "auto" | "full" | "lite";
+
+function prefersReducedData(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    // Chromium-based browsers + some mobile browsers
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conn: any = (navigator as any)?.connection;
+    return Boolean(conn?.saveData);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Used to disable heavy visual effects (glows, drifting backgrounds, confetti)
+ * on low-power / data-saver / reduced-motion devices.
+ */
+export function shouldReduceEffects(mode: FxMode = "auto"): boolean {
+  if (mode === "lite") return true;
+  if (mode === "full") return false;
+  return prefersReducedMotion() || prefersReducedData();
+}
+
+export function applyFxMode(mode: FxMode) {
+  if (typeof document === "undefined") return;
+  const lite = shouldReduceEffects(mode);
+  document.documentElement.setAttribute("data-fx", lite ? "lite" : "full");
+}

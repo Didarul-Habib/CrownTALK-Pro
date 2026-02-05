@@ -3,6 +3,10 @@ export const LS = {
   token: "ct_token_v2",
   auth: "ct_auth_v2",
   lastRun: "ct_last_run_v2",
+  // Draft/autosave (URL inbox + selections)
+  draft: "ct_draft_v2",
+  // FX mode: auto | full | lite
+  fxMode: "ct_fx_mode_v2",
   user: "ct_user_v2",
   runs: "ct_runs_v2",
   clipboard: "ct_clipboard_v2",
