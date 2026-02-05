@@ -9,7 +9,7 @@ type WorkerMessageOut = {
   invalid: string[];
 };
 
-const X_URL_RE = /(https?:\/\/)?(www\.)?(x\.com|twitter\.com)\/[\w]+\/(status|statuses)\/(\d+)/i;
+const X_URL_RE = /(https?:\/\/)?(www\.)?(x\.com|twitter\.com)\/(?:[\\w]+)\/(status|statuses)\/(\\d+)/i;
 
 function normalizeUrl(u: string) {
   let url = u.trim();
@@ -18,6 +18,8 @@ function normalizeUrl(u: string) {
   url = url.replace(/\)+$/, "").replace(/\s+/g, "");
   // Normalize twitter.com -> x.com
   url = url.replace(/https?:\/\/(www\.)?twitter\.com\//i, "https://x.com/");
+  url = url.replace(/https?:\/\/(www\.)?x\.com\//i, "https://x.com/");
+  url = url.replace(/[?#].*$/, "");
   return url;
 }
 
