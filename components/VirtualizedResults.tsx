@@ -36,8 +36,7 @@ export default function VirtualizedResults({
             <div style={style} className="px-3 py-3">
               <ResultCard
                 item={it}
-                index={index}
-                onRerollUrl={onRerollUrl}
+                onReroll={() => onRerollUrl(it.url)}
                 onCopy={onCopy}
               />
             </div>
