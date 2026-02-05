@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import { prefersReducedMotion } from "@/lib/motion";
+import { prefersReducedMotion, shouldReduceEffects, applyFxMode } from "@/lib/motion";
 
 import TopBar from "@/components/TopBar";
 import WelcomePopup from "@/components/WelcomePopup";
@@ -35,6 +35,7 @@ export default function Home() {
 
   const [raw, setRaw] = useState<string>("");
   const urls = useMemo(() => parseUrls(raw), [raw]);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const [langEn, setLangEn] = useState(true);
   const [langNative, setLangNative] = useState(false);
@@ -54,9 +55,13 @@ export default function Home() {
 
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
+  const [queueTotal, setQueueTotal] = useState(0);
+  const [queueDone, setQueueDone] = useState(0);
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const suppressAbortRef = useRef(false);
+  const queueCancelRef = useRef(false);
+  const queueCancelRef = useRef(false);
 
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
@@ -73,6 +78,7 @@ export default function Home() {
     const savedRuns = lsGetJson<RunRecord[]>(LS.runs, []);
     const savedClipboard = lsGetJson<ClipboardRecord[]>(LS.clipboard, []);
     const lastRun = lsGet(LS.lastRun, "");
+    const draft = lsGet(LS.draft, "");
 
     setTheme(savedTheme);
     setToken(savedToken);
@@ -80,6 +86,22 @@ export default function Home() {
     setUser(savedUser);
     setRuns(savedRuns);
     setClipboard(savedClipboard);
+
+    // Draft takes precedence over lastRun snapshot (draft is "live" autosave)
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (typeof parsed?.raw === "string") setRaw(parsed.raw);
+        if (Array.isArray(parsed?.selectedUrls)) setSelectedUrls(parsed.selectedUrls);
+        if (typeof parsed?.langEn === "boolean") setLangEn(parsed.langEn);
+        if (typeof parsed?.langNative === "boolean") setLangNative(parsed.langNative);
+        if (typeof parsed?.nativeLang === "string") setNativeLang(parsed.nativeLang);
+        if (typeof parsed?.tone === "string") setTone(parsed.tone);
+        if (typeof parsed?.intent === "string") setIntent(parsed.intent);
+        if (typeof parsed?.includeAlternates === "boolean") setIncludeAlternates(parsed.includeAlternates);
+      } catch {}
+      return;
+    }
 
     if (lastRun) {
       try {
@@ -100,6 +122,12 @@ export default function Home() {
     document.documentElement.setAttribute("data-theme", theme);
     lsSet(LS.theme, theme);
   }, [theme]);
+
+  // Auto battery-saver / reduced-motion FX mode (can be overridden via LS.fxMode)
+  useEffect(() => {
+    const mode = (lsGet(LS.fxMode, "auto") as any) || "auto";
+    applyFxMode(mode);
+  }, []);
 
   useEffect(() => {
     try {
@@ -142,6 +170,7 @@ export default function Home() {
   useEffect(() => {
     const snapshot = {
       raw,
+      selectedUrls,
       langEn,
       langNative,
       nativeLang,
@@ -149,8 +178,23 @@ export default function Home() {
       intent,
       includeAlternates,
     };
+    // "draft" is a live autosave; "lastRun" is kept for backward compatibility
+    lsSet(LS.draft, JSON.stringify(snapshot));
     lsSet(LS.lastRun, JSON.stringify(snapshot));
-  }, [raw, langEn, langNative, nativeLang, tone, intent, includeAlternates]);
+  }, [raw, selectedUrls, langEn, langNative, nativeLang, tone, intent, includeAlternates]);
+
+  // Keep selection consistent as the user edits the input.
+  useEffect(() => {
+    setSelectedUrls((prev) => {
+      const setPrev = new Set(prev);
+      const next: string[] = [];
+      // keep existing selected that still exist
+      for (const u of urls) if (setPrev.has(u)) next.push(u);
+      // auto-select new URLs
+      for (const u of urls) if (!setPrev.has(u)) next.push(u);
+      return next;
+    });
+  }, [urls]);
 
   function clearTimers() {
     for (const t of timers.current) window.clearTimeout(t);
@@ -175,46 +219,78 @@ export default function Home() {
     return true;
   }
 
-  async function run(requestUrls: string[]) {
-    if (!ensureAuth()) return;
-
-    // If a previous run is still in-flight, abort it first.
+  async function generateOneBatch(requestUrls: string[], opts: { append: boolean }) {
+    // If a previous request is still in-flight, abort it first.
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setError("");
-    setLoading(true);
     startPipeline();
 
-    try {
-      const resp: GenerateResponse = await generateComments(
-        baseUrl,
-        {
-          urls: requestUrls,
-          lang_en: langEn,
-          lang_native: langNative,
-          native_lang: langNative ? nativeLang : undefined,
-          tone: tone === "auto" ? undefined : tone,
-          intent: intent === "auto" ? undefined : intent,
-          include_alternates: includeAlternates,
-        },
-        token,
-        authToken,
-        controller.signal
-      );
-
-      const results = resp.results || [];
-      const rid = resp.meta?.run_id || nowId("run");
-
-      setItems(results);
-      setRunId(rid);
-
-      // Persist to run history (and enable "Resume last run" after reload)
-      const okCount = results.filter((i) => i.status === "ok").length;
-      const failedCount = results.filter((i) => i.status !== "ok").length;
-      const request: RunRequestSnapshot = {
+    const resp: GenerateResponse = await generateComments(
+      baseUrl,
+      {
         urls: requestUrls,
+        lang_en: langEn,
+        lang_native: langNative,
+        native_lang: langNative ? nativeLang : undefined,
+        tone: tone === "auto" ? undefined : tone,
+        intent: intent === "auto" ? undefined : intent,
+        include_alternates: includeAlternates,
+      },
+      token,
+      authToken,
+      controller.signal
+    );
+
+    const results = resp.results || [];
+    const rid = resp.meta?.run_id || nowId("run");
+    setRunId(rid);
+    setItems((prev) => (opts.append ? [...prev, ...results] : results));
+    return { results, rid };
+  }
+
+  async function runQueue(allUrls: string[]) {
+    if (!ensureAuth()) return;
+
+    queueCancelRef.current = false;
+    setError("");
+    setLoading(true);
+    setStage("fetching");
+    setQueueTotal(allUrls.length);
+    setQueueDone(0);
+    setItems([]);
+    setRunId("");
+
+    const BATCH_SIZE = 6;
+    const batches: string[][] = [];
+    for (let i = 0; i < allUrls.length; i += BATCH_SIZE) {
+      batches.push(allUrls.slice(i, i + BATCH_SIZE));
+    }
+    if (batches.length > 1) {
+      toast(`Queued ${batches.length} batches (${allUrls.length} URLs)`);
+    }
+
+    let combined: ResultItem[] = [];
+    let lastRid = "";
+
+    try {
+      for (let bi = 0; bi < batches.length; bi++) {
+        if (queueCancelRef.current) throw Object.assign(new Error("Queue canceled"), { name: "AbortError" });
+        const batch = batches[bi];
+        toast(`Generating batch ${bi + 1}/${batches.length}…`);
+
+        const { results, rid } = await generateOneBatch(batch, { append: true });
+        lastRid = rid;
+        combined = [...combined, ...results];
+        setQueueDone((prev) => Math.min(allUrls.length, prev + batch.length));
+      }
+
+      // Persist to run history
+      const okCount = combined.filter((i) => i.status === "ok").length;
+      const failedCount = combined.filter((i) => i.status !== "ok").length;
+      const request: RunRequestSnapshot = {
+        urls: allUrls,
         langEn,
         langNative,
         nativeLang,
@@ -223,46 +299,35 @@ export default function Home() {
         includeAlternates,
       };
       const record: RunRecord = {
-        id: rid,
+        id: lastRid || nowId("run"),
         at: Date.now(),
         request,
-        results,
+        results: combined,
         okCount,
         failedCount,
       };
-
       setRuns((prev) => [record, ...prev.filter((r) => r.id !== record.id)].slice(0, 20));
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
-      setStage("done");
 
-      // Premium success moment
+      setStage("done");
       toast.success(`Generation finished (${okCount} ok${failedCount ? `, ${failedCount} failed` : ""})`);
 
-      // Confetti (subtle) — respects reduced-motion
-      if (okCount > 0 && !prefersReducedMotion()) {
+      // Confetti (subtle) — respects reduced-motion / reduced-data
+      if (okCount > 0 && !shouldReduceEffects(lsGet(LS.fxMode, "auto") as any)) {
         try {
-          confetti({
-            particleCount: 70,
-            spread: 65,
-            startVelocity: 18,
-            origin: { y: 0.35 },
-          });
+          confetti({ particleCount: 70, spread: 65, startVelocity: 18, origin: { y: 0.35 } });
         } catch {}
       }
 
-      // Auto-scroll to results for convenience
+      // Auto-scroll to results
       window.requestAnimationFrame(() => {
         const el = document.getElementById("ct-results");
         el?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
       });
-
     } catch (e: any) {
-      // User aborted the request (Cancel button).
       if (e?.name === "AbortError") {
-        if (!suppressAbortRef.current) {
-          setError("Generation cancelled.");
-        }
+        if (!suppressAbortRef.current) setError("Generation cancelled.");
         suppressAbortRef.current = false;
         setStage("idle");
         return;
@@ -272,11 +337,9 @@ export default function Home() {
       setError(msg);
       setStage("idle");
 
-      const status: number | undefined =
-        e && typeof e.status === "number" ? (e.status as number) : undefined;
+      const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
       const code = e?.body?.code;
 
-      // If auth or access gate fails, prompt the login/signup modal.
       if (
         status === 401 ||
         code === "missing_auth" ||
@@ -288,51 +351,60 @@ export default function Home() {
         setAuthToken("");
         setSignupOpen(true);
       }
-
       if (status === 403 || code === "missing_access" || code === "forbidden") {
         setSignupOpen(true);
       }
     } finally {
-      // Only clear the controller if this run is still the active one.
-      if (abortRef.current === controller) abortRef.current = null;
+      abortRef.current = null;
       clearTimers();
       setLoading(false);
-      // return to idle after a short moment
       window.setTimeout(() => setStage("idle"), 1600);
     }
   }
 
   function cancelRun() {
     suppressAbortRef.current = false;
+    queueCancelRef.current = true;
     try { toast("Canceled"); } catch {}
     clearTimers();
     setStage("idle");
     abortRef.current?.abort();
+    setQueueTotal(0);
+    setQueueDone(0);
   }
 
   function clearAll() {
     // In case something is still running, stop it.
     try { toast("Cleared"); } catch {}
     suppressAbortRef.current = true;
+    queueCancelRef.current = true;
     abortRef.current?.abort();
     setRaw("");
     setItems([]);
     setRunId("");
     setError("");
     setStage("idle");
+    setQueueTotal(0);
+    setQueueDone(0);
   }
 
   async function onGenerate() {
-    if (!urls.length) {
+    const validSelected = selectedUrls.filter((u) => urls.includes(u));
+    const requestUrls = validSelected.length ? validSelected : urls;
+    if (!requestUrls.length) {
       setError("Paste at least 1 valid X status URL.");
       try { toast.error("Please paste at least one valid X post URL"); } catch {}
       return;
     }
-    await run(urls);
+    if (selectedUrls.length && !validSelected.length) {
+      toast.error("Your selection contains no valid post URLs");
+      return;
+    }
+    await runQueue(requestUrls);
   }
 
   async function rerollUrl(url: string) {
-    await run([url]);
+    await runQueue([url]);
   }
 
   const failedUrls = useMemo(() => {
@@ -346,7 +418,7 @@ export default function Home() {
 
   async function retryFailedOnly() {
     if (!failedUrls.length) return;
-    await run(failedUrls);
+    await runQueue(failedUrls);
   }
 
   // Resume banner selection
@@ -369,6 +441,7 @@ export default function Home() {
     if (!resumeCandidate) return;
     const r = resumeCandidate;
     setRaw(r.request.urls.join("\n"));
+    setSelectedUrls(r.request.urls);
     setLangEn(r.request.langEn);
     setLangNative(r.request.langNative);
     setNativeLang(r.request.nativeLang);
@@ -445,6 +518,8 @@ export default function Home() {
           <UrlInput
             value={raw}
             onChange={setRaw}
+            selected={selectedUrls}
+            onSelectedChange={setSelectedUrls}
             helper={`${urls.length} valid URL${urls.length === 1 ? "" : "s"} detected`}
             onSort={() => setRaw(sortUrlsInRaw(raw))}
             onCleanInvalid={() => setRaw(cleanInvalidInRaw(raw))}
@@ -490,6 +565,8 @@ export default function Home() {
           }}
           onCopy={onCopied}
           loading={loading}
+          queueTotal={queueTotal}
+          queueDone={queueDone}
         />
 
         {error ? (
@@ -505,6 +582,7 @@ export default function Home() {
               const r = runs.find((x) => x.id === id);
               if (!r) return;
               setRaw(r.request.urls.join("\n"));
+              setSelectedUrls(r.request.urls);
               setLangEn(r.request.langEn);
               setLangNative(r.request.langNative);
               setNativeLang(r.request.nativeLang);

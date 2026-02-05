@@ -113,6 +113,25 @@ html[data-theme="cosmic"]{
   --ct-border: rgba(255, 255, 255, 0.12);
 }
 
+/* Theme Packs 2.0 */
+html[data-theme="retro"]{
+  --ct-accent: rgba(255, 198, 0, 1);
+  --ct-accent-2: rgba(255, 75, 120, 1);
+  --ct-bg: rgba(10, 8, 12, 1);
+  --ct-panel: rgba(18, 14, 22, 0.74);
+  --ct-surface: rgba(255, 255, 255, 0.07);
+  --ct-border: rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme="cyberpunk"]{
+  --ct-accent: rgba(0, 255, 255, 1);
+  --ct-accent-2: rgba(255, 0, 200, 1);
+  --ct-bg: rgba(4, 6, 10, 1);
+  --ct-panel: rgba(10, 12, 20, 0.74);
+  --ct-surface: rgba(255, 255, 255, 0.06);
+  --ct-border: rgba(180, 255, 255, 0.18);
+}
+
 body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   background: radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.06), transparent 60%),
@@ -144,6 +163,36 @@ body::before {
   opacity: 0.55;
   animation: ct-ambient-drift 18s ease-in-out infinite;
 }
+
+/* Subtle texture / noise overlay (adds premium depth) */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.10;
+  mix-blend-mode: overlay;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0px, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 3px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.035) 0px, rgba(0,0,0,0.035) 1px, transparent 1px, transparent 4px);
+}
+
+/* Cyberpunk gets a tiny CRT scanline vibe */
+html[data-theme="cyberpunk"] body::after {
+  opacity: 0.14;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,255,255,0.05) 0px, rgba(0,255,255,0.05) 1px, transparent 1px, transparent 3px),
+    repeating-linear-gradient(90deg, rgba(255,0,200,0.03) 0px, rgba(255,0,200,0.03) 1px, transparent 1px, transparent 5px);
+}
+
+/* FX lite mode (battery saver / reduced data) */
+html[data-fx="lite"] body::before {
+  animation: none;
+  opacity: 0.28;
+  filter: blur(18px) saturate(1);
+}
+html[data-fx="lite"] body::after { opacity: 0.06; }
 
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
@@ -258,12 +307,22 @@ body::before {
   transform: translateY(-1px);
   box-shadow:
     0 16px 44px rgba(0,0,0,.35),
-    0 0 0 1px color-mix(in srgb, var(--ct-accent) 25%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--ct-accent) 25%, transparent),
+    0 0 28px color-mix(in srgb, var(--ct-accent) 18%, transparent);
 }
 
 .ct-btn:active {
-  transform: translateY(1px);
+  transform: translateY(1px) scale(0.985);
   filter: saturate(1.05);
+}
+
+html[data-fx="lite"] .ct-btn:hover {
+  box-shadow: 0 12px 30px rgba(0,0,0,.32);
+}
+
+/* Lite mode: reduce heavy glows to save battery */
+html[data-fx="lite"] .ct-btn:hover {
+  box-shadow: 0 12px 30px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--ct-accent) 18%, transparent);
 }
 
 .ct-btn:focus-visible {
