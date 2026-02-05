@@ -819,7 +819,7 @@ async function queueRunOffline(requestUrls: string[]) {
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <RunHistoryPanel
+          <RunHistoryPanelLazy
             runs={runs}
             onLoad={(id) => {
               const r = runs.find((x) => x.id === id);
