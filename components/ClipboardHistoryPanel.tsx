@@ -2,13 +2,8 @@
 
 import clsx from "clsx";
 import { Clipboard, Copy, Trash2 } from "lucide-react";
+import { FixedSizeList as List } from "react-window";
 import type { ClipboardRecord } from "@/lib/persist";
-import { FixedSizeList as List, type ListChildComponentProps } from "react-window";
-import { getFlag } from "@/lib/flags";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 function fmt(ts: number) {
   try {
@@ -34,83 +29,71 @@ export default function ClipboardHistoryPanel({
   items: ClipboardRecord[];
   onClear: () => void;
 }) {
-  const useVirt = getFlag("virtualizeLists") && items.length > 12;
+  const rowHeight = 140;
+  const listHeight = 420;
 
   return (
-    <Card className="p-4">
+    <div className={clsx("ct-card", "p-4")}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Clipboard className="h-4 w-4 opacity-80" />
           <div className="text-sm font-semibold tracking-tight">Clipboard history</div>
         </div>
-        <Button
-          size="sm"
-          variant="danger"
+        <button
+          type="button"
+          className={clsx("ct-btn ct-btn-xs ct-btn-danger", !items.length ? "opacity-50 cursor-not-allowed" : "")}
           onClick={onClear}
           disabled={!items.length}
-          className={cn("h-8", !items.length ? "opacity-50" : "")}
         >
           <Trash2 className="h-4 w-4" />
           Clear
-        </Button>
+        </button>
       </div>
 
       {!items.length ? (
-        <div className="mt-3 text-sm opacity-70">No copies yet.</div>
+        <div className="mt-3 text-sm opacity-70">Copied comments will show up here.</div>
       ) : (
         <div className="mt-3">
-          {!useVirt ? (
-            <div className="space-y-2">
-              {items.slice(0, 20).map((r) => (
-                <ClipRowInline key={r.id} r={r} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[calc(var(--ct-radius)-8px)] border border-white/10 bg-black/10">
-              <List height={420} width={"100%"} itemCount={items.length} itemSize={74} overscanCount={6} itemData={{ items }}>
-                {ClipRow}
-              </List>
-            </div>
-          )}
+          <List
+            height={listHeight}
+            itemCount={items.length}
+            itemSize={rowHeight}
+            width={"100%"}
+            overscanCount={3}
+          >
+            {({ index, style }) => {
+              const c = items[index];
+              return (
+                <div style={style} className="px-1 py-1">
+                  <div className={clsx("ct-card-surface", "p-3")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs opacity-70">{fmt(c.at)}</div>
+                        {c.url ? (
+                          <div className="mt-0.5 text-[11px] opacity-70 break-all">{c.url}</div>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="ct-btn ct-btn-xs"
+                        onClick={() => copyText(c.text)}
+                        title="Copy again"
+                      >
+                        <Copy className="h-4 w-4 opacity-80" />
+                        Copy
+                      </button>
+                    </div>
+
+                    <div className="mt-2 text-sm leading-6 whitespace-pre-wrap break-words line-clamp-3">
+                      {c.text}
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+          </List>
         </div>
       )}
-    </Card>
-  );
-}
-
-function ClipRowInline({ r }: { r: ClipboardRecord }) {
-  return (
-    <div className={clsx("ct-card-surface", "p-3", "flex items-center justify-between gap-3")}>
-      <div className="min-w-0">
-        <div className="text-xs opacity-70 truncate">{fmt(r.at)}</div>
-        <div className="text-sm font-medium truncate">{r.label || "Copied text"}</div>
-        <div className="text-xs opacity-70 truncate">{(r.text || "").slice(0, 80)}</div>
-      </div>
-
-      <Button
-        size="sm"
-        variant="secondary"
-        className="h-8"
-        onClick={() => {
-          copyText(r.text || "");
-          try {
-            if (navigator.vibrate) navigator.vibrate(20);
-          } catch {}
-          toast.success("Copied");
-        }}
-      >
-        <Copy className="h-4 w-4" /> Copy
-      </Button>
-    </div>
-  );
-}
-
-function ClipRow({ index, style, data }: ListChildComponentProps) {
-  const { items } = data as { items: ClipboardRecord[] };
-  const r = items[index];
-  return (
-    <div style={style as any} className="px-2 py-1">
-      <ClipRowInline r={r} />
     </div>
   );
 }

@@ -6,12 +6,10 @@ import Image from "next/image";
 
 export default function Footer({
   ownerXUrl = "https://x.com/_CrownDEX",
-  ownerXHandle = "CrownDEX",
-  ownerXPfpUrl = "https://unavatar.io/x/_CrownDEX",
+  ownerPfpUrl = "https://pbs.twimg.com/profile_images/2007863079619764224/gZM7-WMW.jpg",
 }: {
   ownerXUrl?: string;
-  ownerXHandle?: string;
-  ownerXPfpUrl?: string;
+  ownerPfpUrl?: string;
 }) {
   const year = new Date().getFullYear();
   return (
@@ -51,15 +49,8 @@ export default function Footer({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="relative inline-block">
-                    <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
-                    <span
-                      className="absolute -top-2 right-0 translate-x-1/2 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[9px] font-semibold tracking-wide text-white/90"
-                      aria-label="CrownTALK Pro UI"
-                    >
-                      PRO UI
-                    </span>
-                  </div>
+                  <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
+                  <span className="ct-chip text-[10px]">PRO UI</span>
                 </div>
                 <div className="text-xs opacity-70 -mt-0.5">Professional X comment generator</div>
               </div>
@@ -71,26 +62,26 @@ export default function Footer({
                 target="_blank"
                 rel="noreferrer"
                 className={clsx(
-                  "ct-btn ct-btn-sm ct-btn-primary",
-                  "inline-flex items-center",
-                  "gap-2",
-                  "hover:brightness-110"
+                  "inline-flex items-center gap-2",
+                  "rounded-3xl border border-white/10 bg-white/5 px-3 py-2",
+                  "hover:bg-white/10 hover:brightness-110 transition",
+                  "shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
                 )}
                 title="Open on X"
               >
-                <span className="h-7 w-7 rounded-full overflow-hidden border border-white/15 bg-black/20 grid place-items-center">
-                  {/* Use a remote avatar source; Next will optimize it automatically if domains are allowed.
-                     If your Next config blocks it, set NEXT_PUBLIC_X_PFP_URL to a hosted image you control. */}
+                <span className="h-9 w-9 rounded-full border border-white/10 bg-black/10 overflow-hidden grid place-items-center">
                   <Image
-                    src={ownerXPfpUrl}
-                    alt={`${ownerXHandle} profile photo`}
-                    width={28}
-                    height={28}
-                    className="h-7 w-7 object-cover"
+                    src={ownerPfpUrl}
+                    alt="X profile"
+                    width={36}
+                    height={36}
+                    className="h-9 w-9 object-cover"
                   />
                 </span>
-                <span className="text-xs font-semibold">@{ownerXHandle}</span>
-                <ExternalLink className="h-4 w-4 opacity-80" />
+                <span className="ct-btn ct-btn-sm ct-btn-primary inline-flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4 opacity-80" />
+                  <span className="text-xs font-semibold">@CrownDEX</span>
+                </span>
               </a>
             </div>
           </div>

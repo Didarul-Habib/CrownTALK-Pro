@@ -1,128 +1,93 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Activity, AlertTriangle } from "lucide-react";
-import { getFlag, setFlag } from "@/lib/flags";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import clsx from "clsx";
+import { isEnabled } from "@/lib/flags";
 
-type Metric = { fps: number; longTasks: number; lastLongTaskMs: number };
-
+/**
+ * Lightweight perf debug panel.
+ * - FPS estimate via rAF
+ * - Long task observer (if supported)
+ * Enabled via: ?ff_perf=1 or localStorage ff:perf=1 or NEXT_PUBLIC_FF_PERF=1
+ */
 export default function PerfPanel() {
-  const [open, setOpen] = useState(() => getFlag("perfPanel"));
-  const [metric, setMetric] = useState<Metric>({ fps: 0, longTasks: 0, lastLongTaskMs: 0 });
-  const raf = useRef<number | null>(null);
+  const enabled = isEnabled("perf", false);
+  const [fps, setFps] = useState(0);
+  const [longTasks, setLongTasks] = useState(0);
+  const [lastLong, setLastLong] = useState<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const framesRef = useRef(0);
+  const lastRef = useRef<number>(performance.now());
 
   useEffect(() => {
-    setFlag("perfPanel", open);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    let frames = 0;
-    let last = performance.now();
+    if (!enabled) return;
     const tick = (t: number) => {
-      frames += 1;
-      const dt = t - last;
-      if (dt >= 1000) {
-        const fps = Math.round((frames * 1000) / dt);
-        frames = 0;
-        last = t;
-        setMetric((m) => ({ ...m, fps }));
+      framesRef.current += 1;
+      const delta = t - lastRef.current;
+      if (delta >= 1000) {
+        setFps(Math.round((framesRef.current * 1000) / delta));
+        framesRef.current = 0;
+        lastRef.current = t;
       }
-      raf.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(tick);
     };
-    raf.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(tick);
     return () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-      raf.current = null;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [open]);
+  }, [enabled]);
 
   useEffect(() => {
-    if (!open) return;
-    let longTasks = 0;
-    let lastLongTaskMs = 0;
+    if (!enabled) return;
+    if (typeof PerformanceObserver === "undefined") return;
+
     let obs: PerformanceObserver | null = null;
     try {
       obs = new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) {
-          longTasks += 1;
-          lastLongTaskMs = Math.round(e.duration);
-        }
-        setMetric((m) => ({ ...m, longTasks, lastLongTaskMs }));
+        const entries = list.getEntries();
+        if (!entries.length) return;
+        setLongTasks((v) => v + entries.length);
+        setLastLong(Date.now());
       });
-      // @ts-expect-error
+      // @ts-ignore
       obs.observe({ entryTypes: ["longtask"] });
-    } catch {}
+    } catch {
+      // ignore
+    }
+
     return () => {
-      try { obs?.disconnect(); } catch {}
+      try {
+        obs?.disconnect();
+      } catch {}
     };
-  }, [open]);
+  }, [enabled]);
 
-  const badge = useMemo(() => ({ hot: metric.fps > 0 && metric.fps < 45 }), [metric.fps]);
+  const badge = useMemo(() => {
+    if (!enabled) return null;
+    const hot = fps > 0 && fps < 45;
+    return {
+      label: `${fps || "—"} FPS`,
+      sub: longTasks ? `Long tasks: ${longTasks}` : "No long tasks",
+      hot,
+    };
+  }, [enabled, fps, longTasks]);
+
+  if (!enabled || !badge) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100]">
-      {!open ? (
-        <Button size="sm" variant="secondary" onClick={() => setOpen(true)} className="rounded-full">
-          <Activity className="h-4 w-4" /> Perf
-        </Button>
-      ) : (
-        <div
-          className={cn(
-            "w-[260px] rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)]/85 backdrop-blur-xl",
-            "shadow-[0_18px_65px_rgba(0,0,0,.35)] p-3"
-          )}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 opacity-80" />
-              <div className="text-xs font-semibold tracking-tight">Perf Panel</div>
-              {badge.hot ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-yellow-500/15 px-2 py-0.5 text-[10px] text-yellow-200">
-                  <AlertTriangle className="h-3 w-3" /> low FPS
-                </span>
-              ) : null}
-            </div>
-            <button className="rounded-full p-1 opacity-70 hover:opacity-100 hover:bg-white/5" onClick={() => setOpen(false)} aria-label="Close">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-            <MetricBox label="FPS" value={metric.fps ? String(metric.fps) : "—"} />
-            <MetricBox label="Long tasks" value={String(metric.longTasks)} />
-            <MetricBox label="Last long" value={metric.lastLongTaskMs ? `${metric.lastLongTaskMs}ms` : "—"} />
-            <MetricBox label="FX mode" value={document?.documentElement?.dataset?.fx ?? "—"} />
-          </div>
-
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <Button size="sm" variant="ghost" className="w-full" onClick={() => location.reload()}>
-              Reload
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                try { performance.clearMeasures(); performance.clearMarks(); } catch {}
-              }}
-            >
-              Clear marks
-            </Button>
-          </div>
-        </div>
+    <div
+      className={clsx(
+        "fixed bottom-4 left-4 z-[100]",
+        "rounded-3xl border border-white/10 bg-black/40 backdrop-blur-xl",
+        "px-3 py-2 shadow-2xl",
+        badge.hot ? "ring-2 ring-red-400/40" : "ring-2 ring-white/5"
       )}
-    </div>
-  );
-}
-
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[calc(var(--ct-radius)-10px)] border border-white/10 bg-black/15 px-2 py-2">
-      <div className="text-[10px] opacity-70">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold tabular-nums">{value}</div>
+    >
+      <div className="text-[11px] font-semibold tracking-wide">{badge.label}</div>
+      <div className="text-[10px] opacity-70">{badge.sub}</div>
+      {lastLong ? (
+        <div className="text-[10px] opacity-50">Last: {new Date(lastLong).toLocaleTimeString()}</div>
+      ) : null}
     </div>
   );
 }
