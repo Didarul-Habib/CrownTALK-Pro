@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
-import { getFlag } from "@/lib/flags";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { prefersReducedMotion, shouldReduceEffects, applyFxMode } from "@/lib/motion";
@@ -16,21 +15,9 @@ import Results from "@/components/Results";
 import SignupGate from "@/components/SignupGate";
 import ProgressStepper, { Stage } from "@/components/ProgressStepper";
 import ResumeBanner from "@/components/ResumeBanner";
+import RunHistoryPanel from "@/components/RunHistoryPanel";
+import ClipboardHistoryPanel from "@/components/ClipboardHistoryPanel";
 import Footer from "@/components/Footer";
-
-
-const DynamicRunHistoryPanel = dynamic(() => import("@/components/RunHistoryPanel"), {
-  ssr: false,
-  loading: () => <div className="ct-card p-4 opacity-70">Loading history…</div>,
-});
-
-const DynamicClipboardHistoryPanel = dynamic(() => import("@/components/ClipboardHistoryPanel"), {
-  ssr: false,
-  loading: () => <div className="ct-card p-4 opacity-70">Loading clipboard…</div>,
-});
-
-const DynamicPerfPanel = dynamic(() => import("@/components/PerfPanel"), { ssr: false });
-
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 import { parseUrls } from "@/lib/validate";
@@ -41,6 +28,8 @@ import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from
 import { nowId } from "@/lib/persist";
 
 const DEFAULT_BACKEND = "https://crowntalk.onrender.com";
+
+const PerfPanel = dynamic(() => import("@/components/PerfPanel"), { ssr: false });
 
 export default function Home() {
   const [baseUrl] = useState<string>(() =>
@@ -505,6 +494,7 @@ export default function Home() {
     <div className="min-h-screen">
       <WelcomePopup />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
+      <PerfPanel />
 
       <SignupGate
         open={signupOpen}
@@ -589,7 +579,7 @@ export default function Home() {
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <DynamicRunHistoryPanel
+          <RunHistoryPanel
             runs={runs}
             onLoad={(id) => {
               const r = runs.find((x) => x.id === id);
@@ -610,7 +600,7 @@ export default function Home() {
             onClear={() => setRuns([])}
           />
 
-          <DynamicClipboardHistoryPanel
+          <ClipboardHistoryPanel
             items={clipboard}
             onClear={() => setClipboard([])}
           />
