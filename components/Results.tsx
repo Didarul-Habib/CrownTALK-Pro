@@ -7,6 +7,7 @@ import { Copy, Download, Menu, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { ResultItem } from "@/lib/types";
 import ResultCard from "./ResultCard";
+import VirtualResultList from "@/components/VirtualResultList";
 
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -284,16 +285,8 @@ export default function Results({
         </div>
       ) : null}
 
-      {items.map((it, idx) => (
-        <motion.div
-          key={it.url}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: idx * 0.03 }}
-        >
-          <ResultCard item={it} onReroll={() => onRerollUrl(it.url)} onCopy={onCopy} />
-        </motion.div>
-      ))}
+      {/* Virtualized list for performance on large runs */}
+      <VirtualResultList items={items} onRerollUrl={onRerollUrl} onCopy={onCopy} />
     </div>
   );
 }
