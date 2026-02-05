@@ -6,13 +6,23 @@ import { pingWithLatency } from "@/lib/api";
 
 export default function StatusPill({ baseUrl }: { baseUrl: string }) {
   const [ok, setOk] = useState<boolean | null>(null);
+  const [ms, setMs] = useState<number | null>(null);
 
   useEffect(() => {
     let live = true;
     setOk(null);
-    ping(baseUrl)
-      .then((v) => live && setOk(v))
-      .catch(() => live && setOk(false));
+    setMs(null);
+    pingWithLatency(baseUrl)
+      .then((r) => {
+        if (!live) return;
+        setOk(r.ok);
+        setMs(r.ms);
+      })
+      .catch(() => {
+        if (!live) return;
+        setOk(false);
+        setMs(null);
+      });
     return () => {
       live = false;
     };
@@ -24,7 +34,13 @@ export default function StatusPill({ baseUrl }: { baseUrl: string }) {
         "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
         "bg-[color:var(--ct-surface)] border-[color:var(--ct-border)]"
       )}
-      title={ok === null ? "Checking backend…" : ok ? "Backend reachable" : "Backend not reachable"}
+      title={
+        ok === null
+          ? "Checking backend…"
+          : ok
+            ? `Backend reachable${ms != null ? ` (${ms}ms)` : ""}`
+            : "Backend not reachable"
+      }
     >
       <span
         className={clsx(
@@ -33,7 +49,10 @@ export default function StatusPill({ baseUrl }: { baseUrl: string }) {
         )}
         style={{ background: ok ? "var(--ct-ok)" : "var(--ct-bad)" }}
       />
-      <span className="opacity-80">{ok === null ? "Checking" : ok ? "Operational" : "Offline"}</span>
+      <span className="opacity-80">
+        {ok === null ? "Checking" : ok ? "Operational" : "Offline"}
+        {ok !== null && ms != null ? <span className="ml-2 opacity-60">{ms}ms</span> : null}
+      </span>
     </div>
   );
 }
