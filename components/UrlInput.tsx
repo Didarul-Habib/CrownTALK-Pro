@@ -2,8 +2,9 @@
 
 import clsx from "clsx";
 import { useMemo } from "react";
+import { useUrlAnalysis } from "@/lib/useUrlWorker";
 import { toast } from "sonner";
-import { classifyLines, parseUrls, extractUrlsAll, normalizeXUrl } from "@/lib/validate";
+import { extractUrlsAll, normalizeXUrl } from "@/lib/validate";
 import UrlScanner from "@/components/UrlScanner";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -34,10 +35,10 @@ export default function UrlInput({
   onCleanInvalid?: () => void;
   onShuffle?: () => void;
 }) {
-  const urls = useMemo(() => parseUrls(value), [value]);
-  const lineInfo = useMemo(() => classifyLines(value), [value]);
-
-  const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
+  const analysis = useUrlAnalysis(value);
+  const urls = analysis.urls;
+  const lineInfo = analysis.lineInfo;
+const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
 
   const invalidLines = useMemo(() => {
     // count lines that contain text but no url
@@ -87,6 +88,8 @@ export default function UrlInput({
 
 
   const inbox = useMemo(() => {
+    if (analysis.inbox && analysis.inbox.length) return analysis.inbox;
+
     // Preserve order from the user's input.
     const ordered = extractUrlsAll(value)
       .map((u) => normalizeXUrl(u))
@@ -107,7 +110,7 @@ export default function UrlInput({
         duplicateCount: dupMap.get(u) || 1,
       };
     });
-  }, [value]);
+  }, [value, analysis.inbox]);
 
 
   const hasAny = urls.length > 0 || invalidLines > 0;
