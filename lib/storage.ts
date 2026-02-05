@@ -12,6 +12,7 @@ export const LS = {
   clipboard: "ct_clipboard_v2",
   lastRunResult: "ct_last_run_result_v2",
   dismissResume: "ct_dismiss_resume_v2",
+  dismissSessionDiff: "ct_dismiss_session_diff_v2",
 };
 
 export function lsGet(key: string, fallback = ""): string {

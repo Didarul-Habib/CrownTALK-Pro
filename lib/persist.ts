@@ -31,6 +31,7 @@ export type ClipboardRecord = {
   at: number;
   url?: string;
   text: string;
+  pinned?: boolean;
 };
 
 export function nowId(prefix = "ct") {

@@ -21,7 +21,7 @@ export type CommentItem = {
 
 export type ResultItem = {
   url: string;
-  status: "ok" | "error" | "skipped";
+  status: "ok" | "error" | "skipped" | "pending";
   reason?: string;
   comments?: CommentItem[];
 };
