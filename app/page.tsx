@@ -847,7 +847,7 @@ async function queueRunOffline(requestUrls: string[]) {
             onClear={() => setRuns([])}
           />
 
-          <ClipboardHistoryPanel
+          <ClipboardHistoryPanelLazy
             items={clipboard}
             onClear={() => setClipboard([])}
             onTogglePin={(id) =>
