@@ -85,7 +85,6 @@ export default function UrlInput({
     return out;
   }, [value]);
 
-  const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
 
   const inbox = useMemo(() => {
     // Preserve order from the user's input.
