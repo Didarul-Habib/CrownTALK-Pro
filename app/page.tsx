@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { prefersReducedMotion, shouldReduceEffects, applyFxMode } from "@/lib/motion";
+import { useMutation } from "@tanstack/react-query";
 
 import TopBar from "@/components/TopBar";
 import WelcomePopup from "@/components/WelcomePopup";
+import OnboardingTour from "@/components/OnboardingTour";
 import UrlInput, { cleanInvalidInRaw, shuffleUrlsInRaw, sortUrlsInRaw } from "@/components/UrlInput";
 import Controls from "@/components/Controls";
 import Results from "@/components/Results";
@@ -16,28 +18,41 @@ import SignupGate from "@/components/SignupGate";
 import ProgressStepper, { Stage } from "@/components/ProgressStepper";
 import ResumeBanner from "@/components/ResumeBanner";
 import SessionDiffBanner from "@/components/SessionDiffBanner";
-import RunHistoryPanel from "@/components/RunHistoryPanel";
-import ClipboardHistoryPanel from "@/components/ClipboardHistoryPanel";
+// Heavy panels are lazy-loaded for better route-level performance.
 import Footer from "@/components/Footer";
+import RenderProfilerPanel from "@/components/RenderProfilerPanel";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 import { parseUrls } from "@/lib/validate";
-import { ApiError, generateComments, logout as apiLogout } from "@/lib/api";
+import { ApiError, logout as apiLogout } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
+import type { TimelineStage } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
 import { nowId } from "@/lib/persist";
+import { idbGet, idbSet } from "@/lib/idb";
+import { loadPrefs, savePrefs, type UserPrefs } from "@/lib/prefs";
+import { useUndoStack } from "@/lib/useUndoStack";
+import { useOnline } from "@/lib/useOnline";
+import { broadcast, onBroadcast } from "@/lib/syncChannel";
+import { decodeSharePayload, makeShareUrl } from "@/lib/share";
+import { useRenderCount } from "@/lib/useRenderCount";
 
 const DEFAULT_BACKEND = "https://crowntalk.onrender.com";
 
 const PerfPanel = dynamic(() => import("@/components/PerfPanel"), { ssr: false });
+const RunHistoryPanelLazy = dynamic(() => import("@/components/RunHistoryPanel"), { ssr: false });
+const ClipboardHistoryPanelLazy = dynamic(() => import("@/components/ClipboardHistoryPanel"), { ssr: false });
 
 export default function Home() {
+  useRenderCount("Home");
   const [baseUrl] = useState<string>(() =>
     (process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND).replace(/\/+$/, "")
   );
 
-  const [raw, setRaw] = useState<string>("");
+  const rawStack = useUndoStack("", 80);
+  const raw = rawStack.value;
+  const setRaw = rawStack.set;
   const urls = useMemo(() => parseUrls(raw), [raw]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
@@ -67,11 +82,57 @@ export default function Home() {
   const suppressAbortRef = useRef(false);
   const queueCancelRef = useRef(false);
 
+const genMutation = useMutation({
+  mutationFn: async (vars: { requestUrls: string[]; signal?: AbortSignal }) => {
+    return await (await import("@/lib/api")).generateCommentsStream(
+      baseUrl,
+      {
+        urls: vars.requestUrls,
+        lang_en: langEn,
+        lang_native: langNative,
+        native_lang: langNative ? nativeLang : undefined,
+        tone: tone === "auto" ? undefined : tone,
+        intent: intent === "auto" ? undefined : intent,
+        include_alternates: includeAlternates,
+      },
+      token,
+      authToken,
+      vars.signal,
+      (u) => {
+        if (u.type === "meta" && u.run_id) setRunId(u.run_id);
+        if (u.type === "result") {
+          startTransition(() => {
+            setItems((prev) => {
+              const byUrl = new Map(prev.map((p) => [p.url, p]));
+              const p = byUrl.get(u.item.url);
+              const nextItem = { ...(p || u.item), ...u.item, status: u.item.status || "ok" };
+              // versions: keep original before overwrite
+              if (p?.status === "ok" && p.comments?.length && u.item.status === "ok" && u.item.comments?.length) {
+                const versions = [...(p.versions || [])];
+                if (!versions.length) versions.push({ at: Date.now(), label: "original", comments: p.comments });
+                versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
+                (nextItem as any).versions = versions;
+              }
+              return prev.map((x) => (x.url === u.item.url ? nextItem : x));
+            });
+          });
+        }
+      }
+    );
+  },
+  retry: 0,
+});
+
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
   const [runId, setRunId] = useState<string>("");
 
   const [signupOpen, setSignupOpen] = useState(false);
+
+  const online = useOnline();
+  const [cooldownUntil, setCooldownUntil] = useState<number>(0);
+  const [prefs, setPrefs] = useState<UserPrefs | null>(null);
+
 
   // Restore persisted UI state
   useEffect(() => {
@@ -94,6 +155,29 @@ export default function Home() {
     setClipboard(savedClipboard);
     setDismissDiffId(dismissDiff);
     setDismissDiffId(dismissedDiff);
+
+
+// Load prefs + IDB data (runs/clipboard/queued)
+(async () => {
+  const p = await loadPrefs();
+  setPrefs(p);
+  // Only apply defaults if there isn't an existing draft.
+  if (!draft && !lastRun) {
+    setLangEn(p.defaultLangEn);
+    setLangNative(p.defaultLangNative);
+    setNativeLang(p.defaultNativeLang);
+    // @ts-ignore
+    setTone(p.defaultTone);
+    // @ts-ignore
+    setIntent(p.defaultIntent);
+    setIncludeAlternates(p.defaultIncludeAlternates);
+  }
+
+  const idbRuns = await idbGet<RunRecord[]>("ct:runs", []);
+  const idbClip = await idbGet<ClipboardRecord[]>("ct:clipboard", []);
+  if (idbRuns?.length) setRuns(idbRuns);
+  if (idbClip?.length) setClipboard(idbClip);
+})().catch(() => {});
 
     // Draft takes precedence over lastRun snapshot (draft is "live" autosave)
     if (draft) {
@@ -125,10 +209,32 @@ export default function Home() {
     }
   }, []);
 
+
+// Import shared run via URL hash (#share=...)
+useEffect(() => {
+  try {
+    const h = String(window.location.hash || "");
+    const m = h.match(/share=([^&]+)/);
+    if (!m) return;
+    const payload = decodeSharePayload(m[1]);
+    if (!payload) return;
+    if (payload?.raw && typeof payload.raw === "string") setRaw(payload.raw);
+    if (Array.isArray(payload?.selectedUrls)) setSelectedUrls(payload.selectedUrls);
+    if (payload?.run && payload.run?.results) {
+      setItems(payload.run.results);
+      setRunId(payload.run.id || "");
+    }
+    toast.success("Imported shared run");
+    // Clean hash
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+  } catch {}
+}, []);
+
   // Apply theme to <html>
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     lsSet(LS.theme, theme);
+    broadcast({ type: "theme", value: theme, at: Date.now() });
   }, [theme]);
 
   // Auto battery-saver / reduced-motion FX mode (can be overridden via LS.fxMode)
@@ -168,11 +274,21 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
-    lsSetJson(LS.runs, runs);
-  }, [runs]);
+    // Apply retention (prefs-based)
+    const limit = prefs?.historyRetention ?? 20;
+    const trimmed = runs.slice(0, limit);
+    if (trimmed.length !== runs.length) setRuns(trimmed);
+    lsSetJson(LS.runs, trimmed);
+    idbSet("ct:runs", trimmed).catch(() => {});
+    broadcast({ type: "runs", value: trimmed, at: Date.now() });
+  }, [runs, prefs]);
 
   useEffect(() => {
-    lsSetJson(LS.clipboard, clipboard);
+    const trimmed = clipboard.slice(0, 60);
+    if (trimmed.length !== clipboard.length) setClipboard(trimmed);
+    lsSetJson(LS.clipboard, trimmed);
+    idbSet("ct:clipboard", trimmed).catch(() => {});
+    broadcast({ type: "clipboard", value: trimmed, at: Date.now() });
   }, [clipboard]);
 
   useEffect(() => {
@@ -187,9 +303,38 @@ export default function Home() {
       includeAlternates,
     };
     // "draft" is a live autosave; "lastRun" is kept for backward compatibility
-    lsSet(LS.draft, JSON.stringify(snapshot));
-    lsSet(LS.lastRun, JSON.stringify(snapshot));
+    const snapStr = JSON.stringify(snapshot);
+    lsSet(LS.draft, snapStr);
+    lsSet(LS.lastRun, snapStr);
+    broadcast({ type: "draft", value: snapStr, at: Date.now() });
   }, [raw, selectedUrls, langEn, langNative, nativeLang, tone, intent, includeAlternates]);
+
+
+// Cross-tab sync (draft/runs/clipboard/theme)
+useEffect(() => {
+  let lastAt = 0;
+  return onBroadcast((msg) => {
+    if (!msg || typeof (msg as any).type !== "string") return;
+    if ((msg as any).at && (msg as any).at < lastAt) return;
+    lastAt = (msg as any).at || Date.now();
+    if (msg.type === "draft" && typeof msg.value === "string") {
+      // Don't clobber if user is actively typing (soft check)
+      try {
+        const active = document.activeElement as HTMLElement | null;
+        const isTyping = !!active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT");
+        if (isTyping) return;
+      } catch {}
+      try {
+        const parsed = JSON.parse(msg.value);
+        if (typeof parsed?.raw === "string") setRaw(parsed.raw);
+        if (Array.isArray(parsed?.selectedUrls)) setSelectedUrls(parsed.selectedUrls);
+      } catch {}
+    }
+    if (msg.type === "runs" && Array.isArray(msg.value)) setRuns(msg.value as any);
+    if (msg.type === "clipboard" && Array.isArray(msg.value)) setClipboard(msg.value as any);
+    if (msg.type === "theme" && typeof msg.value === "string") setTheme(msg.value as any);
+  });
+}, []);
 
   // Keep selection consistent as the user edits the input.
   useEffect(() => {
@@ -209,6 +354,30 @@ export default function Home() {
     timers.current = [];
   }
 
+
+function addTimelineEvent(url: string, stage: TimelineStage, note?: string) {
+  setItems((prev) =>
+    prev.map((it) => {
+      if (it.url !== url) return it;
+      const ev = { at: Date.now(), stage, note };
+      const next = { ...it, timeline: [...(it.timeline || []), ev] };
+      return next;
+    })
+  );
+}
+
+function addTimelineMany(urls: string[], stage: TimelineStage, note?: string) {
+  if (!urls.length) return;
+  const setU = new Set(urls);
+  setItems((prev) =>
+    prev.map((it) => {
+      if (!setU.has(it.url)) return it;
+      const ev = { at: Date.now(), stage, note };
+      return { ...it, timeline: [...(it.timeline || []), ev] };
+    })
+  );
+}
+
   function startPipeline() {
     clearTimers();
     setStage("fetching");
@@ -227,6 +396,28 @@ export default function Home() {
     return true;
   }
 
+
+async function queueRunOffline(requestUrls: string[]) {
+  const snapshot = {
+    id: nowId("q"),
+    at: Date.now(),
+    request: {
+      urls: requestUrls,
+      langEn,
+      langNative,
+      nativeLang,
+      tone,
+      intent,
+      includeAlternates,
+    },
+  };
+  const existing = await idbGet<any[]>("ct:queuedRuns", []);
+  const next = [snapshot, ...existing].slice(0, 10);
+  await idbSet("ct:queuedRuns", next);
+  lsSetJson(LS.queuedRuns, next as any);
+  toast("Offline — queued this run. It will resume when you're online.");
+}
+
   async function generateOneBatch(requestUrls: string[], opts: { append: boolean }) {
     // If a previous request is still in-flight, abort it first.
     abortRef.current?.abort();
@@ -235,21 +426,7 @@ export default function Home() {
 
     startPipeline();
 
-    const resp: GenerateResponse = await generateComments(
-      baseUrl,
-      {
-        urls: requestUrls,
-        lang_en: langEn,
-        lang_native: langNative,
-        native_lang: langNative ? nativeLang : undefined,
-        tone: tone === "auto" ? undefined : tone,
-        intent: intent === "auto" ? undefined : intent,
-        include_alternates: includeAlternates,
-      },
-      token,
-      authToken,
-      controller.signal
-    );
+    const resp: GenerateResponse = await genMutation.mutateAsync({ requestUrls, signal: controller.signal });
 
     const results = resp.results || [];
     const rid = resp.meta?.run_id || nowId("run");
@@ -268,6 +445,11 @@ export default function Home() {
   async function runQueue(allUrls: string[]) {
     if (!ensureAuth()) return;
 
+    if (!online) {
+      await queueRunOffline(allUrls);
+      return;
+    }
+
     queueCancelRef.current = false;
     setError("");
     setLoading(true);
@@ -275,7 +457,7 @@ export default function Home() {
     setQueueTotal(allUrls.length);
     setQueueDone(0);
     // Optimistic placeholders (skeleton cards) so the UI feels instant.
-    setItems(allUrls.map((url) => ({ url, status: "pending" as const, reason: "Generating…" })));
+    setItems(allUrls.map((url) => ({ url, status: "pending" as const, reason: "Generating…", timeline: [{ at: Date.now(), stage: "queued" as const }] })));
     setRunId("");
 
     const BATCH_SIZE = 6;
@@ -295,11 +477,14 @@ export default function Home() {
         if (queueCancelRef.current) throw Object.assign(new Error("Queue canceled"), { name: "AbortError" });
         const batch = batches[bi];
         toast(`Generating batch ${bi + 1}/${batches.length}…`);
+        addTimelineMany(batch, "sending");
 
         const { results, rid } = await generateOneBatch(batch, { append: true });
         lastRid = rid;
         combined = [...combined, ...results];
-        setQueueDone((prev) => Math.min(allUrls.length, prev + batch.length));
+        startTransition(() => setQueueDone((prev) => Math.min(allUrls.length, prev + batch.length)));
+        // Mark received/failed
+        for (const r of results) addTimelineEvent(r.url, r.status === "ok" ? "received" : "failed");
       }
 
       // Persist to run history
@@ -370,6 +555,13 @@ export default function Home() {
       if (status === 403 || code === "missing_access" || code === "forbidden") {
         setSignupOpen(true);
       }
+
+      if (status === 429) {
+        const retryAfter = Number(e?.body?.retry_after || e?.body?.retryAfter || 30);
+        const until = Date.now() + Math.max(5, retryAfter) * 1000;
+        setCooldownUntil(until);
+        toast.error(`Rate limited. Cooling down for ${Math.max(5, retryAfter)}s`);
+      }
     } finally {
       abortRef.current = null;
       clearTimers();
@@ -405,6 +597,13 @@ export default function Home() {
   }
 
   async function onGenerate() {
+    // Rate limit cooldown
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      const s = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      toast.error(`Rate-limited. Try again in ${s}s.`);
+      return;
+    }
+
     const validSelected = selectedUrls.filter((u) => urls.includes(u));
     const requestUrls = validSelected.length ? validSelected : urls;
     if (!requestUrls.length) {
@@ -420,6 +619,7 @@ export default function Home() {
   }
 
   async function rerollUrl(url: string) {
+    addTimelineEvent(url, "rerolled");
     await runQueue([url]);
   }
 
@@ -490,6 +690,7 @@ export default function Home() {
   }
 
   function onCopied(text: string, url?: string) {
+    if (url) addTimelineEvent(url, "copied");
     const rec: ClipboardRecord = {
       id: nowId("clip"),
       at: Date.now(),
@@ -521,6 +722,7 @@ export default function Home() {
       <WelcomePopup />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
       <PerfPanel />
+      <RenderProfilerPanel />
 
       <SignupGate
         open={signupOpen}
@@ -596,6 +798,7 @@ export default function Home() {
           items={items}
           runId={runId}
           onRerollUrl={rerollUrl}
+          onRetryUrl={(u) => runQueue([u])}
           onRetryFailed={retryFailedOnly}
           failedCount={failedUrls.length}
           onClear={() => {
@@ -634,6 +837,13 @@ export default function Home() {
               setError("");
             }}
             onRemove={(id) => setRuns((prev) => prev.filter((r) => r.id !== id))}
+            onShare={prefs?.enableShareLinks ? (id) => {
+              const r = runs.find((x) => x.id === id);
+              if (!r) return;
+              const payload = { raw: r.request.urls.join("\n"), selectedUrls: r.request.urls, run: r };
+              const url = makeShareUrl(payload);
+              navigator.clipboard.writeText(url).then(() => toast.success("Share link copied")).catch(() => toast.error("Couldn't copy"));
+            } : undefined}
             onClear={() => setRuns([])}
           />
 
