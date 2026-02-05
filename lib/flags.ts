@@ -39,7 +39,9 @@ export function isEnabled(flag: string, fallback = false) {
   if (ls != null) return TRUE_SET.has(String(ls).toLowerCase());
 
   const envKey = `NEXT_PUBLIC_FF_${norm.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}`;
-  const envVal = (process.env as any)?.[envKey];
+  // In the browser, `process` may be undefined (Next.js no longer guarantees a polyfill).
+  // Only attempt to read env vars when `process` is available.
+  const envVal = typeof process !== "undefined" ? (process.env as any)?.[envKey] : undefined;
   if (envVal != null) return TRUE_SET.has(String(envVal).toLowerCase());
 
   return fallback;
