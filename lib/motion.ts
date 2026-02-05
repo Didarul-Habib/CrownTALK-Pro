@@ -40,6 +40,13 @@ export function shouldReduceEffects(mode: FxMode = "auto"): boolean {
   return prefersReducedMotion() || prefersReducedData();
 }
 
+/**
+ * Back-compat helper for components that just need a boolean.
+ */
+export function prefersReducedEffects(): boolean {
+  return shouldReduceEffects("auto");
+}
+
 export function applyFxMode(mode: FxMode) {
   if (typeof document === "undefined") return;
   const lite = shouldReduceEffects(mode);
