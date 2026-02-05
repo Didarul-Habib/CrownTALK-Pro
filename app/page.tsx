@@ -61,7 +61,6 @@ export default function Home() {
   const abortRef = useRef<AbortController | null>(null);
   const suppressAbortRef = useRef(false);
   const queueCancelRef = useRef(false);
-  const queueCancelRef = useRef(false);
 
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
