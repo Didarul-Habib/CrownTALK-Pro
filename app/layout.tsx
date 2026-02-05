@@ -6,6 +6,7 @@ import "@fontsource/inter/latin-700.css";
 import "./globals.css";
 
 import { Toaster } from "sonner";
+import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: "CrownTALK",
@@ -20,15 +21,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        {children}
-        <Toaster
-          richColors
-          position="top-right"
-          toastOptions={{
-            className:
-              "rounded-2xl border border-white/10 bg-black/60 text-white backdrop-blur-xl",
-          }}
-        />
+        <Providers>
+          {children}
+          <Toaster
+            richColors
+            position="top-right"
+            toastOptions={{
+              className:
+                "rounded-2xl border border-white/10 bg-black/60 text-white backdrop-blur-xl",
+            }}
+          />
+        </Providers>
       </body>
     </html>
   );
