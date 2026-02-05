@@ -106,7 +106,20 @@ export async function logout(baseUrl: string, accessToken: string, authToken: st
   return body as { ok: boolean };
 }
 
+export async function pingWithLatency(baseUrl: string): Promise<{ ok: boolean; ms: number }> {
+  const t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/ping`, { method: "GET" });
+    const t1 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    return { ok: res.ok, ms: Math.max(0, Math.round(t1 - t0)) };
+  } catch {
+    const t1 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    return { ok: false, ms: Math.max(0, Math.round(t1 - t0)) };
+  }
+}
+
 export async function ping(baseUrl: string) {
+
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/ping`, { method: "GET" });
   return res.ok;
 }
@@ -156,4 +169,110 @@ export async function generateComments(
     results: [...ok, ...failed],
     meta: body?.meta || undefined,
   };
+}
+
+export type StreamUpdate =
+  | { type: "meta"; run_id?: string }
+  | { type: "result"; item: ResultItem }
+  | { type: "done"; results: ResultItem[] };
+
+export async function generateCommentsStream(
+  baseUrl: string,
+  payload: GenerateRequest,
+  accessToken: string,
+  authToken: string,
+  signal: AbortSignal | undefined,
+  onUpdate: (u: StreamUpdate) => void
+): Promise<GenerateResponse> {
+  // Best-effort streaming: try SSE / NDJSON on the same endpoint. If it doesn't stream, fall back.
+  const headers: Record<string, string> = { "Content-Type": "application/json", "Accept": "text/event-stream, application/x-ndjson, application/json" };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const url = `${baseUrl.replace(/\/$/, "")}/comment`;
+  let res: Response | null = null;
+  try {
+    res = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), signal });
+  } catch (e: any) {
+    // network error -> fall back to normal (will throw a better ApiError)
+    return await generateComments(baseUrl, payload, accessToken, authToken, signal);
+  }
+
+  const ct = res.headers.get("content-type") || "";
+  if (!res.ok) {
+    const body = await readBody(res);
+    throw new ApiError(res.status, `Backend error: ${errMessage(res, body)}`, body);
+  }
+
+  // If not streamy, parse as JSON and return.
+  if (!ct.includes("text/event-stream") && !ct.includes("application/x-ndjson")) {
+    const body = await readBody(res);
+    // mimic generateComments parsing
+    const okRaw = (body?.results || []) as any[];
+    const failedRaw = (body?.failed || []) as any[];
+    const ok: ResultItem[] = okRaw.map((it) => ({
+      url: String(it.url || ""),
+      status: "ok",
+      comments: Array.isArray(it.comments) ? it.comments : [],
+    }));
+    const failed: ResultItem[] = failedRaw.map((f) => ({
+      url: String(f.url || ""),
+      status: "error",
+      reason: String(f.reason || f.error || "Failed"),
+    }));
+    const results = [...ok, ...failed];
+    return { results, meta: { run_id: body?.meta?.run_id } };
+  }
+
+  // Streaming reader
+  const reader = res.body?.getReader();
+  if (!reader) {
+    return await generateComments(baseUrl, payload, accessToken, authToken, signal);
+  }
+  const decoder = new TextDecoder();
+  let buf = "";
+  const collected: ResultItem[] = [];
+  const flushLine = (line: string) => {
+    const t = line.trim();
+    if (!t) return;
+    // SSE "data: ..."
+    const raw = t.startsWith("data:") ? t.slice(5).trim() : t;
+    try {
+      const obj = JSON.parse(raw);
+      // Common patterns
+      if (obj?.meta?.run_id) onUpdate({ type: "meta", run_id: obj.meta.run_id });
+      if (obj?.type === "result" && obj?.item) {
+        collected.push(obj.item);
+        onUpdate({ type: "result", item: obj.item });
+      } else if (obj?.result?.url) {
+        const item = obj.result as ResultItem;
+        collected.push(item);
+        onUpdate({ type: "result", item });
+      } else if (Array.isArray(obj?.results)) {
+        for (const it of obj.results) {
+          collected.push(it);
+          onUpdate({ type: "result", item: it });
+        }
+      } else if (obj?.type === "done") {
+        onUpdate({ type: "done", results: collected });
+      }
+    } catch {
+      // ignore non-json
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // split into lines
+    const parts = buf.split(/\r?\n/);
+    buf = parts.pop() || "";
+    for (const line of parts) flushLine(line);
+  }
+  // final flush
+  flushLine(buf);
+  onUpdate({ type: "done", results: collected });
+
+  return { results: collected, meta: {} };
 }

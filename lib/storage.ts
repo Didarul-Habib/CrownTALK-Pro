@@ -13,6 +13,8 @@ export const LS = {
   lastRunResult: "ct_last_run_result_v2",
   dismissResume: "ct_dismiss_resume_v2",
   dismissSessionDiff: "ct_dismiss_session_diff_v2",
+  prefs: "ct_prefs_v2",
+  queuedRuns: "ct_queued_runs_v2",
 };
 
 export function lsGet(key: string, fallback = ""): string {

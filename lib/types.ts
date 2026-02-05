@@ -24,6 +24,34 @@ export type ResultItem = {
   status: "ok" | "error" | "skipped" | "pending";
   reason?: string;
   comments?: CommentItem[];
+  // UI-only metadata (frontend upgrades)
+  timeline?: TimelineEvent[];
+  versions?: ResultVersion[];
+  flags?: {
+    spamReason?: string | null;
+    similarity?: { maxSim: number; withUrl?: string } | null;
+  };
+};
+
+export type TimelineStage =
+  | "queued"
+  | "sending"
+  | "received"
+  | "copied"
+  | "rerolled"
+  | "failed"
+  | "skipped";
+
+export type TimelineEvent = {
+  at: number;
+  stage: TimelineStage;
+  note?: string;
+};
+
+export type ResultVersion = {
+  at: number;
+  label: "original" | "reroll";
+  comments: CommentItem[];
 };
 
 export type GenerateResponse = {
