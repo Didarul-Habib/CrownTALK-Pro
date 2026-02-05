@@ -15,7 +15,9 @@ export type ThemeId =
   | "ocean"
   | "royal"
   | "ember"
-  | "cosmic";
+  | "cosmic"
+  | "retro"
+  | "cyberpunk";
 
 const THEMES: Array<{
   id: ThemeId;
@@ -35,6 +37,8 @@ const THEMES: Array<{
   { id: "royal", label: "Royal", swatches: ["rgba(167,139,250,1)", "rgba(250,204,21,1)"] },
   { id: "ember", label: "Ember", swatches: ["rgba(251,146,60,1)", "rgba(244,63,94,1)"] },
   { id: "cosmic", label: "Cosmic", swatches: ["rgba(217,70,239,1)", "rgba(34,211,238,1)"] },
+  { id: "retro", label: "Retro", swatches: ["rgba(255,198,0,1)", "rgba(255,75,120,1)"] },
+  { id: "cyberpunk", label: "Cyberpunk", swatches: ["rgba(0,255,255,1)", "rgba(255,0,200,1)"] },
 ];
 
 export default function ThemeStudioBar({

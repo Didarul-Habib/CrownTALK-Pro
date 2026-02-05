@@ -18,6 +18,8 @@ function shuffle<T>(arr: T[]): T[] {
 export default function UrlInput({
   value,
   onChange,
+  selected,
+  onSelectedChange,
   helper,
   onSort,
   onCleanInvalid,
@@ -25,6 +27,8 @@ export default function UrlInput({
 }: {
   value: string;
   onChange: (v: string) => void;
+  selected?: string[];
+  onSelectedChange?: (urls: string[]) => void;
   helper?: string;
   onSort?: () => void;
   onCleanInvalid?: () => void;
@@ -32,6 +36,8 @@ export default function UrlInput({
 }) {
   const urls = useMemo(() => parseUrls(value), [value]);
   const lineInfo = useMemo(() => classifyLines(value), [value]);
+
+  const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
 
   const invalidLines = useMemo(() => {
     // count lines that contain text but no url
@@ -79,8 +85,63 @@ export default function UrlInput({
     return out;
   }, [value]);
 
+  const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
+
+  const inbox = useMemo(() => {
+    // Preserve order from the user's input.
+    const ordered = extractUrlsAll(value)
+      .map((u) => normalizeXUrl(u))
+      .filter((u, i, a) => a.indexOf(u) === i); // unique while preserving order
+
+    const dupMap = new Map<string, number>();
+    for (const u of extractUrlsAll(value)) {
+      const key = normalizeXUrl(u);
+      dupMap.set(key, (dupMap.get(key) || 0) + 1);
+    }
+
+    return ordered.map((u) => {
+      const lower = u.toLowerCase();
+      const isStatus = /\/status\/\d+/.test(lower) || /x\.com\/i\/status\/\d+/.test(lower);
+      return {
+        url: u,
+        valid: isStatus,
+        duplicateCount: dupMap.get(u) || 1,
+      };
+    });
+  }, [value]);
+
 
   const hasAny = urls.length > 0 || invalidLines > 0;
+
+  function toggle(u: string) {
+    if (!onSelectedChange) return;
+    const next = new Set(selectedSet);
+    if (next.has(u)) next.delete(u);
+    else next.add(u);
+    onSelectedChange([...next]);
+  }
+
+  function selectAll() {
+    onSelectedChange?.([...urls]);
+  }
+
+  function selectNone() {
+    onSelectedChange?.([]);
+  }
+
+  function removeDuplicates() {
+    const all = [...urls];
+    const seen = new Set<string>();
+    const dedup: string[] = [];
+    for (const u of all) {
+      const k = normalizeXUrl(u);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      dedup.push(u);
+    }
+    onChange(dedup.join("\n"));
+    toast.success("Removed duplicates");
+  }
 
   return (
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
@@ -156,6 +217,127 @@ export default function UrlInput({
         </div>
       </div>
 
+      {/* URL Inbox (parsing preview + selection) */}
+      <div className={clsx(
+        "mt-3 rounded-2xl border p-3",
+        "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]"
+      )}>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold tracking-tight">URL Inbox</div>
+            <div className="text-[11px] opacity-70">Preview what will be processed. Uncheck anything you don't want to include.</div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              className={clsx("ct-btn ct-btn-sm", inbox.length ? "" : "opacity-50 cursor-not-allowed")}
+              disabled={!inbox.length}
+              onClick={() => {
+                const onlyValid = inbox.filter((x) => x.valid).map((x) => x.url);
+                onSelectedChange?.(onlyValid);
+                toast.success("Selected valid URLs only");
+              }}
+              title="Select only valid X post URLs"
+            >
+              Select valid
+            </button>
+            <button
+              type="button"
+              className={clsx("ct-btn ct-btn-sm", inbox.length ? "" : "opacity-50 cursor-not-allowed")}
+              disabled={!inbox.length}
+              onClick={() => {
+                onSelectedChange?.(inbox.map((x) => x.url));
+                toast("Selected all");
+              }}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className={clsx("ct-btn ct-btn-sm", selectedSet.size ? "" : "opacity-50 cursor-not-allowed")}
+              disabled={!selectedSet.size}
+              onClick={() => {
+                onSelectedChange?.([]);
+                toast("Cleared selection");
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {inbox.length ? (
+          <div className="mt-3 max-h-[220px] overflow-auto pr-1">
+            <div className="space-y-2">
+              {inbox.slice(0, 60).map((row) => {
+                const checked = selectedSet.has(row.url);
+                return (
+                  <label key={row.url} className={clsx(
+                    "flex items-start gap-3 rounded-2xl border px-3 py-2",
+                    "border-white/10 bg-black/10",
+                    row.valid ? "" : "border-red-500/25"
+                  )}>
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 accent-white"
+                      checked={checked}
+                      onChange={(e) => {
+                        const next = new Set(selectedSet);
+                        if (e.target.checked) next.add(row.url);
+                        else next.delete(row.url);
+                        onSelectedChange?.([...next]);
+                      }}
+                      aria-label={checked ? "Deselect URL" : "Select URL"}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] break-all opacity-85">{row.url}</div>
+                      <div className="mt-0.5 flex flex-wrap gap-2 text-[10px]">
+                        <span className={clsx(
+                          "rounded-full border px-2 py-0.5",
+                          row.valid ? "border-white/10 bg-white/5" : "border-red-500/25 bg-red-500/10"
+                        )}>
+                          {row.valid ? "Valid post" : "Not a post"}
+                        </span>
+                        {row.duplicateCount > 1 ? (
+                          <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5">Duplicate ×{row.duplicateCount}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="ct-btn ct-btn-sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const nextInbox = inbox.filter((x) => x.url !== row.url).map((x) => x.url);
+                        onChange(nextInbox.join("\n"));
+                        toast("Removed URL");
+                      }}
+                      aria-label="Remove URL"
+                      title="Remove from input"
+                    >
+                      Remove
+                    </button>
+                  </label>
+                );
+              })}
+              {inbox.length > 60 ? (
+                <div className="text-[11px] opacity-70">Showing first 60. Clean/sort to reduce.</div>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 text-xs opacity-70">Paste links above to see them here.</div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] opacity-70">
+          <div>
+            Selected: <span className="font-semibold text-white/90">{selectedSet.size}</span> / {urls.length} valid
+          </div>
+          <div className="hidden sm:block">Tip: paste messy text — we extract links automatically.</div>
+        </div>
+      </div>
+
 
       {(duplicates.length || invalidLines || nonStatusXLinks.length) ? (
         <div className={clsx("mt-3 rounded-2xl border p-3", "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]")}>
@@ -205,35 +387,96 @@ export default function UrlInput({
         </div>
       ) : null}
 
-      {/* URL queue preview chips */}
+      {/* URL Inbox (parsing preview + selection) */}
       <div
         className={clsx(
           "mt-3 rounded-2xl border p-3",
           "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]"
         )}
       >
-        {urls.length ? (
-          <div className="flex flex-wrap gap-2 min-w-0">
-            {urls.slice(0, 20).map((u) => (
-              <span
-                key={u}
-                className="max-w-full min-w-0 truncate rounded-full border px-3 py-1 text-[11px]"
-                style={{
-                  borderColor: "rgba(255,255,255,.14)",
-                  background: "rgba(0,0,0,.12)",
-                }}
-                title={u}
-              >
-                {u}
-              </span>
-            ))}
-            {urls.length > 20 ? (
-              <span className="text-[11px] opacity-70">+{urls.length - 20} more…</span>
-            ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold tracking-tight">URL Inbox</div>
+            <div className="text-[11px] opacity-70">Preview parsed URLs from your paste. Toggle what gets generated.</div>
           </div>
-        ) : (
-          <div className="text-xs opacity-70">No URLs yet.</div>
-        )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="ct-btn ct-btn-sm"
+              onClick={selectAll}
+              disabled={!urls.length}
+              title="Select all valid URLs"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="ct-btn ct-btn-sm"
+              onClick={selectNone}
+              disabled={!urls.length}
+              title="Deselect all"
+            >
+              Select none
+            </button>
+            <button
+              type="button"
+              className="ct-btn ct-btn-sm"
+              onClick={removeDuplicates}
+              disabled={duplicates.length === 0}
+              title="Remove duplicate URLs"
+            >
+              Remove dups
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 max-h-[240px] overflow-auto rounded-2xl border border-white/10 bg-black/10">
+          {inbox.length ? (
+            <div className="divide-y divide-white/10">
+              {inbox.map((it) => {
+                const checked = selectedSet.has(it.url) && it.valid;
+                return (
+                  <label
+                    key={it.url}
+                    className={clsx(
+                      "flex items-start gap-3 px-3 py-2 cursor-pointer",
+                      it.valid ? "hover:bg-white/5" : "opacity-60"
+                    )}
+                    title={it.url}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={checked}
+                      onChange={() => toggle(it.url)}
+                      disabled={!it.valid}
+                      aria-label={it.valid ? "Toggle URL" : "Invalid URL"}
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] break-all opacity-90">{it.url}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] opacity-70">
+                        <span className={clsx("rounded-full border px-2 py-0.5", it.valid ? "border-emerald-500/30 bg-emerald-500/10" : "border-red-500/30 bg-red-500/10")}> 
+                          {it.valid ? "Post" : "Not a post"}
+                        </span>
+                        {it.duplicateCount > 1 ? (
+                          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5">{it.duplicateCount}× duplicate</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-3 text-xs opacity-70">Paste links above — we’ll extract them into your inbox automatically.</div>
+          )}
+        </div>
+
+        <div className="mt-2 text-[11px] opacity-70">
+          Selected: <span className="font-semibold">{[...selectedSet].filter((u) => urls.includes(u)).length}</span> / {urls.length} valid
+        </div>
       </div>
     </div>
   );

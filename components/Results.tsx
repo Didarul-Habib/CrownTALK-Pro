@@ -30,6 +30,8 @@ export default function Results({
   onRerollUrl,
   onRetryFailed,
   failedCount,
+  queueTotal,
+  queueDone,
   onClear,
   onCopy,
   loading,
@@ -39,6 +41,8 @@ export default function Results({
   onRerollUrl: (url: string) => void;
   onRetryFailed: () => void;
   failedCount: number;
+  queueTotal?: number;
+  queueDone?: number;
   onClear?: () => void;
   onCopy?: (text: string, url?: string) => void;
   loading?: boolean;
@@ -123,6 +127,11 @@ export default function Results({
           <div className="text-sm font-semibold tracking-tight">Results</div>
           <div className="text-xs opacity-70">
             Run {runId ? <span className="font-mono">{runId}</span> : "—"} • {items.length} URLs • {okCount} ok • {failedCount} failed
+            {loading && queueTotal ? (
+              <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
+                Queue {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
+              </span>
+            ) : null}
           </div>
         </div>
 
