@@ -1,1 +1,15 @@
-
+{
+  "app": {
+    "title": "CrownTALK",
+    "generate": "জেনারেট",
+    "results": "রেজাল্ট",
+    "urls": "ইউআরএল",
+    "settings": "সেটিংস",
+    "retryFailed": "শুধু ব্যর্থগুলো আবার চেষ্টা",
+    "copyAll": "সব কপি",
+    "downloadTxt": ".txt ডাউনলোড",
+    "clear": "ক্লিয়ার",
+    "uiLanguage": "ইউআই ভাষা",
+    "themeStudio": "থিম স্টুডিও"
+  }
+}

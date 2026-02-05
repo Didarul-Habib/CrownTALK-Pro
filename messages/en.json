@@ -1,0 +1,15 @@
+{
+  "app": {
+    "title": "CrownTALK",
+    "generate": "Generate",
+    "results": "Results",
+    "urls": "URLs",
+    "settings": "Settings",
+    "retryFailed": "Retry failed only",
+    "copyAll": "Copy all",
+    "downloadTxt": "Download .txt",
+    "clear": "Clear",
+    "uiLanguage": "UI language",
+    "themeStudio": "Theme Studio"
+  }
+}
