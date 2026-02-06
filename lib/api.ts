@@ -1,4 +1,27 @@
-i
+const HMAC_SECRET = process.env.NEXT_PUBLIC_CT_HMAC_SECRET;
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function addRequestSignature(headers: Record<string, string>, body: string) {
+  if (!HMAC_SECRET) return;
+  const ts = Math.floor(Date.now() / 1000).toString();
+  headers["X-CT-Timestamp"] = ts;
+  headers["X-CT-Signature"] = await hmacSha256Hex(HMAC_SECRET, `${ts}.${body}`);
+}
+
 
 export type UrlStreamUpdate =
   | { type: "status"; stage: string }
@@ -26,10 +49,13 @@ export async function commentFromUrlStream(
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
+  const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
   const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/comment_from_url/stream`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: bodyStr,
     signal,
   });
 
@@ -156,10 +182,13 @@ export async function signup(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
 
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/signup`, {
+    const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+const res = await fetch(`${baseUrl.replace(/\/$/, "")}/signup`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: bodyStr,
   });
 
   const body = await readBody(res);
@@ -177,10 +206,13 @@ export async function login(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
 
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/login`, {
+    const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+const res = await fetch(`${baseUrl.replace(/\/$/, "")}/login`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: bodyStr,
   });
 
   const body = await readBody(res);
@@ -237,10 +269,13 @@ export async function generateComments(
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
+    const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: bodyStr,
     signal,
   });
 
@@ -429,10 +464,13 @@ export async function commentFromUrl(
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment_from_url`, {
+    const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment_from_url`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: bodyStr,
     signal,
   });
 
@@ -442,4 +480,24 @@ export async function commentFromUrl(
     throw new ApiError(res.status, `Generate from URL failed: ${errMessage(res, body)}`, body);
   }
   return data as any;
+}
+
+
+export async function exportHistory(
+  baseUrl: string,
+  format: "json" | "csv" | "txt",
+  accessToken: string,
+  authToken: string,
+  limit = 1000
+): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+  const url = `${baseUrl.replace(/\/+$/, "")}/history/export?format=${encodeURIComponent(format)}&limit=${limit}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const body = await readBody(res);
+    throw new ApiError(res.status, `Export failed: ${errMessage(res, body)}`, body);
+  }
+  return await res.blob();
 }
