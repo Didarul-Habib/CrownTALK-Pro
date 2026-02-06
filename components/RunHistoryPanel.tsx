@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { useMemo, useState } from "react";
 import { History, Trash2, ChevronRight } from "lucide-react";
 import { FixedSizeList as List } from "react-window";
 import type { RunRecord } from "@/lib/persist";
@@ -33,6 +34,12 @@ export default function RunHistoryPanel({
 }) {
   const rowHeight = 88;
   const listHeight = 420;
+  const [modeFilter, setModeFilter] = useState<"all" | "urls" | "source">("all");
+
+  const filteredRuns = useMemo(() => {
+    if (modeFilter === "all") return runs;
+    return runs.filter((r) => (r.mode || r.request?.mode || "urls") === modeFilter);
+  }, [runs, modeFilter]);
 
   return (
     <div className={clsx("ct-card", "p-4")}> 
@@ -49,22 +56,34 @@ export default function RunHistoryPanel({
         >
           <Trash2 className="h-4 w-4" />
           Clear runs
+        
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" className={clsx("ct-btn ct-btn-xs", modeFilter === "all" ? "ct-btn-primary" : "")} onClick={() => setModeFilter("all")}>
+          All
+        </button>
+        <button type="button" className={clsx("ct-btn ct-btn-xs", modeFilter === "urls" ? "ct-btn-primary" : "")} onClick={() => setModeFilter("urls")}>
+          URLs
+        </button>
+        <button type="button" className={clsx("ct-btn ct-btn-xs", modeFilter === "source" ? "ct-btn-primary" : "")} onClick={() => setModeFilter("source")}>
+          Source
         </button>
       </div>
+</button>
+      </div>
 
-      {!runs.length ? (
+      {!filteredRuns.length ? (
         <div className="mt-3 text-sm opacity-70">No runs yet.</div>
       ) : (
         <div className="mt-3">
           <List
             height={listHeight}
-            itemCount={runs.length}
+            itemCount={filteredRuns.length}
             itemSize={rowHeight}
             width={"100%"}
             overscanCount={3}
           >
             {({ index, style }) => {
-              const r = runs[index];
+              const r = filteredRuns[index];
               return (
                 <div style={style} className="px-1 py-1">
                   <div
