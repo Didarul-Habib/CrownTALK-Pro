@@ -62,6 +62,7 @@ export default function Home() {
   const [tone, setTone] = useState<Tone>("auto");
   const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
+  const [fastMode, setFastMode] = useState(false);
 
   const [token, setToken] = useState<string>("");
   const [authToken, setAuthToken] = useState<string>("");
@@ -94,6 +95,8 @@ const genMutation = useMutation({
         tone: tone === "auto" ? undefined : tone,
         intent: intent === "auto" ? undefined : intent,
         include_alternates: includeAlternates,
+        fast: fastMode,
+        output_language: langNative ? nativeLang : undefined,
       },
       token,
       authToken,
