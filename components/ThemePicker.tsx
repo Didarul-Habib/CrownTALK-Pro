@@ -18,7 +18,9 @@ export type ThemeId =
   | "neon"
   | "sunset"
   | "matrix"
-  | "midnight";
+  | "midnight"
+  | "graphite"
+  | "minimal";
 
 const THEMES: Array<{ id: ThemeId; label: string }> = [
   { id: "neon", label: "Neon" },
@@ -27,7 +29,8 @@ const THEMES: Array<{ id: ThemeId; label: string }> = [
   { id: "sunset", label: "Sunset" },
   { id: "matrix", label: "Matrix" },
   { id: "midnight", label: "Midnight" },
-  { id: "mono", label: "Mono" },
+  { id: "graphite", label: "Graphite" },
+  { id: "minimal", label: "Minimal" },
 ];
 
 export default function ThemePicker({

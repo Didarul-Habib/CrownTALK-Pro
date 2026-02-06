@@ -48,9 +48,10 @@ export default function ResultCard({
   }, []);
 
   function markCopied(key: string) {
+    // Persistent until another copy happens (unmistakable)
     setCopiedKey(key);
     if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => setCopiedKey(""), 1400);
+    timerRef.current = null;
   }
 
   return (

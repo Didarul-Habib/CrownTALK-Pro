@@ -30,6 +30,12 @@ export default function Controls({
   setIntent,
   includeAlternates,
   setIncludeAlternates,
+  formality,
+  setFormality,
+  emojiLevel,
+  setEmojiLevel,
+  spiciness,
+  setSpiciness,
   baseUrl,
   onGenerate,
   onCancel,
@@ -49,6 +55,12 @@ export default function Controls({
   setIntent: (v: Intent) => void;
   includeAlternates: boolean;
   setIncludeAlternates: (v: boolean) => void;
+  formality: number;
+  setFormality: (v: number) => void;
+  emojiLevel: number;
+  setEmojiLevel: (v: number) => void;
+  spiciness: number;
+  setSpiciness: (v: number) => void;
   baseUrl: string;
   onGenerate: () => void;
   onCancel?: () => void;
@@ -99,9 +111,32 @@ export default function Controls({
             Clear
           </PremiumButton>
         </div>
-      </div>
 
-      <div className="mt-4">
+</div>
+
+<div className="grid gap-3 rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3">
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-medium">Formality</div>
+    <div className="text-xs text-[color:var(--ct-muted)]">{formality}/100</div>
+  </div>
+  <input type="range" min={0} max={100} value={formality} onChange={(e)=>setFormality(Number(e.target.value))} className="w-full accent-[color:var(--ct-accent)]" />
+
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-medium">Emoji level</div>
+    <div className="text-xs text-[color:var(--ct-muted)]">{emojiLevel}/100</div>
+  </div>
+  <input type="range" min={0} max={100} value={emojiLevel} onChange={(e)=>setEmojiLevel(Number(e.target.value))} className="w-full accent-[color:var(--ct-accent)]" />
+
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-medium">Spiciness</div>
+    <div className="text-xs text-[color:var(--ct-muted)]">{spiciness}/100</div>
+  </div>
+  <input type="range" min={0} max={100} value={spiciness} onChange={(e)=>setSpiciness(Number(e.target.value))} className="w-full accent-[color:var(--ct-accent)]" />
+
+  <div className="text-xs text-[color:var(--ct-muted)]">UI-first sliders (we’ll map these into prompt logic next).</div>
+</div>
+
+<div className="mt-4">
         <label className="text-xs opacity-70">Backend URL</label>
         <div className="mt-2 flex items-center gap-2">
           <div className="relative flex-1">

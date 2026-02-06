@@ -2,94 +2,45 @@
 
 import clsx from "clsx";
 import { ExternalLink } from "lucide-react";
-import Image from "next/image";
+import StatusPill from "@/components/StatusPill";
 
 export default function Footer({
-  ownerXUrl = "https://x.com/_CrownDEX",
-  // Use a stable avatar resolver so updates reflect without hardcoding Twitter CDN hashes.
-  ownerPfpUrl = "https://pbs.twimg.com/profile_images/2019693082548264960/zD5g90RA.jpg",
+  mode = "URL/Source",
+  version = "v2",
 }: {
-  ownerXUrl?: string;
-  ownerPfpUrl?: string;
+  mode?: string;
+  version?: string;
 }) {
-  const year = new Date().getFullYear();
   return (
     <footer className="mt-10 pb-12">
       <div className="mx-auto max-w-6xl px-4">
         <div
           className={clsx(
-            "ct-card",
-            "relative overflow-hidden",
-            "p-6",
-            "flex flex-col gap-6"
+            "rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)]/70 backdrop-blur-xl",
+            "px-4 py-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
           )}
         >
-          {/* Subtle premium glow */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -inset-24 opacity-60 blur-3xl"
-            style={{
-              background:
-                "radial-gradient(600px 320px at 15% 30%, color-mix(in srgb, var(--ct-accent) 18%, transparent), transparent 62%)," +
-                "radial-gradient(520px 340px at 85% 25%, color-mix(in srgb, var(--ct-accent-2) 16%, transparent), transparent 64%)",
-            }}
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-20"
-            style={{
-              background:
-                "linear-gradient(135deg, color-mix(in srgb, var(--ct-accent) 18%, transparent), transparent 40%, color-mix(in srgb, var(--ct-accent-2) 14%, transparent))",
-            }}
-          />
-
-          <div className="relative z-10 grid gap-6 sm:grid-cols-2 sm:items-center">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full border border-white/10 bg-black/10 grid place-items-center overflow-hidden">
-                <Image src="/logo.png" alt="CrownTALK" width={40} height={40} className="h-10 w-10 object-cover" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
-                  <span className="ct-chip text-[10px]">PRO</span>
-                </div>
-                <div className="text-xs opacity-70 -mt-0.5">Professional X comment generator</div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
-              <a
-                href={ownerXUrl}
-                target="_blank"
-                rel="noreferrer"
-                className={clsx(
-                  "inline-flex items-center gap-2",
-                  "rounded-3xl border border-white/10 bg-white/5 px-3 py-2",
-                  "hover:bg-white/10 hover:brightness-110 transition",
-                  "shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
-                )}
-                title="Open on X"
-              >
-                <span className="h-9 w-9 rounded-full border border-white/10 bg-black/10 overflow-hidden grid place-items-center">
-                  <Image
-                    src={ownerPfpUrl}
-                    alt="X profile"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 object-cover"
-                  />
-                </span>
-                <span className="ct-btn ct-btn-sm ct-btn-primary inline-flex items-center gap-2">
-                  <ExternalLink className="h-4 w-4 opacity-80" />
-                  <span className="text-xs font-semibold">CrownDEX</span>
-                </span>
-              </a>
+          <div className="flex flex-col gap-1">
+            <div className="text-sm font-semibold">CrownTALK</div>
+            <div className="text-xs text-[color:var(--ct-muted)]">
+              Docs • Changelog • Privacy
+              <span className="mx-2 opacity-40">•</span>
+              Shortcuts: Ctrl+/ Theme, Ctrl+Enter Generate
             </div>
           </div>
 
-          <div className="relative z-10 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between text-[11px] opacity-70">
-            <div>© {year} <span className="font-semibold opacity-90">CrownTALK</span>. All rights reserved.</div>
-            <div className="opacity-70">Designed for speed, clarity, and premium presence.</div>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-[color:var(--ct-muted)]">Mode: {mode}</div>
+            <div className="rounded-full border border-[color:var(--ct-border)] px-2 py-1 text-xs">{version}</div>
+            <StatusPill />
+            <a
+              className="inline-flex items-center gap-1 text-xs text-[color:var(--ct-muted)] hover:text-[color:var(--ct-text)]"
+              href="https://x.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              X <ExternalLink className="h-3 w-3" />
+            </a>
           </div>
         </div>
       </div>

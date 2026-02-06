@@ -17,7 +17,9 @@ export type ThemeId =
   | "ember"
   | "cosmic"
   | "retro"
-  | "cyberpunk";
+  | "cyberpunk"
+  | "graphite"
+  | "minimal";
 
 const THEMES: Array<{
   id: ThemeId;
