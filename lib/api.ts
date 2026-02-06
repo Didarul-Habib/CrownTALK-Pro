@@ -292,3 +292,60 @@ export async function generateCommentsStream(
 
   return { results: collected, meta: {} };
 }
+
+export type SourcePreview = { title: string; excerpt: string; source_url: string };
+
+export async function sourcePreview(
+  baseUrl: string,
+  source_url: string,
+  accessToken: string,
+  authToken: string
+): Promise<SourcePreview> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/source_preview`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ source_url }),
+  });
+
+  const body = await readBody(res);
+  const data = body && typeof body === "object" && "success" in (body as any) ? (body as any).data : body;
+  if (!res.ok) {
+    throw new ApiError(res.status, `Source preview failed: ${errMessage(res, body)}`, body);
+  }
+  return data as SourcePreview;
+}
+
+export async function commentFromUrl(
+  baseUrl: string,
+  payload: {
+    source_url: string;
+    output_language?: string;
+    fast?: boolean;
+    quote_mode?: boolean;
+  },
+  accessToken: string,
+  authToken: string,
+  signal?: AbortSignal
+): Promise<{ item: ResultItem & { title?: string; excerpt?: string; citations?: any[] } }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment_from_url`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  const body = await readBody(res);
+  const data = body && typeof body === "object" && "success" in (body as any) ? (body as any).data : body;
+  if (!res.ok) {
+    throw new ApiError(res.status, `Generate from URL failed: ${errMessage(res, body)}`, body);
+  }
+  return data as any;
+}
