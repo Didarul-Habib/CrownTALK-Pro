@@ -167,10 +167,14 @@ function unwrapEnvelope<T = any>(body: any): T {
 }
 
 export async function verifyAccess(baseUrl: string, code: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const bodyStr = JSON.stringify({ code });
+  await addRequestSignature(headers, bodyStr);
+
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/verify_access`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
+    headers,
+    body: bodyStr,
   });
 
   const body = await readBody(res);
