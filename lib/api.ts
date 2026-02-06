@@ -1,4 +1,98 @@
-import type { GenerateRequest, GenerateResponse, ResultItem } from "./types";
+i
+
+export type UrlStreamUpdate =
+  | { type: "status"; stage: string }
+  | { type: "result"; item: ResultItem & { title?: string; excerpt?: string; citations?: any[] } }
+  | { type: "done" }
+  | { type: "error"; code?: string; message?: string };
+
+export async function commentFromUrlStream(
+  baseUrl: string,
+  payload: {
+    source_url: string;
+    output_language?: string;
+    fast?: boolean;
+    quote_mode?: boolean;
+  },
+  accessToken: string,
+  authToken: string,
+  signal: AbortSignal | undefined,
+  onUpdate: (u: UrlStreamUpdate) => void
+): Promise<{ item: ResultItem & { title?: string; excerpt?: string; citations?: any[] } }> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Accept": "text/event-stream, application/json",
+  };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/comment_from_url/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  const ct = res.headers.get("content-type") || "";
+  // If backend doesn't stream for any reason, fall back.
+  if (!ct.includes("text/event-stream")) {
+    return await commentFromUrl(baseUrl, payload, accessToken, authToken, signal);
+  }
+  if (!res.ok) {
+    const body = await readBody(res);
+    throw new ApiError(res.status, `Generate from URL failed: ${errMessage(res, body)}`, body);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    return await commentFromUrl(baseUrl, payload, accessToken, authToken, signal);
+  }
+
+  const decoder = new TextDecoder();
+  let buf = "";
+  let lastItem: any = null;
+
+  const flushLine = (line: string) => {
+    const t = line.trim();
+    if (!t) return;
+    if (!t.startsWith("data:")) return;
+    const raw = t.slice(5).trim();
+    try {
+      const obj = JSON.parse(raw);
+      if (obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
+      if (obj?.type === "result" && obj?.item) {
+        lastItem = obj.item;
+        onUpdate({ type: "result", item: obj.item });
+      }
+      if (obj?.ok === true || obj?.type === "done") {
+        onUpdate({ type: "done" });
+      }
+      if (obj?.code || obj?.message) {
+        // not always an error, but safe to ignore
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx);
+      buf = buf.slice(idx + 1);
+      flushLine(line);
+    }
+  }
+
+  if (!lastItem) {
+    throw new ApiError(502, "No result received from stream");
+  }
+  return { item: lastItem };
+}
+mport type { GenerateRequest, GenerateResponse, ResultItem } from "./types";
 
 const ACCESS_HEADER = "X-Crowntalk-Token";
 

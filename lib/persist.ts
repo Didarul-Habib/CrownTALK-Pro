@@ -8,6 +8,8 @@ export type UserProfile = {
 };
 
 export type RunRequestSnapshot = {
+  mode?: "urls" | "source";
+  sourceUrl?: string;
   urls: string[];
   langEn: boolean;
   langNative: boolean;
@@ -19,6 +21,7 @@ export type RunRequestSnapshot = {
 
 export type RunRecord = {
   id: string;
+  mode?: "urls" | "source";
   at: number;
   request: RunRequestSnapshot;
   results: ResultItem[];
