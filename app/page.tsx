@@ -23,8 +23,12 @@ import Footer from "@/components/Footer";
 import RenderProfilerPanel from "@/components/RenderProfilerPanel";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { parseUrls } from "@/lib/validate";
 import { ApiError, logout as apiLogout } from "@/lib/api";
+import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
 import type { TimelineStage } from "@/lib/types";
@@ -55,6 +59,10 @@ export default function Home() {
   const setRaw = rawStack.set;
   const urls = useMemo(() => parseUrls(raw), [raw]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+
+  const [inputMode, setInputMode] = useState<"urls" | "source">("urls");
+  const [sourceUrl, setSourceUrl] = useState<string>("");
+  const [sourcePrev, setSourcePrev] = useState<SourcePreview | null>(null);
 
   const [langEn, setLangEn] = useState(true);
   const [langNative, setLangNative] = useState(false);
@@ -126,6 +134,25 @@ const genMutation = useMutation({
   retry: 0,
 });
 
+  const genFromUrlMutation = useMutation({
+    mutationFn: async (vars: { source_url: string; signal?: AbortSignal }) => {
+      const api = await import("@/lib/api");
+      return api.commentFromUrl(
+        baseUrl,
+        {
+          source_url: vars.source_url,
+          output_language: langNative ? nativeLang : undefined,
+          fast: fastMode,
+          quote_mode: true,
+        },
+        token,
+        authToken,
+        vars.signal
+      );
+    },
+    retry: 0,
+  });
+
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
   const [runId, setRunId] = useState<string>("");
@@ -135,6 +162,25 @@ const genMutation = useMutation({
   const online = useOnline();
   const [cooldownUntil, setCooldownUntil] = useState<number>(0);
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
+
+  // Thread/Article URL preview (debounced)
+  useEffect(() => {
+    if (inputMode !== "source") return;
+    if (!sourceUrl.trim()) {
+      setSourcePrev(null);
+      return;
+    }
+    const h = window.setTimeout(async () => {
+      try {
+        const api = await import("@/lib/api");
+        const prev = await api.sourcePreview(baseUrl, sourceUrl.trim(), token, authToken);
+        setSourcePrev(prev);
+      } catch {
+        setSourcePrev(null);
+      }
+    }, 450);
+    return () => window.clearTimeout(h);
+  }, [inputMode, sourceUrl, baseUrl, token, authToken]);
 
 
   // Restore persisted UI state
@@ -607,6 +653,35 @@ async function queueRunOffline(requestUrls: string[]) {
       return;
     }
 
+    if (inputMode === "source") {
+      const u = sourceUrl.trim();
+      if (!u) {
+        setError("Paste a thread/article URL.");
+        toast.error("Please paste a thread/article URL");
+        return;
+      }
+      // Cancel any existing run
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      setLoading(true);
+      setStage("generating");
+      setError("");
+      try {
+        const resp = await genFromUrlMutation.mutateAsync({ source_url: u, signal: ac.signal });
+        setItems([resp.item as any]);
+        setRunId(nowId("run"));
+      } catch (e: any) {
+        const msg = e instanceof ApiError ? e.message : "Failed to generate from URL";
+        setError(msg);
+        try { toast.error(msg); } catch {}
+      } finally {
+        setLoading(false);
+        setStage("idle");
+      }
+      return;
+    }
+
     const validSelected = selectedUrls.filter((u) => urls.includes(u));
     const requestUrls = validSelected.length ? validSelected : urls;
     if (!requestUrls.length) {
@@ -760,16 +835,50 @@ async function queueRunOffline(requestUrls: string[]) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
         >
-          <UrlInput
-            value={raw}
-            onChange={setRaw}
-            selected={selectedUrls}
-            onSelectedChange={setSelectedUrls}
-            helper={`${urls.length} valid URL${urls.length === 1 ? "" : "s"} detected`}
-            onSort={() => setRaw(sortUrlsInRaw(raw))}
-            onCleanInvalid={() => setRaw(cleanInvalidInRaw(raw))}
-            onShuffle={() => setRaw(shuffleUrlsInRaw(raw))}
-          />
+          <div className="space-y-4">
+            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as any)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="urls" className="flex-1">X URLs</TabsTrigger>
+                <TabsTrigger value="source" className="flex-1">Thread + Article</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {inputMode === "urls" ? (
+              <UrlInput
+                value={raw}
+                onChange={setRaw}
+                selected={selectedUrls}
+                onSelectedChange={setSelectedUrls}
+                helper={`${urls.length} valid URL${urls.length === 1 ? "" : "s"} detected`}
+                onSort={() => setRaw(sortUrlsInRaw(raw))}
+                onCleanInvalid={() => setRaw(cleanInvalidInRaw(raw))}
+                onShuffle={() => setRaw(shuffleUrlsInRaw(raw))}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Reply from a link</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <label className="block text-sm text-ct-muted">Paste an X thread URL or any article URL</label>
+                  <input
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                    placeholder="https://x.com/... or https://example.com/article"
+                    className="w-full rounded-[var(--ct-radius)] border border-ct-border bg-ct-bg/40 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                  />
+                  {sourcePrev ? (
+                    <div className="rounded-[var(--ct-radius)] border border-ct-border bg-ct-panel/50 p-3">
+                      <div className="text-sm font-semibold">{sourcePrev.title}</div>
+                      <div className="mt-1 text-xs text-ct-muted line-clamp-4">{sourcePrev.excerpt}</div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-ct-muted">We’ll preview the page once you paste a valid URL.</div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           <div className="space-y-6">
             <Controls
