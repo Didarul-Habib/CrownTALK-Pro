@@ -301,11 +301,18 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
   const okRaw = (data?.results || []) as any[];
   const failedRaw = (data?.failed || []) as any[];
 
-  const ok: ResultItem[] = okRaw.map((it) => ({
-    url: String(it.url || ""),
-    status: "ok",
-    comments: Array.isArray(it.comments) ? it.comments : [],
-  }));
+const ok: ResultItem[] = okRaw.map((it) => {
+  const url = String(it.url || "");
+  const comments = Array.isArray(it.comments) ? it.comments : [];
+
+  return {
+    // Required fields for ResultItem
+    id: url || `url_${Math.random().toString(36).slice(2)}`,
+    text: comments.length ? String(comments[0]) : "",
+    // Keep original fields in meta
+    meta: { url, status: "ok", comments },
+  };
+});
 
   const failed: ResultItem[] = failedRaw.map((f) => ({
     url: String(f.url || ""),
@@ -365,11 +372,18 @@ export async function generateCommentsStream(
     // mimic generateComments parsing
     const okRaw = (data?.results || []) as any[];
     const failedRaw = (data?.failed || []) as any[];
-    const ok: ResultItem[] = okRaw.map((it) => ({
-      url: String(it.url || ""),
-      status: "ok",
-      comments: Array.isArray(it.comments) ? it.comments : [],
-    }));
+const ok: ResultItem[] = okRaw.map((it) => {
+  const url = String(it.url || "");
+  const comments = Array.isArray(it.comments) ? it.comments : [];
+
+  return {
+    // Required fields for ResultItem
+    id: url || `url_${Math.random().toString(36).slice(2)}`,
+    text: comments.length ? String(comments[0]) : "",
+    // Keep original fields in meta
+    meta: { url, status: "ok", comments },
+  };
+});
     const failed: ResultItem[] = failedRaw.map((f) => ({
       url: String(f.url || ""),
       status: "error",
