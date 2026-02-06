@@ -11,6 +11,7 @@ export default function Footer({
   mode?: string;
   version?: string;
 }) {
+  const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined) || "";
   return (
     <footer className="mt-10 pb-12">
       <div className="mx-auto max-w-6xl px-4">
@@ -32,7 +33,7 @@ export default function Footer({
           <div className="flex items-center gap-3">
             <div className="text-xs text-[color:var(--ct-muted)]">Mode: {mode}</div>
             <div className="rounded-full border border-[color:var(--ct-border)] px-2 py-1 text-xs">{version}</div>
-            <StatusPill />
+            <StatusPill baseUrl={baseUrl} />
             <a
               className="inline-flex items-center gap-1 text-xs text-[color:var(--ct-muted)] hover:text-[color:var(--ct-text)]"
               href="https://x.com"

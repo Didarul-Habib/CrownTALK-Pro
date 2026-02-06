@@ -4,7 +4,11 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { pingWithLatency } from "@/lib/api";
 
-export default function StatusPill({ baseUrl }: { baseUrl: string }) {
+export default function StatusPill({ baseUrl }: { baseUrl?: string }) {
+  // Make this prop optional so callers don't have to thread it everywhere.
+  // NEXT_PUBLIC_BACKEND_URL is injected at build time by Next.js.
+  const resolvedBaseUrl =
+    baseUrl || (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined) || "";
   const [ok, setOk] = useState<boolean | null>(null);
   const [ms, setMs] = useState<number | null>(null);
 
@@ -12,7 +16,14 @@ export default function StatusPill({ baseUrl }: { baseUrl: string }) {
     let live = true;
     setOk(null);
     setMs(null);
-    pingWithLatency(baseUrl)
+    if (!resolvedBaseUrl) {
+      setOk(false);
+      setMs(null);
+      return () => {
+        live = false;
+      };
+    }
+    pingWithLatency(resolvedBaseUrl)
       .then((r) => {
         if (!live) return;
         setOk(r.ok);
@@ -26,7 +37,7 @@ export default function StatusPill({ baseUrl }: { baseUrl: string }) {
     return () => {
       live = false;
     };
-  }, [baseUrl]);
+  }, [resolvedBaseUrl]);
 
   return (
     <div
