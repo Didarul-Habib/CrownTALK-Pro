@@ -74,46 +74,76 @@ export async function commentFromUrlStream(
     return await commentFromUrl(baseUrl, payload, accessToken, authToken, signal);
   }
 
+  
   const decoder = new TextDecoder();
   let buf = "";
   let lastItem: any = null;
 
-  const flushLine = (line: string) => {
-    const t = line.trim();
+  // Buffer chunk updates to avoid UI jank (flush every ~80ms)
+  let pendingChunks: Array<{ index: number; text: string }> = [];
+  const flushChunks = () => {
+    if (!pendingChunks.length) return;
+    const take = pendingChunks;
+    pendingChunks = [];
+    for (const c of take) onUpdate({ type: "chunk", index: c.index, text: c.text } as any);
+  };
+  const flushTimer = setInterval(flushChunks, 80);
+
+  const handleEvent = (evt: string, data: string) => {
+    const t = (data || "").trim();
     if (!t) return;
-    if (!t.startsWith("data:")) return;
-    const raw = t.slice(5).trim();
     try {
-      const obj = JSON.parse(raw);
-      if (obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
-      if (obj?.type === "result" && obj?.item) {
+      const obj = JSON.parse(t);
+      if (evt === "status" && obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
+      if (evt === "chunk" && typeof obj?.index === "number" && typeof obj?.text === "string") {
+        pendingChunks.push({ index: obj.index, text: obj.text });
+        return;
+      }
+      if ((evt === "result" || obj?.type === "result") && obj?.item) {
         lastItem = obj.item;
         onUpdate({ type: "result", item: obj.item });
       }
-      if (obj?.ok === true || obj?.type === "done") {
+      if (evt === "done" || obj?.type === "done" || obj?.ok === true) {
         onUpdate({ type: "done" });
       }
-      if (obj?.code || obj?.message) {
-        // not always an error, but safe to ignore
+      if (evt === "error" && (obj?.message || obj?.code)) {
+        onUpdate({ type: "error", code: obj?.code, message: obj?.message });
       }
     } catch {
       // ignore
     }
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, idx);
-      buf = buf.slice(idx + 1);
-      flushLine(line);
+  const parseSseBlock = (block: string) => {
+    // SSE blocks are separated by blank lines, may contain event: + data:
+    const lines = block.split(/\n/);
+    let evt = "";
+    let data = "";
+    for (const line of lines) {
+      if (line.startsWith("event:")) evt = line.slice(6).trim();
+      if (line.startsWith("data:")) data += (data ? "\n" : "") + line.slice(5).trim();
     }
+    handleEvent(evt || "message", data);
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (block.trim()) parseSseBlock(block);
+      }
+    }
+  } finally {
+    clearInterval(flushTimer);
+    flushChunks();
   }
 
-  if (!lastItem) {
+if (!lastItem) {
     throw new ApiError(502, "No result received from stream");
   }
   return { item: lastItem };
