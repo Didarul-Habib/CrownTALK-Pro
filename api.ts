@@ -314,12 +314,20 @@ const ok: ResultItem[] = okRaw.map((it) => {
   };
 });
 
-  const failed: ResultItem[] = failedRaw.map((f) => ({
-    url: String(f.url || ""),
-    status: "error",
-    reason: String(f.reason || f.code || "error"),
-    comments: [],
-  }));
+  const failed: ResultItem[] = failedRaw.map((f) => {
+    const url = String(f.url || "");
+    const reason = String(f.reason || f.code || "error");
+    return {
+      id: url ? `fail_${url}` : `fail_${Math.random().toString(36).slice(2)}`,
+      text: reason,
+      meta: {
+        url,
+        status: "error",
+        reason,
+        comments: [],
+      },
+    };
+  });
 
   // meta can live on the outer envelope.
   const meta = body && typeof body === "object" ? (body as any).meta : undefined;
