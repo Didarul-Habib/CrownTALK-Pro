@@ -74,76 +74,46 @@ export async function commentFromUrlStream(
     return await commentFromUrl(baseUrl, payload, accessToken, authToken, signal);
   }
 
-  
   const decoder = new TextDecoder();
   let buf = "";
   let lastItem: any = null;
 
-  // Buffer chunk updates to avoid UI jank (flush every ~80ms)
-  let pendingChunks: Array<{ index: number; text: string }> = [];
-  const flushChunks = () => {
-    if (!pendingChunks.length) return;
-    const take = pendingChunks;
-    pendingChunks = [];
-    for (const c of take) onUpdate({ type: "chunk", index: c.index, text: c.text } as any);
-  };
-  const flushTimer = setInterval(flushChunks, 80);
-
-  const handleEvent = (evt: string, data: string) => {
-    const t = (data || "").trim();
+  const flushLine = (line: string) => {
+    const t = line.trim();
     if (!t) return;
+    if (!t.startsWith("data:")) return;
+    const raw = t.slice(5).trim();
     try {
-      const obj = JSON.parse(t);
-      if (evt === "status" && obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
-      if (evt === "chunk" && typeof obj?.index === "number" && typeof obj?.text === "string") {
-        pendingChunks.push({ index: obj.index, text: obj.text });
-        return;
-      }
-      if ((evt === "result" || obj?.type === "result") && obj?.item) {
+      const obj = JSON.parse(raw);
+      if (obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
+      if (obj?.type === "result" && obj?.item) {
         lastItem = obj.item;
         onUpdate({ type: "result", item: obj.item });
       }
-      if (evt === "done" || obj?.type === "done" || obj?.ok === true) {
+      if (obj?.ok === true || obj?.type === "done") {
         onUpdate({ type: "done" });
       }
-      if (evt === "error" && (obj?.message || obj?.code)) {
-        onUpdate({ type: "error", code: obj?.code, message: obj?.message });
+      if (obj?.code || obj?.message) {
+        // not always an error, but safe to ignore
       }
     } catch {
       // ignore
     }
   };
 
-  const parseSseBlock = (block: string) => {
-    // SSE blocks are separated by blank lines, may contain event: + data:
-    const lines = block.split(/\n/);
-    let evt = "";
-    let data = "";
-    for (const line of lines) {
-      if (line.startsWith("event:")) evt = line.slice(6).trim();
-      if (line.startsWith("data:")) data += (data ? "\n" : "") + line.slice(5).trim();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx);
+      buf = buf.slice(idx + 1);
+      flushLine(line);
     }
-    handleEvent(evt || "message", data);
-  };
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      let idx: number;
-      while ((idx = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, idx);
-        buf = buf.slice(idx + 2);
-        if (block.trim()) parseSseBlock(block);
-      }
-    }
-  } finally {
-    clearInterval(flushTimer);
-    flushChunks();
   }
 
-if (!lastItem) {
+  if (!lastItem) {
     throw new ApiError(502, "No result received from stream");
   }
   return { item: lastItem };
@@ -188,6 +158,14 @@ function errMessage(res: Response, body: any) {
 }
 
 
+
+function unwrapEnvelope<T = any>(body: any): T {
+  if (body && typeof body === 'object' && (body as any).success === true && 'data' in body) {
+    return (body as any).data as T;
+  }
+  return body as T;
+}
+
 export async function verifyAccess(baseUrl: string, code: string) {
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/verify_access`, {
     method: "POST",
@@ -196,12 +174,12 @@ export async function verifyAccess(baseUrl: string, code: string) {
   });
 
   const body = await readBody(res);
-  const data = (body && typeof body === 'object' && 'success' in (body as any)) ? ((body as any).data ?? body) : body;
+  const data = unwrapEnvelope(body);
 
   if (!res.ok) {
     throw new ApiError(res.status, `Access verify failed: ${errMessage(res, body)}`, body);
   }
-  return body as { ok: boolean; token: string };
+  return data as { ok: boolean; token: string };
 }
 
 export async function signup(
@@ -222,10 +200,11 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/signup`, {
   });
 
   const body = await readBody(res);
+  const data = unwrapEnvelope(body);
   if (!res.ok) {
     throw new ApiError(res.status, `Signup failed: ${errMessage(res, body)}`, body);
   }
-  return body as { ok: boolean; user: { id: number; name: string; x_link: string }; token: string; expires_at: number };
+  return data as { ok: boolean; user: { id: number; name: string; x_link: string }; token: string; expires_at: number };
 }
 
 export async function login(
@@ -246,10 +225,11 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/login`, {
   });
 
   const body = await readBody(res);
+  const data = unwrapEnvelope(body);
   if (!res.ok) {
     throw new ApiError(res.status, `Login failed: ${errMessage(res, body)}`, body);
   }
-  return body as { ok: boolean; user: { id: number; name: string; x_link: string }; token: string; expires_at: number };
+  return data as { ok: boolean; user: { id: number; name: string; x_link: string }; token: string; expires_at: number };
 }
 
 export async function logout(baseUrl: string, accessToken: string, authToken: string) {
@@ -264,10 +244,11 @@ export async function logout(baseUrl: string, accessToken: string, authToken: st
   });
 
   const body = await readBody(res);
+  const data = unwrapEnvelope(body);
   if (!res.ok) {
     throw new ApiError(res.status, `Logout failed: ${errMessage(res, body)}`, body);
   }
-  return body as { ok: boolean };
+  return data as { ok: boolean };
 }
 
 export async function pingWithLatency(baseUrl: string): Promise<{ ok: boolean; ms: number }> {
@@ -310,7 +291,6 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
   });
 
   const body = await readBody(res);
-  const data = (body && typeof body === 'object' && 'success' in (body as any)) ? ((body as any).data ?? body) : body;
 
   if (!res.ok) {
     throw new ApiError(res.status, `Backend error: ${errMessage(res, body)}`, body);
@@ -381,7 +361,6 @@ export async function generateCommentsStream(
   // If not streamy, parse as JSON and return.
   if (!ct.includes("text/event-stream") && !ct.includes("application/x-ndjson")) {
     const body = await readBody(res);
-    const data = (body && typeof body === 'object' && 'success' in (body as any)) ? ((body as any).data ?? body) : body;
     // mimic generateComments parsing
     const okRaw = (data?.results || []) as any[];
     const failedRaw = (data?.failed || []) as any[];
