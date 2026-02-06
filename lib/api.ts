@@ -291,12 +291,13 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
   });
 
   const body = await readBody(res);
+  const data = unwrapEnvelope<any>(body);
 
   if (!res.ok) {
     throw new ApiError(res.status, `Backend error: ${errMessage(res, body)}`, body);
   }
 
-  // Backend returns { results: [...ok], failed: [...failed] }.
+  // Backend returns { results: [...ok], failed: [...failed] } inside an optional envelope.
   const okRaw = (data?.results || []) as any[];
   const failedRaw = (data?.failed || []) as any[];
 
@@ -313,10 +314,10 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
     comments: [],
   }));
 
-  return {
-    results: [...ok, ...failed],
-    meta: body?.meta || undefined,
-  };
+  // meta can live on the outer envelope.
+  const meta = body && typeof body === "object" ? (body as any).meta : undefined;
+
+  return { results: [...ok, ...failed], meta: meta || undefined };
 }
 
 export type StreamUpdate =
