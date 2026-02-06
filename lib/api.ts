@@ -22,14 +22,21 @@ async function readBody(res: Response) {
 }
 
 function errMessage(res: Response, body: any) {
+  // Supports both legacy {error,code} and new envelope {success,false,error:{code,message}}
   if (body && typeof body === "object") {
-    const code = body.code ? ` (${body.code})` : "";
-    const msg = body.error ? String(body.error) : JSON.stringify(body);
-    return `${res.status} ${msg}${code}`;
+    const envErr = (body as any).error;
+    if (envErr && typeof envErr === "object") {
+      const code = envErr.code ? ` (${envErr.code})` : "";
+      const msg = envErr.message ? String(envErr.message) : JSON.stringify(envErr);
+      return `${msg}${code}`;
+    }
+    const code = (body as any).code ? ` (${(body as any).code})` : "";
+    const msg = (body as any).error ? String((body as any).error) : JSON.stringify(body);
+    return `${msg}${code}`;
   }
-  const txt = (typeof body === "string" ? body : "").trim();
-  return `${res.status} ${txt || res.statusText}`.trim();
+  return `HTTP ${res.status}`;
 }
+
 
 export async function verifyAccess(baseUrl: string, code: string) {
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/verify_access`, {
@@ -39,6 +46,7 @@ export async function verifyAccess(baseUrl: string, code: string) {
   });
 
   const body = await readBody(res);
+  const data = (body && typeof body === 'object' && 'success' in (body as any)) ? ((body as any).data ?? body) : body;
 
   if (!res.ok) {
     throw new ApiError(res.status, `Access verify failed: ${errMessage(res, body)}`, body);
@@ -143,14 +151,15 @@ export async function generateComments(
   });
 
   const body = await readBody(res);
+  const data = (body && typeof body === 'object' && 'success' in (body as any)) ? ((body as any).data ?? body) : body;
 
   if (!res.ok) {
     throw new ApiError(res.status, `Backend error: ${errMessage(res, body)}`, body);
   }
 
   // Backend returns { results: [...ok], failed: [...failed] }.
-  const okRaw = (body?.results || []) as any[];
-  const failedRaw = (body?.failed || []) as any[];
+  const okRaw = (data?.results || []) as any[];
+  const failedRaw = (data?.failed || []) as any[];
 
   const ok: ResultItem[] = okRaw.map((it) => ({
     url: String(it.url || ""),
@@ -189,10 +198,16 @@ export async function generateCommentsStream(
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
-  const url = `${baseUrl.replace(/\/$/, "")}/comment`;
+  const base = baseUrl.replace(/\/$/, "");
+  const firstUrl = Array.isArray((payload as any).urls) ? String((payload as any).urls[0] || "") : "";
+  const streamUrl = `${base}/comment/stream`;
+  const bulkUrl = `${base}/comment`;
+  const useDedicatedStream = Array.isArray((payload as any).urls) && (payload as any).urls.length === 1 && firstUrl;
+  const url = useDedicatedStream ? streamUrl : bulkUrl;
   let res: Response | null = null;
   try {
-    res = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), signal });
+    const reqBody = useDedicatedStream ? { url: firstUrl, preset: (payload as any).preset, output_language: (payload as any).output_language, fast: (payload as any).fast } : payload;
+    res = await fetch(url, { method: "POST", headers, body: JSON.stringify(reqBody), signal });
   } catch (e: any) {
     // network error -> fall back to normal (will throw a better ApiError)
     return await generateComments(baseUrl, payload, accessToken, authToken, signal);
@@ -207,9 +222,10 @@ export async function generateCommentsStream(
   // If not streamy, parse as JSON and return.
   if (!ct.includes("text/event-stream") && !ct.includes("application/x-ndjson")) {
     const body = await readBody(res);
+    const data = (body && typeof body === 'object' && 'success' in (body as any)) ? ((body as any).data ?? body) : body;
     // mimic generateComments parsing
-    const okRaw = (body?.results || []) as any[];
-    const failedRaw = (body?.failed || []) as any[];
+    const okRaw = (data?.results || []) as any[];
+    const failedRaw = (data?.failed || []) as any[];
     const ok: ResultItem[] = okRaw.map((it) => ({
       url: String(it.url || ""),
       status: "ok",

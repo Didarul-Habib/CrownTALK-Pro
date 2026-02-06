@@ -5,6 +5,11 @@ export type Intent = "auto" | "neutral" | "agree" | "question" | "soft_pushback"
 
 export type GenerateRequest = {
   urls: string[];
+  preset?: string;
+  // Preferred output language for generation (e.g., 'en','bn','hi'); backend falls back if omitted.
+  output_language?: string;
+  // Fast mode: fewer tokens/variants where possible.
+  fast?: boolean;
   lang_en: boolean;
   lang_native: boolean;
   native_lang?: string;
