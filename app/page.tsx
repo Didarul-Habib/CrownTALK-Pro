@@ -137,7 +137,7 @@ const genMutation = useMutation({
   const genFromUrlMutation = useMutation({
     mutationFn: async (vars: { source_url: string; signal?: AbortSignal }) => {
       const api = await import("@/lib/api");
-      return api.commentFromUrl(
+      return api.commentFromUrlStream(
         baseUrl,
         {
           source_url: vars.source_url,
@@ -147,7 +147,20 @@ const genMutation = useMutation({
         },
         token,
         authToken,
-        vars.signal
+        vars.signal,
+        (u) => {
+          if (u.type === "status" && u.stage) {
+            // Map backend stages to UI stages
+            const s = String(u.stage);
+            if (s === "fetching" || s === "extracting") setStage("fetching");
+            else if (s === "generating") setStage("generating");
+            else if (s === "finalizing") setStage("finalizing");
+          }
+          if (u.type === "result" && (u as any).item) {
+            const it = (u as any).item;
+            setItems([{ url: String(it.url || vars.source_url || ""), status: "ok", comments: (it.comments || []).map((t: any) => typeof t === "string" ? { text: t } : t), title: it.title, excerpt: it.excerpt, citations: it.citations } as any]);
+          }
+        }
       );
     },
     retry: 0,
@@ -540,6 +553,7 @@ async function queueRunOffline(requestUrls: string[]) {
       const okCount = combined.filter((i) => i.status === "ok").length;
       const failedCount = combined.filter((i) => i.status !== "ok").length;
       const request: RunRequestSnapshot = {
+        mode: "urls",
         urls: allUrls,
         langEn,
         langNative,
@@ -550,6 +564,7 @@ async function queueRunOffline(requestUrls: string[]) {
       };
       const record: RunRecord = {
         id: lastRid || nowId("run"),
+        mode: "urls",
         at: Date.now(),
         request,
         results: combined,
@@ -670,7 +685,34 @@ async function queueRunOffline(requestUrls: string[]) {
       try {
         const resp = await genFromUrlMutation.mutateAsync({ source_url: u, signal: ac.signal });
         setItems([resp.item as any]);
-        setRunId(nowId("run"));
+        const rid = nowId("run");
+        setRunId(rid);
+
+        // Persist as a run (source mode) so it appears in History + syncs to IndexedDB.
+        const request: RunRequestSnapshot = {
+          mode: "source",
+          sourceUrl: u,
+          urls: [u],
+          langEn,
+          langNative,
+          nativeLang,
+          tone,
+          intent,
+          includeAlternates,
+        };
+        const record: RunRecord = {
+          id: rid,
+          mode: "source",
+          at: Date.now(),
+          request,
+          results: [resp.item as any],
+          okCount: 1,
+          failedCount: 0,
+        };
+        setRuns((prev) => [record, ...prev].slice(0, 120));
+        try { lsSetJson(LS.runs, [record, ...(lsGetJson<RunRecord[]>(LS.runs, []) || [])].slice(0, 120)); } catch {}
+        try { await idbSet("ct:runs", [record, ...(runs || [])].slice(0, 120)); } catch {}
+
       } catch (e: any) {
         const msg = e instanceof ApiError ? e.message : "Failed to generate from URL";
         setError(msg);
