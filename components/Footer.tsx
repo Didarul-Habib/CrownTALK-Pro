@@ -6,7 +6,8 @@ import Image from "next/image";
 
 export default function Footer({
   ownerXUrl = "https://x.com/_CrownDEX",
-  ownerPfpUrl = "https://pbs.twimg.com/profile_images/2007863079619764224/gZM7-WMW.jpg",
+  // Use a stable avatar resolver so updates reflect without hardcoding Twitter CDN hashes.
+  ownerPfpUrl = "https://unavatar.io/twitter/CrownDEX",
 }: {
   ownerXUrl?: string;
   ownerPfpUrl?: string;
