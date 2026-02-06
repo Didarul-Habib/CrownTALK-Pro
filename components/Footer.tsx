@@ -7,7 +7,7 @@ import Image from "next/image";
 export default function Footer({
   ownerXUrl = "https://x.com/_CrownDEX",
   // Use a stable avatar resolver so updates reflect without hardcoding Twitter CDN hashes.
-  ownerPfpUrl = "https://unavatar.io/twitter/CrownDEX",
+  ownerPfpUrl = "https://unavatar.io/twitter/_CrownDEX",
 }: {
   ownerXUrl?: string;
   ownerPfpUrl?: string;
@@ -51,7 +51,7 @@ export default function Footer({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
-                  <span className="ct-chip text-[10px]">PRO UI</span>
+                  <span className="ct-chip text-[10px]">PRO</span>
                 </div>
                 <div className="text-xs opacity-70 -mt-0.5">Professional X comment generator</div>
               </div>
@@ -81,7 +81,7 @@ export default function Footer({
                 </span>
                 <span className="ct-btn ct-btn-sm ct-btn-primary inline-flex items-center gap-2">
                   <ExternalLink className="h-4 w-4 opacity-80" />
-                  <span className="text-xs font-semibold">@CrownDEX</span>
+                  <span className="text-xs font-semibold">CrownDEX</span>
                 </span>
               </a>
             </div>
