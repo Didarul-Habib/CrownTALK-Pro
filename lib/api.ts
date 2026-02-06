@@ -363,6 +363,7 @@ export async function generateCommentsStream(
   if (!ct.includes("text/event-stream") && !ct.includes("application/x-ndjson")) {
     const body = await readBody(res);
     // mimic generateComments parsing
+    const data = unwrapEnvelope<any>(body);
     const okRaw = (data?.results || []) as any[];
     const failedRaw = (data?.failed || []) as any[];
     const ok: ResultItem[] = okRaw.map((it) => ({
