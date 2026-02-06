@@ -67,6 +67,10 @@ export default function Home() {
   const [langEn, setLangEn] = useState(true);
   const [langNative, setLangNative] = useState(false);
   const [nativeLang, setNativeLang] = useState("bn");
+  const [formality, setFormality] = useState<number>(50);
+  const [emojiLevel, setEmojiLevel] = useState<number>(30);
+  const [spiciness, setSpiciness] = useState<number>(20);
+
   const [tone, setTone] = useState<Tone>("auto");
   const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
@@ -936,6 +940,12 @@ async function queueRunOffline(requestUrls: string[]) {
               setIntent={setIntent}
               includeAlternates={includeAlternates}
               setIncludeAlternates={setIncludeAlternates}
+              formality={formality}
+              setFormality={setFormality}
+              emojiLevel={emojiLevel}
+              setEmojiLevel={setEmojiLevel}
+              spiciness={spiciness}
+              setSpiciness={setSpiciness}
               baseUrl={baseUrl}
               onGenerate={onGenerate}
               onCancel={cancelRun}
