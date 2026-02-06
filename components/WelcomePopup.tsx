@@ -28,7 +28,11 @@ function bdParts(now: Date) {
     y: int(get("year")),
     mo: int(get("month")),
     d: int(get("day")),
-    h: int(get("hour")),
+    h: (() => {
+      const hh = int(get("hour"));
+      // Some browsers/Intl locales return "24" at midnight.
+      return hh === 24 ? 0 : hh;
+    })(),
     m: int(get("minute")),
   };
 }
@@ -67,7 +71,7 @@ function bdDayKey(now: Date): string {
 }
 
 function greeting(now: Date) {
-  const h = bdParts(now).h;
+  const h = now.getHours();
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
@@ -158,20 +162,24 @@ export default function WelcomePopup() {
 
             {/* Card */}
             <motion.div
-              className="relative w-full max-w-lg overflow-hidden rounded-[calc(var(--ct-radius)+6px)] border border-white/10 shadow-2xl"
+              className="relative w-full max-w-lg rounded-[calc(var(--ct-radius)+10px)] border border-white/10 shadow-2xl"
               initial={{ y: 14, scale: 0.98, opacity: 0 }}
               animate={{ y: 0, scale: 1, opacity: 1 }}
               exit={{ y: 10, scale: 0.98, opacity: 0 }}
               transition={{ duration: MOTION.dur.slow, ease: MOTION.ease }}
             >
-              {/* Animated gradient border ring */}
-              <div className="pointer-events-none absolute -inset-[2px] opacity-80">
-                <div className="ct-border-spin absolute inset-0 rounded-[calc(var(--ct-radius)+10px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.65),rgba(34,211,238,.55),rgba(236,72,153,.55),rgba(168,85,247,.65))]" />
-                <div className="absolute inset-[2px] rounded-[calc(var(--ct-radius)+6px)] bg-transparent" />
+              {/* Animated gradient edge + glow */}
+              <div className="pointer-events-none absolute -inset-[6px] opacity-90">
+                {/* glow */}
+                <div className="ct-border-spin absolute inset-0 rounded-[calc(var(--ct-radius)+16px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.55),rgba(34,211,238,.45),rgba(236,72,153,.45),rgba(168,85,247,.55))] blur-2xl" />
+                {/* crisp ring */}
+                <div className="ct-border-spin absolute inset-[4px] rounded-[calc(var(--ct-radius)+12px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.9),rgba(34,211,238,.8),rgba(236,72,153,.8),rgba(168,85,247,.9))]" />
+                {/* cutout */}
+                <div className="absolute inset-[6px] rounded-[calc(var(--ct-radius)+10px)] bg-transparent" />
               </div>
 
               {/* Inner panel */}
-              <div className="relative rounded-[calc(var(--ct-radius)+6px)] bg-[color:var(--ct-panel)]/70 backdrop-blur-xl">
+              <div className="relative overflow-hidden rounded-[calc(var(--ct-radius)+10px)] bg-[color:var(--ct-panel)]/70 backdrop-blur-xl">
                 {/* Galaxy background image (place in /public/galaxy.jpg) */}
                 <div
                   className="absolute inset-0"
