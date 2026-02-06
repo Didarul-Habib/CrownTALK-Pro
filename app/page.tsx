@@ -999,6 +999,23 @@ async function queueRunOffline(requestUrls: string[]) {
               navigator.clipboard.writeText(url).then(() => toast.success("Share link copied")).catch(() => toast.error("Couldn't copy"));
             } : undefined}
             onClear={() => setRuns([])}
+            onExport={async () => {
+              try {
+                const api = await import("@/lib/api");
+                const blob = await api.exportHistory(baseUrl, "json", token, authToken, 2000);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "crowntalk-history.json";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                toast.success("History exported");
+              } catch (e: any) {
+                toast.error(e?.message || "Export failed");
+              }
+            }}
           />
 
           <ClipboardHistoryPanelLazy
