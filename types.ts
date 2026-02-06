@@ -46,4 +46,5 @@ export type GenerateResponse = {
   results: ResultItem[];
   failed?: { index: number; error: string }[];
   requestId?: string;
+  meta?: Record<string, any>;
 };
