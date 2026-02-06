@@ -118,7 +118,7 @@ export async function commentFromUrlStream(
   }
   return { item: lastItem };
 }
-mport type { GenerateRequest, GenerateResponse, ResultItem } from "./types";
+import type { GenerateRequest, GenerateResponse, ResultItem } from "./types";
 
 const ACCESS_HEADER = "X-Crowntalk-Token";
 
