@@ -46,7 +46,7 @@
     "postcss": "8.4.39",
     "tailwindcss": "3.4.10",
     "typescript": "5.5.4",
-    "@netlify/plugin-nextjs": "^5.15.7",
+    "@netlify/plugin-nextjs": "^5.15.8",
     "@ladle/react": "^2.12.3",
     "@playwright/test": "1.50.1"
   }
