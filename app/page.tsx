@@ -232,13 +232,14 @@ const genMutation = useMutation({
 
   const [signupOpen, setSignupOpen] = useState(false);
 
+  const [cooldownUntil, setCooldownUntil] = useState<number>(0);
+  const [prefs, setPrefs] = useState<UserPrefs | null>(null);
+
   const online = useOnline();
   const nowMs = Date.now();
   const inCooldown = cooldownUntil > nowMs;
   const cooldownLeftSec = Math.max(0, Math.ceil((cooldownUntil - nowMs) / 1000));
   const canGenerate = !inCooldown && online;
-  const [cooldownUntil, setCooldownUntil] = useState<number>(0);
-  const [prefs, setPrefs] = useState<UserPrefs | null>(null);
 
   // Thread/Article URL preview (debounced)
   useEffect(() => {
