@@ -13,6 +13,9 @@ import WelcomePopup from "@/components/WelcomePopup";
 import OnboardingTour from "@/components/OnboardingTour";
 import UrlInput, { cleanInvalidInRaw, shuffleUrlsInRaw, sortUrlsInRaw } from "@/components/UrlInput";
 import Controls from "@/components/Controls";
+import MobileActionBar from "@/components/MobileActionBar";
+import MobileControlsSheet from "@/components/MobileControlsSheet";
+import MobilePresetsSheet from "@/components/MobilePresetsSheet";
 import Results from "@/components/Results";
 import SignupGate from "@/components/SignupGate";
 import ProgressStepper, { Stage } from "@/components/ProgressStepper";
@@ -27,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { parseUrls } from "@/lib/validate";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { ApiError, logout as apiLogout } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
@@ -57,7 +61,8 @@ export default function Home() {
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
-  const urls = useMemo(() => parseUrls(raw), [raw]);
+  const debouncedRaw = useDebouncedValue(raw, 180);
+  const urls = useMemo(() => parseUrls(debouncedRaw), [debouncedRaw]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const [inputMode, setInputMode] = useState<"urls" | "source">("urls");
@@ -72,10 +77,63 @@ export default function Home() {
   const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
   const [fastMode, setFastMode] = useState(false);
+  const [preset, setPreset] = useState<string>("auto");
+  const [voice, setVoice] = useState<number>(1);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [mobilePresetsOpen, setMobilePresetsOpen] = useState(false);
+  const [failStreak, setFailStreak] = useState(0);
 
   const [token, setToken] = useState<string>("");
   const [authToken, setAuthToken] = useState<string>("");
   const [theme, setTheme] = useState<ThemeId>("neon");
+
+  function applyVoice(v: number) {
+    // 0 Pro, 1 Neutral, 2 Degen, 3 Builder, 4 Analyst
+    if (v === 0) {
+      setTone("professional");
+      setIntent("neutral");
+    } else if (v === 1) {
+      setTone("auto");
+      setIntent("auto");
+    } else if (v === 2) {
+      setTone("bold");
+      setIntent("agree");
+    } else if (v === 3) {
+      setTone("friendly");
+      setIntent("question");
+    } else {
+      setTone("professional");
+      setIntent("question");
+    }
+  }
+
+  useEffect(() => {
+    applyVoice(voice);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice]);
+
+  useEffect(() => {
+    if (preset === "auto") return;
+    if (preset === "congrats") {
+      setTone((t) => (t === "auto" ? "friendly" : t));
+      setIntent((i) => (i === "auto" ? "agree" : i));
+    } else if (preset === "support") {
+      setTone((t) => (t === "auto" ? "friendly" : t));
+      setIntent((i) => (i === "auto" ? "question" : i));
+    } else if (preset === "builder") {
+      setTone((t) => (t === "auto" ? "friendly" : t));
+      setIntent((i) => (i === "auto" ? "question" : i));
+    } else if (preset === "defi" || preset === "perps") {
+      setTone((t) => (t === "auto" ? "professional" : t));
+      setIntent((i) => (i === "auto" ? "question" : i));
+    } else if (preset === "scam") {
+      setTone((t) => (t === "auto" ? "professional" : t));
+      setIntent((i) => (i === "auto" ? "question" : i));
+    } else if (preset === "greeting") {
+      setTone((t) => (t === "auto" ? "friendly" : t));
+      setIntent((i) => (i === "auto" ? "neutral" : i));
+    }
+  }, [preset]);
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [runs, setRuns] = useState<RunRecord[]>([]);
@@ -105,6 +163,7 @@ const genMutation = useMutation({
         intent: intent === "auto" ? undefined : intent,
         include_alternates: includeAlternates,
         fast: fastMode,
+        preset: preset !== "auto" ? preset : undefined,
         output_language: langNative ? nativeLang : undefined,
       },
       token,
@@ -174,6 +233,10 @@ const genMutation = useMutation({
   const [signupOpen, setSignupOpen] = useState(false);
 
   const online = useOnline();
+  const nowMs = Date.now();
+  const inCooldown = cooldownUntil > nowMs;
+  const cooldownLeftSec = Math.max(0, Math.ceil((cooldownUntil - nowMs) / 1000));
+  const canGenerate = !inCooldown && online;
   const [cooldownUntil, setCooldownUntil] = useState<number>(0);
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
 
@@ -603,17 +666,17 @@ async function queueRunOffline(requestUrls: string[]) {
       setError(msg);
       setStage("idle");
 
-      // Circuit breaker: if we keep failing, cool down briefly to avoid a bad loop.
-      setFailStreak((prev) => {
-        const next = prev + 1;
-        if (next >= 3) {
-          const until = Date.now() + 30_000;
-          setCooldownUntil((cur) => (cur > until ? cur : until));
-          try { toast.error("Backend busy. Cooling down for 30s."); } catch {}
-          return 0;
-        }
-        return next;
-      });
+// Circuit breaker: if we keep failing, cool down briefly to avoid a bad loop.
+setFailStreak((prev) => {
+  const next = prev + 1;
+  if (next >= 3) {
+    const until = Date.now() + 30_000;
+    setCooldownUntil((cur) => (cur > until ? cur : until));
+    try { toast.error("Backend busy. Cooling down for 30s."); } catch {}
+    return 0;
+  }
+  return next;
+});
 
 
       const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
@@ -938,7 +1001,7 @@ async function queueRunOffline(requestUrls: string[]) {
 
           <div className="space-y-6">
             <div className="hidden lg:block">
-            <Controls
+              <Controls
               langEn={langEn}
               setLangEn={setLangEn}
               langNative={langNative}
@@ -964,7 +1027,6 @@ async function queueRunOffline(requestUrls: string[]) {
               loading={loading}
               clearDisabled={!raw.trim() && !items.length && !error}
             />
-          </div>
 
             <ProgressStepper stage={loading ? stage : "idle"} />
           </div>
@@ -1004,24 +1066,10 @@ async function queueRunOffline(requestUrls: string[]) {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="ct-btn ct-btn-xs"
-                onClick={() => {
-                  setFastMode(true);
-                  toast("Enabled Fast mode");
-                }}
-              >
+              <button type="button" className="ct-btn ct-btn-xs" onClick={() => { setFastMode(true); toast("Enabled Fast mode"); }}>
                 Try Fast mode
               </button>
-              <button
-                type="button"
-                className="ct-btn ct-btn-xs"
-                onClick={() => {
-                  setIncludeAlternates(false);
-                  toast("Disabled alternates");
-                }}
-              >
+              <button type="button" className="ct-btn ct-btn-xs" onClick={() => { setIncludeAlternates(false); toast("Disabled alternates"); }}>
                 Disable alternates
               </button>
               <button
@@ -1041,10 +1089,9 @@ async function queueRunOffline(requestUrls: string[]) {
           </div>
         ) : null}
 
-
         <div className="grid gap-6 lg:grid-cols-2">
           <div id="ct-history" className="scroll-mt-24">
-          <RunHistoryPanelLazy
+            <RunHistoryPanelLazy
             runs={runs}
             onLoad={(id) => {
               const r = runs.find((x) => x.id === id);
@@ -1099,59 +1146,7 @@ async function queueRunOffline(requestUrls: string[]) {
         </div>
       </main>
 
-      <MobileControlsSheet
-        open={mobileControlsOpen}
-        onOpenChange={setMobileControlsOpen}
-        baseUrl={baseUrl}
-        langEn={langEn}
-        setLangEn={setLangEn}
-        langNative={langNative}
-        setLangNative={setLangNative}
-        nativeLang={nativeLang}
-        setNativeLang={setNativeLang}
-        tone={tone}
-        setTone={setTone}
-        intent={intent}
-        setIntent={setIntent}
-        includeAlternates={includeAlternates}
-        setIncludeAlternates={setIncludeAlternates}
-        fastMode={fastMode}
-        setFastMode={setFastMode}
-        preset={preset}
-        setPreset={setPreset}
-        voice={voice}
-        setVoice={setVoice}
-        onGenerate={onGenerate}
-        onCancel={cancelRun}
-        onClear={clearAll}
-        loading={loading}
-        clearDisabled={!raw.trim() && !items.length && !error}
-      />
-
-      <MobilePresetsSheet
-        open={mobilePresetsOpen}
-        onOpenChange={setMobilePresetsOpen}
-        preset={preset}
-        setPreset={setPreset}
-        voice={voice}
-        setVoice={setVoice}
-      />
-
-      <MobileActionBar
-        loading={loading}
-        canGenerate={canGenerate && (!!raw.trim() || !!sourceUrl.trim())}
-        onGenerate={onGenerate}
-        onOpenControls={() => setMobileControlsOpen(true)}
-        onOpenPresets={() => setMobilePresetsOpen(true)}
-        onOpenHistory={() => {
-          try {
-      document.getElementById("ct-history")?.scrollIntoView({ behavior: "smooth" });
-          } catch {}
-        }}
-      />
-
-      
-        <Footer />
+      <Footer />
     </div>
   );
 }
