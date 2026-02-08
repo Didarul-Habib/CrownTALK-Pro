@@ -1099,57 +1099,58 @@ async function queueRunOffline(requestUrls: string[]) {
         </div>
       </main>
 
+      <MobileControlsSheet
+        open={mobileControlsOpen}
+        onOpenChange={setMobileControlsOpen}
+        baseUrl={baseUrl}
+        langEn={langEn}
+        setLangEn={setLangEn}
+        langNative={langNative}
+        setLangNative={setLangNative}
+        nativeLang={nativeLang}
+        setNativeLang={setNativeLang}
+        tone={tone}
+        setTone={setTone}
+        intent={intent}
+        setIntent={setIntent}
+        includeAlternates={includeAlternates}
+        setIncludeAlternates={setIncludeAlternates}
+        fastMode={fastMode}
+        setFastMode={setFastMode}
+        preset={preset}
+        setPreset={setPreset}
+        voice={voice}
+        setVoice={setVoice}
+        onGenerate={onGenerate}
+        onCancel={cancelRun}
+        onClear={clearAll}
+        loading={loading}
+        clearDisabled={!raw.trim() && !items.length && !error}
+      />
+
+      <MobilePresetsSheet
+        open={mobilePresetsOpen}
+        onOpenChange={setMobilePresetsOpen}
+        preset={preset}
+        setPreset={setPreset}
+        voice={voice}
+        setVoice={setVoice}
+      />
+
+      <MobileActionBar
+        loading={loading}
+        canGenerate={canGenerate && (!!raw.trim() || !!sourceUrl.trim())}
+        onGenerate={onGenerate}
+        onOpenControls={() => setMobileControlsOpen(true)}
+        onOpenPresets={() => setMobilePresetsOpen(true)}
+        onOpenHistory={() => {
+          try {
+      document.getElementById("ct-history")?.scrollIntoView({ behavior: "smooth" });
+          } catch {}
+        }}
+      />
+
       
-<MobileControlsSheet
-  open={mobileControlsOpen}
-  onOpenChange={setMobileControlsOpen}
-  baseUrl={baseUrl}
-  langEn={langEn}
-  setLangEn={setLangEn}
-  langNative={langNative}
-  setLangNative={setLangNative}
-  nativeLang={nativeLang}
-  setNativeLang={setNativeLang}
-  tone={tone}
-  setTone={setTone}
-  intent={intent}
-  setIntent={setIntent}
-  includeAlternates={includeAlternates}
-  setIncludeAlternates={setIncludeAlternates}
-  fastMode={fastMode}
-  setFastMode={setFastMode}
-  preset={preset}
-  setPreset={setPreset}
-  voice={voice}
-  setVoice={setVoice}
-  onGenerate={onGenerate}
-  onCancel={cancelRun}
-  onClear={clearAll}
-  loading={loading}
-  clearDisabled={!raw.trim() && !items.length && !error}
-/>
-
-<MobilePresetsSheet
-  open={mobilePresetsOpen}
-  onOpenChange={setMobilePresetsOpen}
-  preset={preset}
-  setPreset={setPreset}
-  voice={voice}
-  setVoice={setVoice}
-/>
-
-<MobileActionBar
-  loading={loading}
-  canGenerate={canGenerate && (!!raw.trim() || !!sourceUrl.trim())}
-  onGenerate={onGenerate}
-  onOpenControls={() => setMobileControlsOpen(true)}
-  onOpenPresets={() => setMobilePresetsOpen(true)}
-  onOpenHistory={() => {
-    // scroll to history section on mobile
-    try { document.getElementById("ct-history")?.scrollIntoView({ behavior: "smooth" }); } catch {}
-  }}
-/>
-
         <Footer />
     </div>
   );
