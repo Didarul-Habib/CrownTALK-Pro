@@ -1030,6 +1030,7 @@ setFailStreak((prev) => {
 
             <ProgressStepper stage={loading ? stage : "idle"} />
           </div>
+          </div>
         </motion.div>
 
         <Results
@@ -1136,6 +1137,7 @@ setFailStreak((prev) => {
             }}
           />
 
+          </div>
           <ClipboardHistoryPanelLazy
             items={clipboard}
             onClear={() => setClipboard([])}
