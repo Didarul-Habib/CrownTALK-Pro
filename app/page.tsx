@@ -1001,7 +1001,13 @@ setFailStreak((prev) => {
           </div>
 
           <div className="space-y-6">
-            <div className="hidden lg:block">
+            <div className="block">
+              <div className="lg:hidden mb-3 flex items-center justify-between">
+                <div className="text-sm font-semibold opacity-80">Controls</div>
+                <button type="button" className="ct-btn ct-btn-xs" onClick={() => setMobileControlsOpen(true)}>
+                  Open sheet
+                </button>
+              </div>
               <Controls
               langEn={langEn}
               setLangEn={setLangEn}
