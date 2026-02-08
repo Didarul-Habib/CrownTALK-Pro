@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { toast } from "sonner";
 import { classifyLines, parseUrls, extractUrlsAll, normalizeXUrl } from "@/lib/validate";
 import UrlScanner from "@/components/UrlScanner";
@@ -56,8 +57,10 @@ export default function UrlInput({
   canUndo?: boolean;
   canRedo?: boolean;
 }) {
-  const urls = useMemo(() => parseUrls(value), [value]);
-  const lineInfo = useMemo(() => classifyLines(value), [value]);
+  const debouncedValue = useDebouncedValue(value, 180);
+
+  const urls = useMemo(() => parseUrls(debouncedValue), [value]);
+  const lineInfo = useMemo(() => classifyLines(debouncedValue), [value]);
 
   const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
 
@@ -67,7 +70,7 @@ export default function UrlInput({
   }, [lineInfo]);
 
   const duplicates = useMemo(() => {
-    const all = extractUrlsAll(value);
+    const all = extractUrlsAll(debouncedValue);
     const counts = new Map<string, number>();
     for (const u of all) {
       const key = normalizeXUrl(u);
@@ -76,7 +79,7 @@ export default function UrlInput({
     const dups = [...counts.entries()].filter(([,n]) => n > 1).map(([k,n]) => ({ url: k, count: n }));
     dups.sort((a,b) => b.count - a.count);
     return dups;
-  }, [value]);
+  }, [debouncedValue]);
 
   const invalidExamples = useMemo(() => {
     const out: string[] = [];
@@ -92,7 +95,7 @@ export default function UrlInput({
   const nonStatusXLinks = useMemo(() => {
     const out: string[] = [];
     const re = /(https?:\/\/[^\s]+)/g;
-    const s = String(value || "");
+    const s = String(debouncedValue || "");
     for (const m of s.matchAll(re)) {
       const u = String(m[1] || "");
       const lower = u.toLowerCase();
@@ -105,17 +108,17 @@ export default function UrlInput({
       if (out.length >= 3) break;
     }
     return out;
-  }, [value]);
+  }, [debouncedValue]);
 
 
   const inbox = useMemo(() => {
     // Preserve order from the user's input.
-    const ordered = extractUrlsAll(value)
+    const ordered = extractUrlsAll(debouncedValue)
       .map((u) => normalizeXUrl(u))
       .filter((u, i, a) => a.indexOf(u) === i); // unique while preserving order
 
     const dupMap = new Map<string, number>();
-    for (const u of extractUrlsAll(value)) {
+    for (const u of extractUrlsAll(debouncedValue)) {
       const key = normalizeXUrl(u);
       dupMap.set(key, (dupMap.get(key) || 0) + 1);
     }
@@ -129,7 +132,7 @@ export default function UrlInput({
         duplicateCount: dupMap.get(u) || 1,
       };
     });
-  }, [value]);
+  }, [debouncedValue]);
 
 
   const hasAny = urls.length > 0 || invalidLines > 0;

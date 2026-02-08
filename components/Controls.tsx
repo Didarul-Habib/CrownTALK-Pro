@@ -30,6 +30,12 @@ export default function Controls({
   setIntent,
   includeAlternates,
   setIncludeAlternates,
+  fastMode,
+  setFastMode,
+  preset,
+  setPreset,
+  voice,
+  setVoice,
   baseUrl,
   onGenerate,
   onCancel,
@@ -49,6 +55,12 @@ export default function Controls({
   setIntent: (v: Intent) => void;
   includeAlternates: boolean;
   setIncludeAlternates: (v: boolean) => void;
+  fastMode: boolean;
+  setFastMode: (v: boolean) => void;
+  preset: string;
+  setPreset: (v: string) => void;
+  voice: number;
+  setVoice: (v: number) => void;
   baseUrl: string;
   onGenerate: () => void;
   onCancel?: () => void;
@@ -217,6 +229,78 @@ export default function Controls({
           Include alternates <span className="text-xs opacity-60">(power)</span>
         </label>
       </div>
+
+<div className="mt-4 flex items-center gap-3">
+  <input
+    id="fast"
+    type="checkbox"
+    checked={fastMode}
+    onChange={(e) => setFastMode(e.target.checked)}
+    className="h-4 w-4 accent-[color:var(--ct-accent)]"
+  />
+  <label htmlFor="fast" className="text-sm opacity-85">
+    Fast mode <span className="text-xs opacity-60">(lower latency)</span>
+  </label>
+</div>
+
+<div className="mt-5 space-y-2">
+  <div className="flex items-center justify-between gap-3">
+    <div className="text-xs opacity-70">Voice</div>
+    <div className="text-[11px] opacity-70">
+      {voice === 0 ? "Pro" : voice === 1 ? "Neutral" : voice === 2 ? "Degen" : voice === 3 ? "Builder" : "Analyst"}
+    </div>
+  </div>
+  <input
+    type="range"
+    min={0}
+    max={4}
+    step={1}
+    value={voice}
+    onChange={(e) => setVoice(Number(e.target.value))}
+    className="w-full accent-[color:var(--ct-accent)]"
+  />
+  <div className="flex justify-between text-[10px] opacity-60">
+    <span>Pro</span>
+    <span>Neutral</span>
+    <span>Degen</span>
+    <span>Builder</span>
+    <span>Analyst</span>
+  </div>
+</div>
+
+<div className="mt-5 space-y-2">
+  <div className="text-xs opacity-70">Presets</div>
+  <div className="flex flex-wrap gap-2">
+    {[
+      { key: "auto", label: "Auto" },
+      { key: "congrats", label: "Congrats" },
+      { key: "support", label: "Support" },
+      { key: "builder", label: "Builder" },
+      { key: "defi", label: "DeFi" },
+      { key: "perps", label: "Perps" },
+      { key: "scam", label: "Scam alert" },
+      { key: "greeting", label: "GM/GN" },
+    ].map((p) => (
+      <button
+        key={p.key}
+        type="button"
+        onClick={() => setPreset(p.key)}
+        className={clsx(
+          "ct-chip text-[11px] transition",
+          preset === p.key
+            ? "border-[color:var(--ct-accent)] bg-white/10 shadow-[0_0_0_1px_color-mix(in_srgb,var(--ct-accent)_30%,transparent)]"
+            : ""
+        )}
+      >
+        {p.label}
+      </button>
+    ))}
+  </div>
+  <div className="text-[11px] opacity-60">
+    Presets tune tone/intent automatically and help replies feel more real.
+  </div>
+</div>
+
     </div>
   );
 }
