@@ -603,6 +603,19 @@ async function queueRunOffline(requestUrls: string[]) {
       setError(msg);
       setStage("idle");
 
+      // Circuit breaker: if we keep failing, cool down briefly to avoid a bad loop.
+      setFailStreak((prev) => {
+        const next = prev + 1;
+        if (next >= 3) {
+          const until = Date.now() + 30_000;
+          setCooldownUntil((cur) => (cur > until ? cur : until));
+          try { toast.error("Backend busy. Cooling down for 30s."); } catch {}
+          return 0;
+        }
+        return next;
+      });
+
+
       const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
       const code = e?.body?.code;
 
@@ -839,7 +852,7 @@ async function queueRunOffline(requestUrls: string[]) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-28">
       <WelcomePopup />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
       <PerfPanel />
@@ -924,6 +937,7 @@ async function queueRunOffline(requestUrls: string[]) {
           </div>
 
           <div className="space-y-6">
+            <div className="hidden lg:block">
             <Controls
               langEn={langEn}
               setLangEn={setLangEn}
@@ -937,6 +951,12 @@ async function queueRunOffline(requestUrls: string[]) {
               setIntent={setIntent}
               includeAlternates={includeAlternates}
               setIncludeAlternates={setIncludeAlternates}
+              fastMode={fastMode}
+              setFastMode={setFastMode}
+              preset={preset}
+              setPreset={setPreset}
+              voice={voice}
+              setVoice={setVoice}
               baseUrl={baseUrl}
               onGenerate={onGenerate}
               onCancel={cancelRun}
@@ -944,6 +964,7 @@ async function queueRunOffline(requestUrls: string[]) {
               loading={loading}
               clearDisabled={!raw.trim() && !items.length && !error}
             />
+          </div>
 
             <ProgressStepper stage={loading ? stage : "idle"} />
           </div>
@@ -967,13 +988,62 @@ async function queueRunOffline(requestUrls: string[]) {
           queueDone={queueDone}
         />
 
-        {error ? (
-          <div className="rounded-[var(--ct-radius)] border border-red-500/30 bg-red-500/10 p-4 text-sm">
-            {error}
+        
+{error ? (
+          <div className="rounded-[var(--ct-radius)] border border-red-500/30 bg-red-500/10 p-4 text-sm space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold">Something went wrong</div>
+                <div className="mt-1 opacity-90">{error}</div>
+              </div>
+              {inCooldown ? (
+                <span className="ct-chip text-[11px] border border-yellow-400/30 bg-yellow-400/10 text-yellow-100">
+                  Cooldown {cooldownLeftSec}s
+                </span>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="ct-btn ct-btn-xs"
+                onClick={() => {
+                  setFastMode(true);
+                  toast("Enabled Fast mode");
+                }}
+              >
+                Try Fast mode
+              </button>
+              <button
+                type="button"
+                className="ct-btn ct-btn-xs"
+                onClick={() => {
+                  setIncludeAlternates(false);
+                  toast("Disabled alternates");
+                }}
+              >
+                Disable alternates
+              </button>
+              <button
+                type="button"
+                className="ct-btn ct-btn-xs"
+                onClick={() => {
+                  setPreset("auto");
+                  setVoice(1);
+                  setTone("auto");
+                  setIntent("auto");
+                  toast("Reset controls");
+                }}
+              >
+                Reset
+              </button>
+            </div>
           </div>
         ) : null}
 
+
         <div className="grid gap-6 lg:grid-cols-2">
+          <div id="ct-history" className="scroll-mt-24">
           <RunHistoryPanelLazy
             runs={runs}
             onLoad={(id) => {
@@ -1029,7 +1099,58 @@ async function queueRunOffline(requestUrls: string[]) {
         </div>
       </main>
 
-      <Footer />
+      
+<MobileControlsSheet
+  open={mobileControlsOpen}
+  onOpenChange={setMobileControlsOpen}
+  baseUrl={baseUrl}
+  langEn={langEn}
+  setLangEn={setLangEn}
+  langNative={langNative}
+  setLangNative={setLangNative}
+  nativeLang={nativeLang}
+  setNativeLang={setNativeLang}
+  tone={tone}
+  setTone={setTone}
+  intent={intent}
+  setIntent={setIntent}
+  includeAlternates={includeAlternates}
+  setIncludeAlternates={setIncludeAlternates}
+  fastMode={fastMode}
+  setFastMode={setFastMode}
+  preset={preset}
+  setPreset={setPreset}
+  voice={voice}
+  setVoice={setVoice}
+  onGenerate={onGenerate}
+  onCancel={cancelRun}
+  onClear={clearAll}
+  loading={loading}
+  clearDisabled={!raw.trim() && !items.length && !error}
+/>
+
+<MobilePresetsSheet
+  open={mobilePresetsOpen}
+  onOpenChange={setMobilePresetsOpen}
+  preset={preset}
+  setPreset={setPreset}
+  voice={voice}
+  setVoice={setVoice}
+/>
+
+<MobileActionBar
+  loading={loading}
+  canGenerate={canGenerate && (!!raw.trim() || !!sourceUrl.trim())}
+  onGenerate={onGenerate}
+  onOpenControls={() => setMobileControlsOpen(true)}
+  onOpenPresets={() => setMobilePresetsOpen(true)}
+  onOpenHistory={() => {
+    // scroll to history section on mobile
+    try { document.getElementById("ct-history")?.scrollIntoView({ behavior: "smooth" }); } catch {}
+  }}
+/>
+
+        <Footer />
     </div>
   );
 }
