@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import { useEffect, useState } from "react";
 
 export type Stage = "idle" | "fetching" | "generating" | "polishing" | "finalizing" | "done";
 
@@ -19,6 +20,22 @@ function stepIndex(stage: Stage) {
 }
 
 export default function ProgressStepper({ stage }: { stage: Stage }) {
+
+  const [simpleMode, setSimpleMode] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const mqReduce = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+      const mqSmall = window.matchMedia?.("(max-width: 640px)");
+      if ((mqReduce && mqReduce.matches) || (mqSmall && mqSmall.matches)) {
+        setSimpleMode(true);
+      }
+    } catch {
+      // best-effort; keep animations if detection fails
+    }
+  }, []);
+
   const idx = stepIndex(stage);
   const active = idx >= 0 && stage !== "done";
 
@@ -45,7 +62,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
           }}
           initial={false}
           animate={{ width: `${progress}%` }}
-          transition={{ type: "spring", stiffness: 220, damping: 28 }}
+          transition={simpleMode ? { duration: 0.4, ease: "linear" } : { type: "spring", stiffness: 140, damping: 30 }}
         />
       </div>
 
@@ -82,7 +99,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
                 {done ? "Done" : current ? "In progress" : "Pending"}
               </div>
 
-              {current ? (
+              {current && !simpleMode ? (
                 <motion.div
                   className="absolute inset-0 opacity-30"
                   style={{
@@ -91,7 +108,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
                   }}
                   initial={{ x: "-120%" }}
                   animate={{ x: "120%" }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
                 />
               ) : null}
 

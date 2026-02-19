@@ -133,6 +133,7 @@ export default function Controls({
         </div>
       </div>
 
+      {expanded && (
       <div className="mt-4">
         <label className="text-xs opacity-70">Backend URL</label>
         <div className="mt-2 flex items-center gap-2">
@@ -318,7 +319,8 @@ export default function Controls({
   </div>
   <div className="text-[11px] opacity-60">
     Presets tune tone/intent automatically and help replies feel more real.
-  </div>
+        )}
+</div>
 </div>
 
     </div>
