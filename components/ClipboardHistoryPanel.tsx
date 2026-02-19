@@ -80,7 +80,7 @@ export default function ClipboardHistoryPanel({
             className="ct-btn"
             onClick={() => {
               const blocks = items.map((c) => {
-                const t = fmt(c.ts);
+                const t = fmt(c.at);
                 const u = c.url || "";
                 const body = (c.text || "").trim();
                 return `${t}\n${u}\n${body}`;
