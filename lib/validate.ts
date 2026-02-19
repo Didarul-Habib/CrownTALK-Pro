@@ -1,5 +1,5 @@
 export const X_URL_RE =
-  /(https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]+\/status\/\d+[^\s]*)|(https?:\/\/(?:www\.)?x\.com\/i\/status\/\d+[^\s]*)/gi;
+  /(https?:\/\/(?:www\.)?(?:x\.com|twitter\.com|mobile\.twitter\.com|m\.twitter\.com)\/[A-Za-z0-9_]+\/status\/\d+[^\s]*)|(https?:\/\/(?:www\.)?(?:x\.com|twitter\.com|mobile\.twitter\.com|m\.twitter\.com)\/i\/(?:web\/)?status\/\d+[^\s]*)/gi;
 
 export function extractUrls(raw: string): string[] {
   const s = String(raw || "");

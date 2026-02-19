@@ -15,7 +15,7 @@ export type UserPrefs = {
 export const DEFAULT_PREFS: UserPrefs = {
   defaultLangEn: true,
   defaultLangNative: false,
-  defaultNativeLang: "bn",
+  defaultNativeLang: "auto",
   defaultTone: "auto",
   defaultIntent: "auto",
   defaultIncludeAlternates: false,

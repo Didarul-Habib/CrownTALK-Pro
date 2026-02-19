@@ -26,6 +26,9 @@ export type CommentItem = {
 
 export type ResultItem = {
   url: string;
+  input_url?: string;
+  tweet_id?: string;
+  handle?: string;
   status: "ok" | "error" | "skipped" | "pending";
   reason?: string;
   comments?: CommentItem[];
