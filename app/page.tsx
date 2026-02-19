@@ -174,9 +174,14 @@ const genMutation = useMutation({
         if (u.type === "result") {
           startTransition(() => {
             setItems((prev) => {
-              const byUrl = new Map(prev.map((p) => [p.url, p]));
-              const p = byUrl.get(u.item.url);
-              const nextItem = { ...(p || u.item), ...u.item, status: u.item.status || "ok" };
+              const byUrl = new Map<string, any>();
+              for (const p of prev) {
+                byUrl.set(p.input_url || p.url, p);
+                byUrl.set(p.url, p);
+              }
+              const key = (u.item as any).input_url || u.item.url;
+              const p = byUrl.get(key) || byUrl.get(u.item.url);
+              const nextItem = { ...(p || u.item), ...u.item, input_url: (u.item as any).input_url || (p as any)?.input_url || undefined, status: u.item.status || "ok" };
               // versions: keep original before overwrite
               if (p?.status === "ok" && p.comments?.length && u.item.status === "ok" && u.item.comments?.length) {
                 const versions = [...(p.versions || [])];
