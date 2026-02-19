@@ -1,11 +1,13 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect, useMemo, useState } from "react";
 import PremiumButton from "@/components/PremiumButton";
-import { Ban, Eraser, Lock, Wand2 } from "lucide-react";
+import { Ban, ChevronDown, ChevronUp, Eraser, Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone } from "@/lib/types";
 
 const NATIVE_LANGS = [
+  { value: "auto", label: "Auto (detect)" },
   { value: "bn", label: "Bengali (bn)" },
   { value: "hi", label: "Hindi (hi)" },
   { value: "ar", label: "Arabic (ar)" },
@@ -68,10 +70,28 @@ export default function Controls({
   loading: boolean;
   clearDisabled?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(true);
+  // Auto-collapse on small screens for speed
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 640px)").matches) {
+        setExpanded(false);
+      }
+    } catch {}
+  }, []);
+
   return (
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">Controls</div>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="ml-2 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--ct-border)] bg-black/10 hover:bg-black/20"
+          title={expanded ? "Collapse controls" : "Expand controls"}
+        >
+          {expanded ? <ChevronUp className="h-4 w-4 opacity-80" /> : <ChevronDown className="h-4 w-4 opacity-80" />}
+        </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <PremiumButton
             onClick={onGenerate}

@@ -4,6 +4,9 @@ import Image from "next/image";
 import StatusPill from "@/components/StatusPill";
 import ThemeStudioBar, { ThemeId } from "@/components/ThemeStudioBar";
 import UserMenu from "@/components/UserMenu";
+import { applyFxMode, type FxMode } from "@/lib/motion";
+import { LS, lsGet, lsSet } from "@/lib/storage";
+import { useMemo, useState } from "react";
 import type { UserProfile } from "@/lib/persist";
 
 export default function TopBar({
@@ -19,6 +22,15 @@ export default function TopBar({
   user?: UserProfile | null;
   onLogout?: () => void;
 }) {
+  const [fxMode, setFxMode] = useState<FxMode>(() => (lsGet(LS.fxMode, "auto") as FxMode) || "auto");
+  const label = useMemo(() => (fxMode === "auto" ? "FX Auto" : fxMode === "full" ? "FX Full" : "Low motion"), [fxMode]);
+  function cycleFx() {
+    const next: FxMode = fxMode === "auto" ? "lite" : fxMode === "lite" ? "full" : "auto";
+    setFxMode(next);
+    lsSet(LS.fxMode, next);
+    applyFxMode(next);
+  }
+
   return (
     <div className="sticky top-0 z-40 border-b border-[color:var(--ct-border)] bg-[color:var(--ct-bg)]/70 backdrop-blur-xl">
       {/*
@@ -52,6 +64,10 @@ export default function TopBar({
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <button type="button" onClick={cycleFx} className="ct-btn text-xs px-3 py-2" title="Toggle effects / low motion">
+            {label}
+          </button>
+
           <ThemeStudioBar value={theme} onChange={setTheme} />
           <div className="flex items-center flex-wrap gap-3 lg:justify-end">
             <StatusPill baseUrl={baseUrl} />

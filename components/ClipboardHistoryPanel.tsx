@@ -77,6 +77,24 @@ export default function ClipboardHistoryPanel({
           </button>
           <button
             type="button"
+            className="ct-btn"
+            onClick={() => {
+              const blocks = items.map((c) => {
+                const t = fmt(c.ts);
+                const u = c.url || "";
+                const body = (c.text || "").trim();
+                return `${t}\n${u}\n${body}`;
+              });
+              downloadFile("crowntalk-clipboard.txt", blocks.join("\n\n---\n\n"), "text/plain;charset=utf-8");
+            }}
+            disabled={!items.length}
+            title="Export TXT"
+          >
+            <Download className="h-4 w-4" />
+            TXT
+          </button>
+          <button
+            type="button"
             className={clsx("ct-btn ct-btn-xs", !items.length ? "opacity-50 cursor-not-allowed" : "")}
             onClick={() => {
               const header = "time,url,text";

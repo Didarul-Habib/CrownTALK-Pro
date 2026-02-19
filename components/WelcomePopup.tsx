@@ -170,12 +170,10 @@ export default function WelcomePopup() {
             >
               {/* Animated gradient edge + glow */}
               <div className="pointer-events-none absolute -inset-[6px] opacity-90">
-                {/* glow */}
-                <div className="ct-border-spin absolute inset-0 rounded-[calc(var(--ct-radius)+16px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.55),rgba(34,211,238,.45),rgba(236,72,153,.45),rgba(168,85,247,.55))] blur-2xl" />
-                {/* crisp ring */}
-                <div className="ct-border-spin absolute inset-[4px] rounded-[calc(var(--ct-radius)+12px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.9),rgba(34,211,238,.8),rgba(236,72,153,.8),rgba(168,85,247,.9))]" />
-                {/* cutout */}
-                <div className="absolute inset-[6px] rounded-[calc(var(--ct-radius)+10px)] bg-transparent" />
+                {/* rotating holo ring (ring-only) */}
+                <div className="ct-border-spin absolute inset-0 rounded-[calc(var(--ct-radius)+16px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.95),rgba(34,211,238,.85),rgba(236,72,153,.85),rgba(168,85,247,.95))] p-[2px]">
+                  <div className="h-full w-full rounded-[calc(var(--ct-radius)+14px)] bg-transparent" />
+                </div>
               </div>
 
               {/* Inner panel */}

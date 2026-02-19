@@ -27,7 +27,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
   const progress = stage === "idle" ? 0 : stage === "done" ? 100 : Math.round(((idx + 1) / STEPS.length) * 100);
 
   return (
-    <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
+    <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-3 backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">Pipeline</div>
         <div className={clsx("text-xs", active ? "opacity-80" : "opacity-60")}>
