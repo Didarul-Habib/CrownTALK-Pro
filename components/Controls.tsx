@@ -319,9 +319,9 @@ export default function Controls({
   </div>
   <div className="text-[11px] opacity-60">
     Presets tune tone/intent automatically and help replies feel more real.
-        )}
+  </div>
 </div>
-</div>
+      )}
 
     </div>
   );
