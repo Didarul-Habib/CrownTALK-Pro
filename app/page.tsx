@@ -519,8 +519,8 @@ function addTimelineMany(urls: string[], stage: TimelineStage, note?: string) {
       document.documentElement.getAttribute("data-fx") === "low";
 
     const [genDelay, polishDelay, finalDelay] = isLowMotion
-      ? [400, 1200, 1900]
-      : [900, 2400, 4200];
+      ? [700, 2100, 3600]
+      : [1400, 3400, 6200];
 
     timers.current.push(
       window.setTimeout(() => setStage("generating"), genDelay),

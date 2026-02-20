@@ -624,3 +624,22 @@ html[data-theme="minimal"]{
   --ct-accent-2: rgba(180,180,180,0.95);
   --ct-radius: 22px;
 }
+
+@media (max-width: 768px){
+  html[data-fx="low"] body{
+    animation: none !important;
+    transition: none !important;
+  }
+  html[data-fx="low"] .ct-orbit,
+  html[data-fx="low"] .ct-orbit *,
+  html[data-fx="low"] .ct-float,
+  html[data-fx="low"] .ct-glow,
+  html[data-fx="low"] .ct-holo,
+  html[data-fx="low"] .ct-tilt,
+  html[data-fx="low"] .ct-shimmer,
+  html[data-fx="low"] .ct-pulse{
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
