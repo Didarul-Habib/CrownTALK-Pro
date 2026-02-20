@@ -25,6 +25,7 @@ async function addRequestSignature(headers: Record<string, string>, body: string
 
 export type UrlStreamUpdate =
   | { type: "status"; stage: string }
+  | { type: "chunk"; index: number; text: string }
   | { type: "result"; item: ResultItem & { title?: string; excerpt?: string; citations?: any[] } }
   | { type: "done" }
   | { type: "error"; code?: string; message?: string };
@@ -79,28 +80,30 @@ export async function commentFromUrlStream(
   let lastItem: any = null;
 
   const flushLine = (line: string) => {
-    const t = line.trim();
-    if (!t) return;
-    if (!t.startsWith("data:")) return;
-    const raw = t.slice(5).trim();
-    try {
-      const obj = JSON.parse(raw);
-      if (obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
-      if (obj?.type === "result" && obj?.item) {
-        lastItem = obj.item;
-        onUpdate({ type: "result", item: obj.item });
-      }
-      if (obj?.ok === true || obj?.type === "done") {
-        onUpdate({ type: "done" });
-      }
-      if (obj?.code || obj?.message) {
-        // not always an error, but safe to ignore
-      }
-    } catch {
-      // ignore
+  const t = line.trim();
+  if (!t) return;
+  if (!t.startsWith("data:")) return;
+  const raw = t.slice(5).trim();
+  try {
+    const obj = JSON.parse(raw);
+    if (obj?.stage) onUpdate({ type: "status", stage: String(obj.stage) });
+    if (obj?.type === "chunk" && typeof obj.index === "number" && typeof obj.text === "string") {
+      onUpdate({ type: "chunk", index: obj.index, text: String(obj.text) });
     }
-  };
-
+    if (obj?.type === "result" && obj?.item) {
+      lastItem = obj.item;
+      onUpdate({ type: "result", item: obj.item });
+    }
+    if (obj?.ok === true || obj?.type === "done") {
+      onUpdate({ type: "done" });
+    }
+    if (obj?.code || obj?.message) {
+      // not always an error, but safe to ignore here
+    }
+  } catch {
+    // ignore
+  }
+};
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
