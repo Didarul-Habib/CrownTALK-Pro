@@ -514,20 +514,6 @@ function addTimelineMany(urls: string[], stage: TimelineStage, note?: string) {
   function startPipeline() {
     clearTimers();
     setStage("fetching");
-
-    const isLowMotion =
-      typeof document !== "undefined" &&
-      document.documentElement.getAttribute("data-fx") === "low";
-
-    const [genDelay, polishDelay, finalDelay] = isLowMotion
-      ? [700, 2100, 3600]
-      : [1400, 3400, 6200];
-
-    timers.current.push(
-      window.setTimeout(() => setStage("generating"), genDelay),
-      window.setTimeout(() => setStage("polishing"), polishDelay),
-      window.setTimeout(() => setStage("finalizing"), finalDelay)
-    );
   }
 
   function ensureAuth() {
