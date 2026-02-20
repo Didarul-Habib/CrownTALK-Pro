@@ -177,6 +177,60 @@ const genMutation = useMutation({
       authToken,
       vars.signal,
       (u) => {
+        if (u.type === "meta" && u.run_id) setRunId(u.run_id);
+        if (u.type === "result") {
+          startTransition(() => {
+            setItems((prev) => {
+              const byUrl = new Map<string, any>();
+              for (const p of prev) {
+                byUrl.set(p.input_url || p.url, p);
+                byUrl.set(p.url, p);
+              }
+              const key = (u.item as any).input_url || u.item.url;
+              const p = byUrl.get(key) || byUrl.get(u.item.url);
+              const nextItem = { ...(p || u.item), ...u.item, input_url: (u.item as any).input_url || (p as any)?.input_url || undefined, status: u.item.status || "ok" };
+              // versions: keep original before overwrite
+              if (p?.status === "ok" && p.comments?.length && u.item.status === "ok" && u.item.comments?.length) {
+                const versions = [...(p.versions || [])];
+                if (!versions.length) versions.push({ at: Date.now(), label: "original", comments: p.comments });
+                versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
+                (nextItem as any).versions = versions;
+              }
+              return prev.map((x) => {
+                const xKey = (x as any).input_url || x.url;
+                const targetKey = (u.item as any).input_url || u.item.url;
+                if (xKey === targetKey) return nextItem;
+                if (x.url === u.item.url) return nextItem;
+                return x;
+              });
+            });
+          });
+        }
+      }
+    );
+  },
+  retry: 0,
+});
+
+  const genFromUrlMutation = useMutation({
+    mutationFn: async (vars: { source_url: string; signal?: AbortSignal }) => {
+      const api = await import("@/lib/api");
+      urlChunksRef.current = [];
+      setItems([
+        { url: vars.source_url, input_url: vars.source_url, status: "pending", comments: [] } as any,
+      ]);
+      return api.commentFromUrlStream(
+        baseUrl,
+        {
+          source_url: vars.source_url,
+          output_language: langNative ? nativeLang : undefined,
+          fast: fastMode,
+          quote_mode: true,
+        },
+        token,
+        authToken,
+        vars.signal,
+        (u) => {
           if (u.type === "status" && (u as any).stage) {
             // Map backend stages to UI stages
             const s = String((u as any).stage);
@@ -219,6 +273,7 @@ const genMutation = useMutation({
             ]);
           }
         }
+      );
     },
     retry: 0,
   });
