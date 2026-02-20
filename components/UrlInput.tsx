@@ -59,8 +59,11 @@ export default function UrlInput({
 }) {
   const debouncedValue = useDebouncedValue(value, 180);
 
-  const urls = useMemo(() => parseUrls(debouncedValue), [value]);
-  const lineInfo = useMemo(() => classifyLines(debouncedValue), [value]);
+  // Parse URLs immediately from the live textarea value so the radar
+  // and counts update as soon as the user pastes.
+  const urls = useMemo(() => parseUrls(value), [value]);
+  // Heavier per-line classification can stay debounced.
+  const lineInfo = useMemo(() => classifyLines(debouncedValue), [debouncedValue]);
 
   const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
 

@@ -13,6 +13,43 @@ function copyText(text: string) {
   } catch {}
 }
 
+function getDisplayUrl(item: ResultItem): string {
+  const anyItem = item as any;
+  const raw: string = item.url || anyItem.input_url || "";
+
+  const handle: string | undefined = anyItem.handle;
+  const tweetId: string | undefined = anyItem.tweet_id;
+
+  if (tweetId) {
+    const cleanHandle =
+      (handle || "")
+        .replace(/^@/, "")
+        .trim() || "i";
+    return `https://x.com/${cleanHandle}/status/${tweetId}`;
+  }
+
+  if (!raw) return "";
+
+  try {
+    const u = new URL(raw);
+    if (u.hostname.includes("twitter.com")) {
+      u.hostname = "x.com";
+    }
+    // If we have an /i/status URL and a handle, normalise to /handle/status
+    if (u.hostname === "x.com" && u.pathname.startsWith("/i/status/") && handle) {
+      const cleanHandle = handle.replace(/^@/, "").trim();
+      const id = u.pathname.split("/").pop();
+      if (id) {
+        u.pathname = `/${cleanHandle}/status/${id}`;
+      }
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
+
 export default function ResultCard({
   item,
   onReroll,
@@ -58,13 +95,13 @@ export default function ResultCard({
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3">
         <a
-          href={item.url}
+          href={getDisplayUrl(item) || item.url}
           target="_blank"
           rel="noreferrer"
           className="text-sm underline underline-offset-4 break-all hover:opacity-90 inline-flex items-center gap-2"
         >
           <ExternalLink className="h-4 w-4 opacity-70" />
-          {item.url}
+          {getDisplayUrl(item) || item.url}
         </a>
         <button
           type="button"
@@ -147,7 +184,7 @@ export default function ResultCard({
         </details>
       ) : null}
 
-      {item.status === "pending" ? (
+      {item.status === "pending" && !(item.comments && item.comments.length) ? (
         <div className="space-y-2">
           <div className="ct-skeleton rounded-2xl p-3">
             <div className="h-3 w-1/3 rounded-full bg-white/10" />
@@ -171,7 +208,7 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {item.status === "pending" ? null : (
+      {item.status === "pending" && !(item.comments && item.comments.length) ? null : (
         <>
           {(item.comments || []).map((c: any, idx: number) => {
             const key = `c-${idx}`;
