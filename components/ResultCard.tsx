@@ -91,6 +91,9 @@ export default function ResultCard({
     timerRef.current = null;
   }
 
+  const hasComments = !!(item.comments && item.comments.length);
+  const showSkeleton = item.status === "pending" && !hasComments;
+
   return (
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3">
@@ -184,7 +187,7 @@ export default function ResultCard({
         </details>
       ) : null}
 
-      {item.status === "pending" && !(item.comments && item.comments.length) ? (
+      {showSkeleton ? (
         <div className="space-y-2">
           <div className="ct-skeleton rounded-2xl p-3">
             <div className="h-3 w-1/3 rounded-full bg-white/10" />
@@ -208,7 +211,7 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {item.status === "pending" && !(item.comments && item.comments.length) ? null : (
+      {!showSkeleton && hasComments ? (
         <>
           {(item.comments || []).map((c: any, idx: number) => {
             const key = `c-${idx}`;

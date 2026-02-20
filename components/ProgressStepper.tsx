@@ -28,7 +28,17 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
 
   // UI-only "feel" progress. We don't get real-time % from the backend,
   // but this gives users a confident sense of forward motion.
-  const progress = stage === "idle" ? 0 : stage === "done" ? 100 : Math.round(((idx + 1) / STEPS.length) * 100);
+  let progress = 0;
+  if (stage === "idle") {
+    progress = 0;
+  } else if (stage === "done") {
+    progress = 100;
+  } else {
+    const clampedIdx = Math.max(0, idx);
+    const base = (clampedIdx / STEPS.length) * 100;
+    const extra = stage === "finalizing" ? 8 : 0;
+    progress = Math.min(99, Math.round(base + extra));
+  }
 
   return (
     <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-3 backdrop-blur-xl">
