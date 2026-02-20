@@ -50,5 +50,5 @@ export function prefersReducedEffects(): boolean {
 export function applyFxMode(mode: FxMode) {
   if (typeof document === "undefined") return;
   const lite = shouldReduceEffects(mode);
-  document.documentElement.setAttribute("data-fx", lite ? "lite" : "full");
+  document.documentElement.setAttribute("data-fx", lite ? "low" : "full");
 }
