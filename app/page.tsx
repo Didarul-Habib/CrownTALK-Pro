@@ -58,12 +58,6 @@ export default function Home() {
     (process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND).replace(/\/+$/, "")
   );
 
-  const reduceFx =
-    typeof document !== "undefined" &&
-    document.documentElement.getAttribute("data-fx") === "low";
-
-  const MotionWrapper: any = reduceFx ? "div" : motion.div;
-
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
@@ -153,7 +147,6 @@ export default function Home() {
   const [queueDone, setQueueDone] = useState(0);
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  const urlChunksRef = useRef<string[]>([]);
   const suppressAbortRef = useRef(false);
   const queueCancelRef = useRef(false);
 
@@ -196,13 +189,7 @@ const genMutation = useMutation({
                 versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
                 (nextItem as any).versions = versions;
               }
-              return prev.map((x) => {
-                const xKey = (x as any).input_url || x.url;
-                const targetKey = (u.item as any).input_url || u.item.url;
-                if (xKey === targetKey) return nextItem;
-                if (x.url === u.item.url) return nextItem;
-                return x;
-              });
+              return prev.map((x) => (x.url === u.item.url ? nextItem : x));
             });
           });
         }
@@ -215,10 +202,6 @@ const genMutation = useMutation({
   const genFromUrlMutation = useMutation({
     mutationFn: async (vars: { source_url: string; signal?: AbortSignal }) => {
       const api = await import("@/lib/api");
-      urlChunksRef.current = [];
-      setItems([
-        { url: vars.source_url, input_url: vars.source_url, status: "pending", comments: [] } as any,
-      ]);
       return api.commentFromUrlStream(
         baseUrl,
         {
@@ -231,46 +214,16 @@ const genMutation = useMutation({
         authToken,
         vars.signal,
         (u) => {
-          if (u.type === "status" && (u as any).stage) {
+          if (u.type === "status" && u.stage) {
             // Map backend stages to UI stages
-            const s = String((u as any).stage);
+            const s = String(u.stage);
             if (s === "fetching" || s === "extracting") setStage("fetching");
             else if (s === "generating") setStage("generating");
             else if (s === "finalizing") setStage("finalizing");
           }
-          if (u.type === "chunk") {
-            const idx = Number.isFinite((u as any).index) && (u as any).index >= 0 ? (u as any).index : 0;
-            const cur = [...urlChunksRef.current];
-            if (!cur[idx]) cur[idx] = "";
-            cur[idx] += String((u as any).text ?? "");
-            urlChunksRef.current = cur;
-            setItems((prev) => {
-              const base = prev[0] || {
-                url: vars.source_url,
-                input_url: vars.source_url,
-                status: "pending",
-                comments: [],
-              };
-              const comments = cur.map((t) => ({ text: t }));
-              return [{ ...base, comments }];
-            });
-          }
           if (u.type === "result" && (u as any).item) {
             const it = (u as any).item;
-            urlChunksRef.current = [];
-            setItems([
-              {
-                url: String(it.url || vars.source_url || ""),
-                input_url: vars.source_url,
-                status: "ok",
-                comments: (it.comments || []).map((t: any) =>
-                  typeof t === "string" ? { text: t } : t
-                ),
-                title: it.title,
-                excerpt: it.excerpt,
-                citations: it.citations,
-              } as any,
-            ]);
+            setItems([{ url: String(it.url || vars.source_url || ""), status: "ok", comments: (it.comments || []).map((t: any) => typeof t === "string" ? { text: t } : t), title: it.title, excerpt: it.excerpt, citations: it.citations } as any]);
           }
         }
       );
@@ -1010,11 +963,11 @@ setFailStreak((prev) => {
           <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
         ) : null}
 
-        <MotionWrapper
+        <motion.div
           className="grid gap-6 lg:grid-cols-2"
-          {...(!reduceFx
-            ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } }
-            : {})}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
         >
           <div className="space-y-4">
             <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as any)}>
@@ -1099,7 +1052,7 @@ setFailStreak((prev) => {
             <ProgressStepper stage={loading ? stage : "idle"} />
           </div>
           </div>
-        </MotionWrapper>
+        </motion.div>
 
         <Results
           items={items}
