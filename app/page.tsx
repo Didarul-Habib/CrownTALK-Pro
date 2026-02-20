@@ -1099,7 +1099,7 @@ setFailStreak((prev) => {
             <ProgressStepper stage={loading ? stage : "idle"} />
           </div>
           </div>
-        </motion.div>
+        </MotionWrapper>
 
         <Results
           items={items}
