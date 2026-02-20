@@ -643,15 +643,3 @@ html[data-theme="minimal"]{
     transform: none !important;
   }
 }
-
-
-/* Ultra-low-motion mode for mobile: nuke nearly all animations */
-@media (max-width: 768px){
-  html[data-fx="low"] *, 
-  html[data-fx="low"] *::before, 
-  html[data-fx="low"] *::after{
-    animation: none !important;
-    transition: none !important;
-    transform: translate3d(0,0,0) !important;
-  }
-}

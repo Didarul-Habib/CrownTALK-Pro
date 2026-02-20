@@ -722,7 +722,7 @@ setFailStreak((prev) => {
       abortRef.current = null;
       clearTimers();
       setLoading(false);
-      window.setTimeout(() => setStage("idle"), 700);
+      window.setTimeout(() => setStage("idle"), 1600);
     }
   }
 
