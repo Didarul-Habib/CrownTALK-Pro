@@ -643,3 +643,18 @@ html[data-theme="minimal"]{
     transform: none !important;
   }
 }
+
+@media (max-width: 768px) {
+  html[data-fx="low"] .ct-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(10, 10, 18, 0.98) !important;
+  }
+
+  html[data-fx="low"] .ct-card-surface,
+  html[data-fx="low"] .ct-btn,
+  html[data-fx="low"] .ct-btn3d {
+    box-shadow: none !important;
+  }
+}
+

@@ -58,6 +58,12 @@ export default function Home() {
     (process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND).replace(/\/+$/, "")
   );
 
+  const reduceFx =
+    typeof document !== "undefined" &&
+    document.documentElement.getAttribute("data-fx") === "low";
+
+  const MotionWrapper: any = reduceFx ? "div" : motion.div;
+
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
@@ -147,6 +153,7 @@ export default function Home() {
   const [queueDone, setQueueDone] = useState(0);
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const urlChunksRef = useRef<string[]>([]);
   const suppressAbortRef = useRef(false);
   const queueCancelRef = useRef(false);
 
@@ -170,63 +177,48 @@ const genMutation = useMutation({
       authToken,
       vars.signal,
       (u) => {
-        if (u.type === "meta" && u.run_id) setRunId(u.run_id);
-        if (u.type === "result") {
-          startTransition(() => {
-            setItems((prev) => {
-              const byUrl = new Map<string, any>();
-              for (const p of prev) {
-                byUrl.set(p.input_url || p.url, p);
-                byUrl.set(p.url, p);
-              }
-              const key = (u.item as any).input_url || u.item.url;
-              const p = byUrl.get(key) || byUrl.get(u.item.url);
-              const nextItem = { ...(p || u.item), ...u.item, input_url: (u.item as any).input_url || (p as any)?.input_url || undefined, status: u.item.status || "ok" };
-              // versions: keep original before overwrite
-              if (p?.status === "ok" && p.comments?.length && u.item.status === "ok" && u.item.comments?.length) {
-                const versions = [...(p.versions || [])];
-                if (!versions.length) versions.push({ at: Date.now(), label: "original", comments: p.comments });
-                versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
-                (nextItem as any).versions = versions;
-              }
-              return prev.map((x) => (x.url === u.item.url ? nextItem : x));
-            });
-          });
-        }
-      }
-    );
-  },
-  retry: 0,
-});
-
-  const genFromUrlMutation = useMutation({
-    mutationFn: async (vars: { source_url: string; signal?: AbortSignal }) => {
-      const api = await import("@/lib/api");
-      return api.commentFromUrlStream(
-        baseUrl,
-        {
-          source_url: vars.source_url,
-          output_language: langNative ? nativeLang : undefined,
-          fast: fastMode,
-          quote_mode: true,
-        },
-        token,
-        authToken,
-        vars.signal,
-        (u) => {
-          if (u.type === "status" && u.stage) {
+          if (u.type === "status" && (u as any).stage) {
             // Map backend stages to UI stages
-            const s = String(u.stage);
+            const s = String((u as any).stage);
             if (s === "fetching" || s === "extracting") setStage("fetching");
             else if (s === "generating") setStage("generating");
             else if (s === "finalizing") setStage("finalizing");
           }
+          if (u.type === "chunk") {
+            const idx = Number.isFinite((u as any).index) && (u as any).index >= 0 ? (u as any).index : 0;
+            const cur = [...urlChunksRef.current];
+            if (!cur[idx]) cur[idx] = "";
+            cur[idx] += String((u as any).text ?? "");
+            urlChunksRef.current = cur;
+            setItems((prev) => {
+              const base = prev[0] || {
+                url: vars.source_url,
+                input_url: vars.source_url,
+                status: "pending",
+                comments: [],
+              };
+              const comments = cur.map((t) => ({ text: t }));
+              return [{ ...base, comments }];
+            });
+          }
           if (u.type === "result" && (u as any).item) {
             const it = (u as any).item;
-            setItems([{ url: String(it.url || vars.source_url || ""), status: "ok", comments: (it.comments || []).map((t: any) => typeof t === "string" ? { text: t } : t), title: it.title, excerpt: it.excerpt, citations: it.citations } as any]);
+            urlChunksRef.current = [];
+            setItems([
+              {
+                url: String(it.url || vars.source_url || ""),
+                input_url: vars.source_url,
+                status: "ok",
+                comments: (it.comments || []).map((t: any) =>
+                  typeof t === "string" ? { text: t } : t
+                ),
+                title: it.title,
+                excerpt: it.excerpt,
+                citations: it.citations,
+              } as any,
+            ]);
           }
         }
-      );
     },
     retry: 0,
   });
@@ -963,11 +955,11 @@ setFailStreak((prev) => {
           <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
         ) : null}
 
-        <motion.div
+        <MotionWrapper
           className="grid gap-6 lg:grid-cols-2"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
+          {...(!reduceFx
+            ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } }
+            : {})}
         >
           <div className="space-y-4">
             <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as any)}>
