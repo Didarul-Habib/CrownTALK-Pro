@@ -22,7 +22,6 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
   const idx = stepIndex(stage);
   const active = idx >= 0 && stage !== "done";
 
-  // Respect low-motion mode that is toggled at the document root
   const isLowMotion =
     typeof window !== "undefined" &&
     window.document?.documentElement?.dataset?.fx === "low";
