@@ -37,9 +37,15 @@ function prefersReducedData(): boolean {
 export function shouldReduceEffects(mode: FxMode = "auto"): boolean {
   if (mode === "lite") return true;
   if (mode === "full") return false;
+  if (typeof window !== "undefined") {
+    try {
+      if (window.matchMedia("(max-width: 768px)").matches) {
+        return true;
+      }
+    } catch {}
+  }
   return prefersReducedMotion() || prefersReducedData();
 }
-
 /**
  * Back-compat helper for components that just need a boolean.
  */
