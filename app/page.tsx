@@ -171,57 +171,25 @@ const genMutation = useMutation({
       vars.signal,
       (u) => {
         if (u.type === "meta" && u.run_id) setRunId(u.run_id);
-        if (u.type === "result" && (u as any).item) {
+        if (u.type === "result") {
           startTransition(() => {
             setItems((prev) => {
-              const it = (u as any).item as any;
-              const key = (it.input_url as string) || (it.url as string);
-
-              const next = [...prev];
-              const idx = next.findIndex(
-                (x) =>
-                  x.url === it.url ||
-                  x.url === key ||
-                  (x as any).input_url === key
-              );
-
-              const base = idx >= 0 ? next[idx] : (it as any);
-              const nextItem: any = {
-                ...base,
-                ...it,
-                input_url: (it.input_url ?? (base as any)?.input_url) || key,
-                status: it.status || "ok",
-              };
-
-              // Preserve previous successful result as a "version" when rerolling.
-              if (
-                base?.status === "ok" &&
-                base.comments?.length &&
-                it.status === "ok" &&
-                it.comments?.length
-              ) {
-                const versions = [...(base.versions || [])];
-                if (!versions.length) {
-                  versions.push({
-                    at: Date.now(),
-                    label: "original",
-                    comments: base.comments,
-                  });
-                }
-                versions.push({
-                  at: Date.now(),
-                  label: "reroll",
-                  comments: it.comments || [],
-                });
-                nextItem.versions = versions;
+              const byUrl = new Map<string, any>();
+              for (const p of prev) {
+                byUrl.set(p.input_url || p.url, p);
+                byUrl.set(p.url, p);
               }
-
-              if (idx >= 0) {
-                next[idx] = nextItem;
-              } else {
-                next.push(nextItem);
+              const key = (u.item as any).input_url || u.item.url;
+              const p = byUrl.get(key) || byUrl.get(u.item.url);
+              const nextItem = { ...(p || u.item), ...u.item, input_url: (u.item as any).input_url || (p as any)?.input_url || undefined, status: u.item.status || "ok" };
+              // versions: keep original before overwrite
+              if (p?.status === "ok" && p.comments?.length && u.item.status === "ok" && u.item.comments?.length) {
+                const versions = [...(p.versions || [])];
+                if (!versions.length) versions.push({ at: Date.now(), label: "original", comments: p.comments });
+                versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
+                (nextItem as any).versions = versions;
               }
-              return next;
+              return prev.map((x) => (x.url === u.item.url ? nextItem : x));
             });
           });
         }
@@ -545,10 +513,19 @@ function addTimelineMany(urls: string[], stage: TimelineStage, note?: string) {
   function startPipeline() {
     clearTimers();
     setStage("fetching");
+
+    const isLowMotion =
+      typeof document !== "undefined" &&
+      document.documentElement.getAttribute("data-fx") === "low";
+
+    const [genDelay, polishDelay, finalDelay] = isLowMotion
+      ? [400, 1200, 1900]
+      : [900, 2400, 4200];
+
     timers.current.push(
-      window.setTimeout(() => setStage("generating"), 650),
-      window.setTimeout(() => setStage("polishing"), 1850),
-      window.setTimeout(() => setStage("finalizing"), 2900)
+      window.setTimeout(() => setStage("generating"), genDelay),
+      window.setTimeout(() => setStage("polishing"), polishDelay),
+      window.setTimeout(() => setStage("finalizing"), finalDelay)
     );
   }
 

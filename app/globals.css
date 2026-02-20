@@ -577,6 +577,13 @@ html[data-fx="lite"] .ct-btn:hover {
   .ct-skeleton::before{ animation:none; }
 }
 
+@media (max-width: 768px){
+  html[data-fx="low"] .ct-skeleton::before{
+    animation:none;
+    opacity:0;
+  }
+}
+
 /* Small shimmer badge */
 .ct-badge-pro{
   position:relative;
