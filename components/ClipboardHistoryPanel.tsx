@@ -80,7 +80,7 @@ export default function ClipboardHistoryPanel({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className={clsx("ct-btn ct-btn-xs", !items.length ? "opacity-50 cursor-not-allowed" : "")}
+            className={clsx("ct-btn ct-btn-xs min-w-[4.5rem] justify-center", !items.length ? "opacity-50 cursor-not-allowed" : "")}
             onClick={() => downloadFile("crowntalk-clipboard.json", JSON.stringify(items, null, 2), "application/json")}
             disabled={!items.length}
             title="Export JSON"
@@ -90,7 +90,7 @@ export default function ClipboardHistoryPanel({
           </button>
           <button
             type="button"
-            className={clsx("ct-btn ct-btn-xs", !items.length ? "opacity-50 cursor-not-allowed" : "")}
+            className={clsx("ct-btn ct-btn-xs min-w-[4.5rem] justify-center", !items.length ? "opacity-50 cursor-not-allowed" : "")}
             onClick={() => {
               const blocks = items.map((c) => {
                 const t = fmt(c.at);
@@ -108,7 +108,7 @@ export default function ClipboardHistoryPanel({
           </button>
           <button
             type="button"
-            className={clsx("ct-btn ct-btn-xs", !items.length ? "opacity-50 cursor-not-allowed" : "")}
+            className={clsx("ct-btn ct-btn-xs min-w-[4.5rem] justify-center", !items.length ? "opacity-50 cursor-not-allowed" : "")}
             onClick={() => {
               const header = "time,url,text";
               const rows = items.map((c) => {
@@ -127,7 +127,7 @@ export default function ClipboardHistoryPanel({
           </button>
           <button
             type="button"
-            className={clsx("ct-btn ct-btn-xs ct-btn-danger", !items.length ? "opacity-50 cursor-not-allowed" : "")}
+            className={clsx("ct-btn ct-btn-xs ct-btn-danger min-w-[4.5rem] justify-center", !items.length ? "opacity-50 cursor-not-allowed" : "")}
             onClick={onClear}
             disabled={!items.length}
             title="Clear clipboard history"

@@ -4,7 +4,6 @@ import clsx from "clsx";
 import { useMemo, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { classifyLines, parseUrls, extractUrlsAll, normalizeXUrl } from "@/lib/validate";
 import UrlScanner from "@/components/UrlScanner";
 
@@ -58,6 +57,8 @@ export default function UrlInput({
   canUndo?: boolean;
   canRedo?: boolean;
 }) {
+  const [inboxExpanded, setInboxExpanded] = useState(true);
+
   const debouncedValue = useDebouncedValue(value, 180);
 
   // Parse URLs immediately from the live textarea value so the radar
@@ -67,8 +68,6 @@ export default function UrlInput({
   const lineInfo = useMemo(() => classifyLines(debouncedValue), [debouncedValue]);
 
   const selectedSet = useMemo(() => new Set(selected ?? urls), [selected, urls]);
-
-  const [inboxOpen, setInboxOpen] = useState(true);
 
   const invalidLines = useMemo(() => {
     // count lines that contain text but no url
@@ -285,22 +284,8 @@ export default function UrlInput({
       )}>
         <div className="flex items-center justify-between gap-2">
           <div>
-            <button
-              type="button"
-              onClick={() => setInboxOpen((v) => !v)}
-              className="group inline-flex items-center gap-1 text-xs font-semibold tracking-tight"
-              aria-label={inboxOpen ? "Collapse URL inbox" : "Expand URL inbox"}
-            >
-              <span>URL Inbox</span>
-              {inboxOpen ? (
-                <ChevronUp className="h-3 w-3 opacity-80 group-hover:opacity-100" />
-              ) : (
-                <ChevronDown className="h-3 w-3 opacity-80 group-hover:opacity-100" />
-              )}
-            </button>
-            <div className="mt-0.5 text-[11px] opacity-70">
-              Preview what will be processed. Uncheck anything you don't want to include.
-            </div>
+            <div className="text-xs font-semibold tracking-tight">URL Inbox</div>
+            <div className="text-[11px] opacity-70">Preview what will be processed. Uncheck anything you don't want to include.</div>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -365,10 +350,24 @@ export default function UrlInput({
             >
               Group domains
             </button>
+            <button
+              type="button"
+              onClick={() => setInboxExpanded((v) => !v)}
+              className="ml-1 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--ct-border)] bg-black/10 hover:bg-black/20"
+              title={inboxExpanded ? "Collapse URL inbox" : "Expand URL inbox"}
+              aria-label={inboxExpanded ? "Collapse URL inbox" : "Expand URL inbox"}
+            >
+              <span
+                className={clsx(
+                  "block h-3 w-3 border-b border-l border-white/70 transition-transform",
+                  inboxExpanded ? "-rotate-45" : "rotate-135"
+                )}
+              />
+            </button>
           </div>
         </div>
 
-        {inboxOpen && (
+        {inboxExpanded && (
           <>
         {/* Preview chips */}
         {inbox.length ? (
@@ -503,11 +502,11 @@ export default function UrlInput({
           </div>
           <div className="hidden sm:block">Tip: paste messy text — we extract links automatically.</div>
         </div>
+          </>
+        )}
       </div>
 
 
-          </>
-        )}
       {(duplicates.length || invalidLines || nonStatusXLinks.length) ? (
         <div className={clsx("mt-3 rounded-2xl border p-3", "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]")}>
           <div className="text-xs font-semibold tracking-tight">Validation</div>

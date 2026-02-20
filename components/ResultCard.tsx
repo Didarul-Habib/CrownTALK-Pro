@@ -72,6 +72,10 @@ export default function ResultCard({
   );
   const timerRef = useRef<number | null>(null);
 
+  const hasComments = texts.some((t) => t && t.trim().length > 0);
+  const showSkeleton = item.status === "pending" && !hasComments;
+
+
   useEffect(() => {
     // Reset local editable text when the item changes (reroll/retry)
     setTexts((item.comments || []).map((c: any) => String(c?.text ?? c ?? "")));
@@ -90,9 +94,6 @@ export default function ResultCard({
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = null;
   }
-
-  const hasComments = !!(item.comments && item.comments.length);
-  const showSkeleton = item.status === "pending" && !hasComments;
 
   return (
     <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-xl">
@@ -211,7 +212,7 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {!showSkeleton && hasComments ? (
+      {item.status === "pending" && !(item.comments && item.comments.length) ? null : (
         <>
           {(item.comments || []).map((c: any, idx: number) => {
             const key = `c-${idx}`;
