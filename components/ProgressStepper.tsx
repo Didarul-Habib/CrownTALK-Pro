@@ -22,6 +22,11 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
   const idx = stepIndex(stage);
   const active = idx >= 0 && stage !== "done";
 
+  // Respect low-motion mode that is toggled at the document root
+  const isLowMotion =
+    typeof window !== "undefined" &&
+    window.document?.documentElement?.dataset?.fx === "low";
+
   // UI-only "feel" progress. We don't get real-time % from the backend,
   // but this gives users a confident sense of forward motion.
   const progress = stage === "idle" ? 0 : stage === "done" ? 100 : Math.round(((idx + 1) / STEPS.length) * 100);
