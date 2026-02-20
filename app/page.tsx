@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import { prefersReducedMotion, shouldReduceEffects, applyFxMode } from "@/lib/motion";
+import { prefersReducedMotion, shouldReduceEffects, applyFxMode, prefersReducedEffects } from "@/lib/motion";
 import { useMutation } from "@tanstack/react-query";
 
 import TopBar from "@/components/TopBar";
@@ -54,6 +54,7 @@ const ClipboardHistoryPanelLazy = dynamic(() => import("@/components/ClipboardHi
 
 export default function Home() {
   useRenderCount("Home");
+  const reduceFx = prefersReducedEffects();
   const [baseUrl] = useState<string>(() =>
     (process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND).replace(/\/+$/, "")
   );
@@ -967,7 +968,7 @@ setFailStreak((prev) => {
           className="grid gap-6 lg:grid-cols-2"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
+          transition={reduceFx ? { duration: 0 } : { duration: 0.35 }}
         >
           <div className="space-y-4">
             <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as any)}>

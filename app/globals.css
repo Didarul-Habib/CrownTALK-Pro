@@ -219,11 +219,13 @@ html[data-theme="cyberpunk"] body::after {
 }
 
 /* FX lite mode (battery saver / reduced data) */
+html[data-fx="low"] body::before,
 html[data-fx="lite"] body::before {
   animation: none;
   opacity: 0.28;
   filter: blur(18px) saturate(1);
 }
+html[data-fx="low"] body::after,
 html[data-fx="lite"] body::after { opacity: 0.06; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -347,6 +349,7 @@ html[data-fx="lite"] body::after { opacity: 0.06; }
   mix-blend-mode: screen;
 }
 
+html[data-fx="low"] .ct-btn::after,
 html[data-fx="lite"] .ct-btn::after{ opacity:0.38; }
 
 .ct-btn:hover::before {
@@ -367,11 +370,13 @@ html[data-fx="lite"] .ct-btn::after{ opacity:0.38; }
   filter: saturate(1.05);
 }
 
+html[data-fx="low"] .ct-btn:hover,
 html[data-fx="lite"] .ct-btn:hover {
   box-shadow: 0 12px 30px rgba(0,0,0,.32);
 }
 
 /* Lite mode: reduce heavy glows to save battery */
+html[data-fx="low"] .ct-btn:hover,
 html[data-fx="lite"] .ct-btn:hover {
   box-shadow: 0 12px 30px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--ct-accent) 18%, transparent);
 }
@@ -431,6 +436,13 @@ html[data-fx="lite"] .ct-btn:hover {
   border-radius: var(--ct-radius);
   backdrop-filter: blur(18px);
 }
+
+@media (max-width: 768px) {
+  .ct-card {
+    backdrop-filter: none;
+  }
+}
+
 
 .ct-card-surface {
   border: 1px solid var(--ct-border);
