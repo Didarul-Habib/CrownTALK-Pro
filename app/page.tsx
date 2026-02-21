@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import { prefersReducedMotion, shouldReduceEffects, applyFxMode, prefersReducedEffects } from "@/lib/motion";
+import {prefersReducedMotion, shouldReduceEffects, prefersReducedEffects} from "@/lib/motion";
 import { useMutation } from "@tanstack/react-query";
 
 import TopBar from "@/components/TopBar";
@@ -190,7 +190,16 @@ const genMutation = useMutation({
                 versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
                 (nextItem as any).versions = versions;
               }
-              return prev.map((x) => (x.url === u.item.url ? nextItem : x));
+              let found = false;
+              const mapped = prev.map((x) => {
+                const xKey = (x as any).input_url || x.url;
+                if (x.url === u.item.url || xKey === key || (x as any).input_url === key) {
+                  found = true;
+                  return nextItem;
+                }
+                return x;
+              });
+              return found ? mapped : [...mapped, nextItem];
             });
           });
         }
@@ -370,12 +379,6 @@ useEffect(() => {
     broadcast({ type: "theme", value: theme, at: Date.now() });
   }, [theme]);
 
-  // Auto battery-saver / reduced-motion FX mode (can be overridden via LS.fxMode)
-  useEffect(() => {
-    const mode = (lsGet(LS.fxMode, "auto") as any) || "auto";
-    applyFxMode(mode);
-  }, []);
-
   useEffect(() => {
     try {
       if (!token) {
@@ -491,7 +494,7 @@ useEffect(() => {
 function addTimelineEvent(url: string, stage: TimelineStage, note?: string) {
   setItems((prev) =>
     prev.map((it) => {
-      if (it.url !== url) return it;
+      if (it.url !== url && (it as any).input_url !== url) return it;
       const ev = { at: Date.now(), stage, note };
       const next = { ...it, timeline: [...(it.timeline || []), ev] };
       return next;
@@ -504,7 +507,8 @@ function addTimelineMany(urls: string[], stage: TimelineStage, note?: string) {
   const setU = new Set(urls);
   setItems((prev) =>
     prev.map((it) => {
-      if (!setU.has(it.url)) return it;
+      const iu = (it as any).input_url;
+      if (!setU.has(it.url) && (!iu || !setU.has(iu))) return it;
       const ev = { at: Date.now(), stage, note };
       return { ...it, timeline: [...(it.timeline || []), ev] };
     })
@@ -571,12 +575,27 @@ async function queueRunOffline(requestUrls: string[]) {
     const rid = resp.meta?.run_id || nowId("run");
     setRunId(rid);
     setItems((prev) => {
-      const byUrl = new Map(results.map((r) => [r.url, r]));
+      const byKey = new Map<string, any>();
+      for (const r of results as any[]) {
+        const key = (r as any).input_url || r.url;
+        if (key) byKey.set(key, r);
+        if (r.url) byKey.set(r.url, r);
+      }
       // Replace placeholders / older entries in-place to keep list stable.
-      const next = prev.map((p) => byUrl.get(p.url) || p);
+      const next = prev.map((p: any) => {
+        const pKey = (p as any).input_url || p.url;
+        return byKey.get(pKey) || byKey.get(p.url) || p;
+      });
       // Append any truly new URLs (shouldn't happen, but safe).
-      for (const r of results) if (!prev.find((p) => p.url === r.url)) next.push(r);
-      return opts.append ? next : results;
+      for (const r of results as any[]) {
+        const rKey = (r as any).input_url || r.url;
+        const exists = prev.some((p: any) => {
+          const pKey = (p as any).input_url || p.url;
+          return pKey === rKey || p.url === r.url || (p as any).input_url === r.url || (r as any).input_url === p.url;
+        });
+        if (!exists) next.push(r);
+      }
+      return opts.append ? next : (results as any);
     });
     return { results, rid };
   }
@@ -623,7 +642,7 @@ async function queueRunOffline(requestUrls: string[]) {
         combined = [...combined, ...results];
         startTransition(() => setQueueDone((prev) => Math.min(allUrls.length, prev + batch.length)));
         // Mark received/failed
-        for (const r of results) addTimelineEvent(r.url, r.status === "ok" ? "received" : "failed");
+        for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
       }
 
       // Persist to run history
@@ -772,6 +791,7 @@ setFailStreak((prev) => {
     }
 
     if (inputMode === "source") {
+      if (!ensureAuth()) return;
       const u = sourceUrl.trim();
       if (!u) {
         setError("Paste a thread/article URL.");
@@ -817,9 +837,41 @@ setFailStreak((prev) => {
         try { await idbSet("ct:runs", [record, ...(runs || [])].slice(0, 120)); } catch {}
 
       } catch (e: any) {
-        const msg = e instanceof ApiError ? e.message : "Failed to generate from URL";
+        if (e?.name === "AbortError") {
+          setError("Generation cancelled.");
+          setStage("idle");
+          try { toast("Canceled"); } catch {}
+          return;
+        }
+
+        const msg = e instanceof ApiError ? e.message : (e?.message || "Failed to generate from URL");
         setError(msg);
         try { toast.error(msg); } catch {}
+
+        const status: number | undefined = e && typeof (e as any).status === "number" ? ((e as any).status as number) : undefined;
+        const code = (e as any)?.body?.code;
+
+        if (
+          status === 401 ||
+          code === "missing_auth" ||
+          code === "bad_auth" ||
+          code === "expired_auth" ||
+          code === "revoked_auth" ||
+          code === "inactive_user"
+        ) {
+          setAuthToken("");
+          setSignupOpen(true);
+        }
+        if (status === 403 || code === "missing_access" || code === "forbidden") {
+          setSignupOpen(true);
+        }
+
+        if (status === 429) {
+          const retryAfter = Number((e as any)?.body?.retry_after || (e as any)?.body?.retryAfter || 30);
+          const until = Date.now() + Math.max(5, retryAfter) * 1000;
+          setCooldownUntil(until);
+          try { toast.error(`Rate limited. Cooling down for ${Math.max(5, retryAfter)}s`); } catch {}
+        }
       } finally {
         setLoading(false);
         setStage("idle");
@@ -943,6 +995,7 @@ setFailStreak((prev) => {
   return (
     <div className="min-h-screen pb-28">
       <WelcomePopup />
+      <OnboardingTour />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
       <PerfPanel />
       <RenderProfilerPanel />
@@ -1007,6 +1060,7 @@ setFailStreak((prev) => {
                 <CardContent className="space-y-3">
                   <label className="block text-sm text-ct-muted">Paste an X thread URL or any article URL</label>
                   <input
+                    id="ct-url-input"
                     value={sourceUrl}
                     onChange={(e) => setSourceUrl(e.target.value)}
                     placeholder="https://x.com/... or https://example.com/article"

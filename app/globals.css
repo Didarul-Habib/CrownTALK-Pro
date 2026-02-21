@@ -655,3 +655,35 @@ html[data-theme="minimal"]{
     transform: none !important;
   }
 }
+
+
+/* ------------------------------------------------------------------
+   Performance helpers (mobile / low-FX)
+   ------------------------------------------------------------------ */
+
+/* Backdrop-filter is expensive on many mobile GPUs. When FX mode is low/lite,
+   force-disable any Tailwind backdrop-blur utility to reduce scroll jank. */
+html[data-fx="low"] .backdrop-blur,
+html[data-fx="low"] .backdrop-blur-sm,
+html[data-fx="low"] .backdrop-blur-md,
+html[data-fx="low"] .backdrop-blur-lg,
+html[data-fx="low"] .backdrop-blur-xl,
+html[data-fx="low"] .backdrop-blur-2xl,
+html[data-fx="low"] .backdrop-blur-3xl,
+html[data-fx="lite"] .backdrop-blur,
+html[data-fx="lite"] .backdrop-blur-sm,
+html[data-fx="lite"] .backdrop-blur-md,
+html[data-fx="lite"] .backdrop-blur-lg,
+html[data-fx="lite"] .backdrop-blur-xl,
+html[data-fx="lite"] .backdrop-blur-2xl,
+html[data-fx="lite"] .backdrop-blur-3xl {
+  backdrop-filter: none !important;
+}
+
+/* Disable decorative border spin/glow effects in low-FX mode. */
+html[data-fx="low"] .ct-border-spin,
+html[data-fx="lite"] .ct-border-spin {
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+}

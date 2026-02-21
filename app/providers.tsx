@@ -3,24 +3,27 @@
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import InstallPrompt from "@/components/InstallPrompt";
+import PwaRegister from "@/components/PwaRegister";
+import { initAnalytics } from "@/lib/analytics";
+import { applyFxMode, FxMode } from "@/lib/motion";
+import { LS } from "@/lib/storage";
+
 /**
- * React Query provider for the Next.js App Router.
+ * App-wide client providers for the Next.js App Router.
  *
- * Netlify/Next prerenders routes during build. Any component using
- * `useQuery`/`useMutation` must be under a `QueryClientProvider`.
+ * - React Query (`QueryClientProvider`)
+ * - PWA service worker registration
+ * - (Optional) install prompt banner
+ * - Analytics bootstrap
  */
-export default function Providers({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function Providers({ children }: { children: React.ReactNode }) {
   // Create the client once per browser session.
   const [queryClient] = React.useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Safe defaults for most apps; adjust as needed.
             refetchOnWindowFocus: false,
             retry: 1,
           },
@@ -28,5 +31,28 @@ export default function Providers({
       })
   );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  React.useEffect(() => {
+    try {
+      initAnalytics();
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  React.useEffect(() => {
+    try {
+      const mode = (localStorage.getItem(LS.fxMode) as FxMode) || "auto";
+      applyFxMode(mode);
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <PwaRegister />
+      <InstallPrompt />
+    </QueryClientProvider>
+  );
 }

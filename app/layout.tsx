@@ -11,9 +11,11 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "CrownTALK",
   description: "Professional X comment generator",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#0b0b10",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
   },
 };
 
@@ -27,8 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             richColors
             position="top-right"
             toastOptions={{
-              className:
-                "rounded-2xl border border-white/10 bg-black/60 text-white backdrop-blur-xl",
+              className: "rounded-2xl border border-white/10 bg-black/60 text-white backdrop-blur-xl",
             }}
           />
         </Providers>
