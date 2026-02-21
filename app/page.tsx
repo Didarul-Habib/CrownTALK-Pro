@@ -719,6 +719,19 @@ setFailStreak((prev) => {
     } finally {
       abortRef.current = null;
       clearTimers();
+      // If a run fails or is cancelled mid-way, mark any remaining pending
+      // cards as errors so the shimmer skeleton disappears and the user can retry.
+      setItems((prev) =>
+        prev.map((it) =>
+          it.status === "pending" && (!it.comments || it.comments.length === 0)
+            ? {
+                ...it,
+                status: "error",
+                reason: it.reason || "No comment generated (run did not complete).",
+              }
+            : it,
+        ),
+      );
       setLoading(false);
       window.setTimeout(() => setStage("idle"), 1600);
     }
@@ -1047,7 +1060,7 @@ setFailStreak((prev) => {
               clearDisabled={!raw.trim() && !items.length && !error}
             />
 
-            <ProgressStepper stage={loading ? stage : "idle"} />
+            <ProgressStepper stage={stage} />
           </div>
           </div>
         </motion.div>
