@@ -327,7 +327,7 @@ export default function Results({
         </div>
       ) : null}
 
-      {failedItems.length ? (
+      {failedItems.length && false ? (
         <div className={clsx("ct-card", "p-4")}
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
