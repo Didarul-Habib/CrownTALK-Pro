@@ -72,7 +72,10 @@ export default function ResultCard({
   );
   const timerRef = useRef<number | null>(null);
 
-  const hasComments = texts.some((t) => t && t.trim().length > 0);
+  const hasComments = (item.comments || []).some((c: any) => {
+    const t = String(c?.text ?? c ?? "");
+    return t.trim().length > 0;
+  });
   const showSkeleton = item.status === "pending" && !hasComments;
 
 
