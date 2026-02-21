@@ -33,7 +33,8 @@ export default function ClipboardHistoryPanel({
   onTogglePin: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const [expanded, setExpanded] = useState(true);
+    // Start collapsed by default; user can expand manually.
+  const [expanded, setExpanded] = useState(false);
 
   function downloadFile(filename: string, content: string, type: string) {
     const blob = new Blob([content], { type });

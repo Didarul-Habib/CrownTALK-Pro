@@ -57,7 +57,7 @@ export default function UrlInput({
   canUndo?: boolean;
   canRedo?: boolean;
 }) {
-  const [inboxExpanded, setInboxExpanded] = useState(true);
+  const [inboxExpanded, setInboxExpanded] = useState(false);
 
   const debouncedValue = useDebouncedValue(value, 180);
 
