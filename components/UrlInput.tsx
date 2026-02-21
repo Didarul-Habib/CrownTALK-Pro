@@ -162,7 +162,7 @@ export default function UrlInput({
   }
 
   return (
-    <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
+    <div id="ct-url-input" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
           <label className="text-sm font-medium">Tweet URLs</label>

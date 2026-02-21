@@ -81,7 +81,7 @@ export default function Controls({
   }, []);
 
   return (
-    <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
+    <div id="ct-controls" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">Controls</div>
         <button
@@ -94,6 +94,7 @@ export default function Controls({
         </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <PremiumButton
+            id="ct-generate"
             onClick={onGenerate}
             disabled={loading}
             className={clsx("ct-btn-primary", loading ? "opacity-70 cursor-not-allowed" : "")}
