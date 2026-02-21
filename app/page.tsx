@@ -514,6 +514,17 @@ function addTimelineMany(urls: string[], stage: TimelineStage, note?: string) {
   function startPipeline() {
     clearTimers();
     setStage("fetching");
+
+    // Soft, approximate stage progression for multi-URL runs.
+    // Timers are always cleared on completion / cancel / error via clearTimers().
+    const isLowFx = prefersReducedEffects();
+    const [t1, t2, t3] = isLowFx ? [700, 2100, 3600] : [1400, 3400, 6200];
+
+    timers.current.push(
+      window.setTimeout(() => setStage("generating"), t1),
+      window.setTimeout(() => setStage("polishing"), t2),
+      window.setTimeout(() => setStage("finalizing"), t3)
+    );
   }
 
   function ensureAuth() {
