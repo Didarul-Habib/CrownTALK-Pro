@@ -727,7 +727,7 @@ setFailStreak((prev) => {
             ? {
                 ...it,
                 status: "error",
-                reason: it.reason || "No comment generated (run did not complete).",
+                reason: "No comment generated (run did not complete).",
               }
             : it,
         ),
