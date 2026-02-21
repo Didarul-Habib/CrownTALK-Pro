@@ -146,22 +146,6 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {item.timeline && item.timeline.length ? (
-        <details className="rounded-2xl border border-white/10 bg-black/10 p-3">
-          <summary className="cursor-pointer text-xs opacity-80">Timeline</summary>
-          <div className="mt-2 space-y-1 text-[11px] opacity-80">
-            {item.timeline.slice(-10).map((ev, i) => (
-              <div key={i} className="flex items-center justify-between gap-3">
-                <span className="capitalize">{ev.stage.replace(/_/g, " ")}</span>
-                <span className="font-mono opacity-70">
-                  {new Date(ev.at).toLocaleTimeString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
-      ) : null}
-
       {(warnSimilar || warnSpam) && item.status === "ok" ? (
         <details className="rounded-2xl border border-white/10 bg-black/10 p-3">
           <summary className="cursor-pointer text-xs opacity-80">Why flagged?</summary>

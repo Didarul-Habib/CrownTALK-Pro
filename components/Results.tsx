@@ -115,6 +115,8 @@ export default function Results({
 
   const similarCount = similarMap.size;
   const [hideNearDuplicates, setHideNearDuplicates] = useState(false);
+  const [showFailedCards, setShowFailedCards] = useState(false);
+
 
   const hideSet = useMemo(() => {
     if (!hideNearDuplicates) return new Set<string>();
@@ -132,10 +134,24 @@ export default function Results({
     return toHide;
   }, [hideNearDuplicates, items, similarMap]);
 
-  const displayItems = useMemo(() => {
+  const displayItemsDedup = useMemo(() => {
     if (!hideNearDuplicates) return items;
     return items.filter((it) => !hideSet.has(it.url));
   }, [hideNearDuplicates, items, hideSet]);
+
+  const displayItems = useMemo(() => {
+    const base = displayItemsDedup;
+
+    // While generating, keep pending cards visible (skeletons) so users see progress.
+    if (loading) {
+      return showFailedCards ? base : base.filter((it) => it.status === "ok" || it.status === "pending");
+    }
+
+    if (showFailedCards) return base;
+
+    // Default: show only items that actually produced comments (clean UI on mobile).
+    return base.filter((it) => it.status === "ok" && (it.comments?.length ?? 0) > 0);
+  }, [displayItemsDedup, loading, showFailedCards]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -270,6 +286,16 @@ export default function Results({
                     }}
                     disabled={!failedItems.length}
                   />
+                  <MenuItem
+                    icon={<AlertTriangle className="h-4 w-4 opacity-80" />}
+                    label={showFailedCards ? "Hide failed cards" : "Show failed cards"}
+                    onClick={() => {
+                      setShowFailedCards((v) => !v);
+                      setMenuOpen(false);
+                    }}
+                    disabled={!failedItems.length}
+                  />
+
 
                   {onClear ? (
                     <>
