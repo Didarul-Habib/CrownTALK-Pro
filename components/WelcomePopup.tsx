@@ -162,66 +162,44 @@ export default function WelcomePopup() {
 
             {/* Card */}
             <motion.div
-              className="relative w-full max-w-lg rounded-[calc(var(--ct-radius)+10px)] border border-white/10 shadow-2xl"
-              initial={{ y: 14, scale: 0.98, opacity: 0 }}
+              className="relative w-full max-w-lg rounded-[calc(var(--ct-radius)+14px)] shadow-2xl"
+              initial={{ y: 14, scale: 0.96, opacity: 0 }}
               animate={{ y: 0, scale: 1, opacity: 1 }}
-              exit={{ y: 10, scale: 0.98, opacity: 0 }}
+              exit={{ y: 10, scale: 0.96, opacity: 0 }}
               transition={{ duration: MOTION.dur.slow, ease: MOTION.ease }}
             >
-              {/* Animated gradient edge + glow */}
-              <div className="pointer-events-none absolute -inset-[6px] opacity-90">
-                {/* rotating holo ring (ring-only) */}
-                <div className="ct-border-spin absolute inset-0 rounded-[calc(var(--ct-radius)+16px)] bg-[conic-gradient(from_90deg,rgba(168,85,247,.95),rgba(34,211,238,.85),rgba(236,72,153,.85),rgba(168,85,247,.95))] p-[2px]">
-                  <div className="h-full w-full rounded-[calc(var(--ct-radius)+14px)] bg-transparent" />
-                </div>
+              {/* Rotating gradient ring around card */}
+              <div className="pointer-events-none absolute -inset-[3px] rounded-[calc(var(--ct-radius)+18px)]">
+                <div className="ct-border-spin h-full w-full rounded-[calc(var(--ct-radius)+18px)] bg-[conic-gradient(from_140deg_at_50%_50%,rgba(34,211,238,0.7),rgba(129,140,248,0.9),rgba(236,72,153,0.9),rgba(34,211,238,0.7))] opacity-90 blur-[1px]" />
               </div>
 
-              {/* Inner panel */}
-              <div className="relative overflow-hidden rounded-[calc(var(--ct-radius)+10px)] bg-[color:var(--ct-panel)]/70 backdrop-blur-xl">
-                {/* Galaxy background image (place in /public/galaxy.jpg) */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage: "url(/galaxy.jpg)",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                />
-                {/* Darken + soften for readability */}
-                <div className="absolute inset-0 bg-black/55" />
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/15 via-transparent to-cyan-400/15" />
-                {/* Subtle noise (optional feel) */}
-                <div className="pointer-events-none absolute inset-0 opacity-[0.18] mix-blend-overlay" style={{
-                  backgroundImage:
-                    "radial-gradient(circle at 20% 20%, rgba(255,255,255,.18) 0 1px, transparent 2px), radial-gradient(circle at 70% 40%, rgba(255,255,255,.12) 0 1px, transparent 2px), radial-gradient(circle at 40% 80%, rgba(255,255,255,.10) 0 1px, transparent 2px)",
-                  backgroundSize: "140px 140px",
-                }} />
+              {/* Surface */}
+              <div className="relative overflow-hidden rounded-[calc(var(--ct-radius)+10px)] border border-white/10 bg-[color:var(--ct-panel)]/85 backdrop-blur-2xl">
+                {/* Soft gradient background */}
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(34,211,238,0.35),transparent_55%),radial-gradient(circle_at_100%_100%,rgba(236,72,153,0.35),transparent_55%)]" />
+                  <div className="absolute inset-0 bg-black/60" />
+                </div>
 
                 <div className="relative p-5 sm:p-6">
-                  {/* Header row */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold tracking-tight text-white/95">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-white/50">
+                        CrownTALK · Pro workspace
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
                         {headline}
-                      </div>
-                      <div className="mt-1 text-xs text-white/70">
-                        Today&apos;s quick start:{" "}
-                        <span className="text-white/85">paste 1 URL</span> →{" "}
-                        <span className="text-white/85">pick a style</span> →{" "}
-                        <span className="text-white/85">generate</span>.
-                      </div>
+                      </h2>
+                      <p className="text-xs sm:text-sm text-white/70">
+                        Today&apos;s quick start: paste a post → pick a style → generate sharp, on-context replies.
+                      </p>
                     </div>
-
-                    <button
-                      className="ct-btn ct-btn-sm"
-                      onClick={() => setOpen(false)}
-                      aria-label="Close welcome"
-                    >
-                      ✕
-                    </button>
+                    <div className="hidden sm:flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/40 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+                      <span className="text-3xl">💬</span>
+                    </div>
                   </div>
 
-                  {/* Steps */}
+                  {/* Steps row */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {[
                       { n: "1", t: "Paste X URL" },
@@ -230,9 +208,9 @@ export default function WelcomePopup() {
                     ].map((s) => (
                       <div
                         key={s.n}
-                        className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 backdrop-blur"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 backdrop-blur"
                       >
-                        <span className="grid h-5 w-5 place-items-center rounded-full bg-white/10 text-[11px] font-semibold text-white/90">
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
                           {s.n}
                         </span>
                         <span className="font-medium">{s.t}</span>
@@ -240,23 +218,7 @@ export default function WelcomePopup() {
                     ))}
                   </div>
 
-                  {/* Tip + CTA row */}
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="text-xs text-white/70">
-                      💡 Tip: Try <span className="font-semibold text-white/85">Fast mode</span>{" "}
-                      for speedy replies.
-                    </div>
-
-                    <button
-                      ref={closeBtnRef}
-                      className="ct-btn"
-                      onClick={onStart}
-                    >
-                      Start
-                    </button>
-                  </div>
-
-                  {/* Feature chips */}
+                  {/* Quick toggles */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {[
                       { icon: "⚡", t: "Fast mode" },
@@ -268,7 +230,7 @@ export default function WelcomePopup() {
                         key={c.t}
                         type="button"
                         onClick={onStart}
-                        className="group inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 backdrop-blur transition active:scale-[0.98]"
+                        className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white/80 backdrop-blur transition active:scale-[0.98]"
                         aria-label={`Start with ${c.t}`}
                       >
                         <span className="opacity-90">{c.icon}</span>
@@ -279,15 +241,25 @@ export default function WelcomePopup() {
                   </div>
 
                   {/* Footer */}
-                  <div className="mt-4 flex items-center justify-between text-[11px] text-white/55">
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/60">
                     <button
-                      type="button"
-                      className="underline decoration-white/20 underline-offset-4 hover:text-white/70"
-                      onClick={() => setOpen(false)}
+                      ref={closeBtnRef}
+                      className="ct-btn ct-btn-sm"
+                      onClick={onStart}
                     >
-                      Not now
+                      Start
                     </button>
-                    <div>Resets daily at 6:00 AM (BD)</div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="underline decoration-white/20 underline-offset-4 hover:text-white/80"
+                        onClick={() => setOpen(false)}
+                      >
+                        Not now
+                      </button>
+                      <span>Resets daily at 6:00 AM (BD)</span>
+                    </div>
                   </div>
                 </div>
               </div>
