@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+const MotionDiv = motion.div;
 import clsx from "clsx";
 import { verifyAccess } from "@/lib/api";
 
@@ -38,13 +39,13 @@ export default function AccessGate({
   return (
     <AnimatePresence>
       {open ? (
-        <motion.div
+        <MotionDiv
           className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <motion.div
+          <MotionDiv
             className={clsx(
               "w-full max-w-md rounded-3xl border p-5 shadow-2xl backdrop-blur-xl",
               "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)]"
@@ -95,8 +96,8 @@ export default function AccessGate({
                 {busy ? "Verifying…" : "Unlock"}
               </button>
             </div>
-          </motion.div>
-        </motion.div>
+          </MotionDiv>
+        </MotionDiv>
       ) : null}
     </AnimatePresence>
   );

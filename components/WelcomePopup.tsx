@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+const MotionDiv = motion.div;
 import { X } from "lucide-react";
 import { MOTION } from "@/lib/motion";
 import { LS, lsGetJson } from "@/lib/storage";
@@ -145,7 +146,7 @@ export default function WelcomePopup() {
 
       <AnimatePresence>
         {open ? (
-          <motion.div
+          <MotionDiv
             className="fixed inset-0 z-[60] grid place-items-center px-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -162,7 +163,7 @@ export default function WelcomePopup() {
             />
 
             {/* Card */}
-            <motion.div
+            <MotionDiv
               className="relative w-full max-w-lg"
               initial={{ y: 14, scale: 0.96, opacity: 0 }}
               animate={{ y: 0, scale: 1, opacity: 1 }}
@@ -276,8 +277,8 @@ export default function WelcomePopup() {
                 </div>
               </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </MotionDiv>
+          </MotionDiv>
         ) : null}
       </AnimatePresence>
     </>

@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { motion, type HTMLMotionProps } from "framer-motion";
+const MotionButton = motion.button;
 import { MOTION } from "@/lib/motion";
 
 type PremiumButtonProps = HTMLMotionProps<"button">;
@@ -14,7 +15,7 @@ export default function PremiumButton({
   ...props
 }: PremiumButtonProps) {
   return (
-    <motion.button
+    <MotionButton
       {...props}
       type={type ?? "button"}
       disabled={disabled}
@@ -33,6 +34,6 @@ export default function PremiumButton({
       className={clsx("ct-btn ct-btn3d", className)}
     >
       {children}
-    </motion.button>
+    </MotionButton>
   );
 }
