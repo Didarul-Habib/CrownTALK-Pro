@@ -151,7 +151,7 @@ export default function ResultCard({
       {tweetPreview?.text && item.status === "ok" ? (
         <details className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3">
           <summary className="cursor-pointer text-xs opacity-80">Tweet context</summary>
-          <div className="mt-2 space-y-2 text-[12px] leading-5" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+          <div className="mt-2 space-y-2 text-[12px] leading-5">
             {(tweetPreview.author_name || tweetPreview.handle) ? (
               <div className="opacity-80">
                 <span className="font-semibold">{tweetPreview.author_name || ""}</span>
