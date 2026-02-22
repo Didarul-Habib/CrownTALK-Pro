@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      - PORT=10000
+      # Add your keys via an .env file or inline env vars
+      # - GROQ_API_KEY=...
+      # - CROWNTALK_HMAC_SECRET=...
+    ports:
+      - "10000:10000"
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:10000
+      # - NEXT_PUBLIC_CT_HMAC_SECRET=...
+    command: sh -lc "npm i && npm run dev -- --hostname 0.0.0.0"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
