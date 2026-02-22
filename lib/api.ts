@@ -22,6 +22,46 @@ async function addRequestSignature(headers: Record<string, string>, body: string
   headers["X-CT-Signature"] = await hmacSha256Hex(HMAC_SECRET, `${ts}.${body}`);
 }
 
+function normalizeResultItem(raw: any, request?: any): ResultItem {
+  const url = String(raw?.url || "");
+  const inputUrl = String((raw as any)?.input_url || url);
+  const status = (raw?.status as any) || "ok";
+
+  const base: ResultItem = {
+    url,
+    input_url: inputUrl,
+    tweet_id: raw?.tweet_id ? String(raw.tweet_id) : undefined,
+    handle: raw?.handle ? String(raw.handle) : undefined,
+    tweet: raw?.tweet,
+    project: raw?.project ?? null,
+    status,
+    reason: raw?.reason ? String(raw.reason) : raw?.code ? String(raw.code) : undefined,
+    comments: Array.isArray(raw?.comments) ? raw.comments : [],
+    flags: raw?.flags,
+  };
+
+  // Request-level metadata (for quality badges / history UI)
+  if (request && typeof request === "object") {
+    if ("lang_native" in request) {
+      (base as any).lang_native = Boolean((request as any).lang_native);
+    }
+    if ((request as any).native_lang) {
+      (base as any).native_lang = String((request as any).native_lang);
+    }
+  }
+  if (typeof (raw as any)?.used_research === "boolean") {
+    (base as any).used_research = Boolean((raw as any).used_research);
+  }
+
+  if (Array.isArray((raw as any)?.project_handles)) {
+    const arr = (raw as any).project_handles
+      .map((x: any) => (typeof x === "string" ? x.trim() : ""))
+      .filter((x: string) => !!x);
+    if (arr.length) (base as any).project_handles = arr;
+  }
+
+  return base;
+}
 
 export type UrlStreamUpdate =
   | { type: "status"; stage: string }
@@ -33,9 +73,20 @@ export async function commentFromUrlStream(
   baseUrl: string,
   payload: {
     source_url: string;
+    preset?: string;
     output_language?: string;
     fast?: boolean;
     quote_mode?: boolean;
+    include_alternates?: boolean;
+    lang_en?: boolean;
+    lang_native?: boolean;
+    native_lang?: string;
+    tone?: string;
+    intent?: string;
+    voice?: number;
+    tone_match?: boolean;
+    thread_ready?: boolean;
+    anti_cringe?: boolean;
   },
   accessToken: string,
   authToken: string,
@@ -142,17 +193,42 @@ async function readBody(res: Response) {
 }
 
 function errMessage(res: Response, body: any) {
-  // Supports both legacy {error,code} and new envelope {success,false,error:{code,message}}
+  // Supports both legacy {error,code} and new envelope {success:false,error:{code,message}}
   if (body && typeof body === "object") {
+    let code: string | undefined;
+    let message: string | undefined;
+
     const envErr = (body as any).error;
     if (envErr && typeof envErr === "object") {
-      const code = envErr.code ? ` (${envErr.code})` : "";
-      const msg = envErr.message ? String(envErr.message) : JSON.stringify(envErr);
-      return `${msg}${code}`;
+      if (envErr.code) code = String(envErr.code);
+      if (envErr.message) message = String(envErr.message);
+    } else {
+      if ((body as any).code) code = String((body as any).code);
+      if ((body as any).error) message = String((body as any).error);
     }
-    const code = (body as any).code ? ` (${(body as any).code})` : "";
-    const msg = (body as any).error ? String((body as any).error) : JSON.stringify(body);
-    return `${msg}${code}`;
+
+    const lower = code ? code.toLowerCase() : "";
+
+    // Friendly mappings for common backend codes
+    if (lower === "bad_signature") {
+      return "Your API signature looks invalid. Try refreshing the page or logging in again.";
+    }
+    if (lower === "rate_limited" || lower === "too_many_requests") {
+      return "You've hit the rate limit. Try again in a moment.";
+    }
+    if (lower === "invalid_token" || lower === "auth_required") {
+      return "Your session has expired or is invalid. Please log in again.";
+    }
+
+    if (message && code) return `${message} (${code})`;
+    if (message) return message;
+    if (code) return `Error (${code})`;
+
+    try {
+      return JSON.stringify(body);
+    } catch {
+      // fall through
+    }
   }
   return `HTTP ${res.status}`;
 }
@@ -305,18 +381,17 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
   const okRaw = (data?.results || []) as any[];
   const failedRaw = (data?.failed || []) as any[];
 
-  const ok: ResultItem[] = okRaw.map((it) => ({
-    url: String(it.url || ""),
-    status: "ok",
-    comments: Array.isArray(it.comments) ? it.comments : [],
-  }));
-
-  const failed: ResultItem[] = failedRaw.map((f) => ({
-    url: String(f.url || ""),
-    status: "error",
-    reason: String(f.reason || f.code || "error"),
-    comments: [],
-  }));
+  const ok: ResultItem[] = okRaw.map((it) => normalizeResultItem(it, payload));
+  const failed: ResultItem[] = failedRaw.map((f) =>
+    normalizeResultItem(
+      {
+        ...f,
+        status: (f as any)?.status || "error",
+        comments: [],
+      },
+      payload
+    )
+  );
 
   // meta can live on the outer envelope.
   const meta = body && typeof body === "object" ? (body as any).meta : undefined;
@@ -350,8 +425,15 @@ export async function generateCommentsStream(
   const url = useDedicatedStream ? streamUrl : bulkUrl;
   let res: Response | null = null;
   try {
-    const reqBody = useDedicatedStream ? { url: firstUrl, preset: (payload as any).preset, output_language: (payload as any).output_language, fast: (payload as any).fast } : payload;
-    res = await fetch(url, { method: "POST", headers, body: JSON.stringify(reqBody), signal });
+    const reqBody = useDedicatedStream
+      ? (() => {
+          const { urls, ...rest } = payload as any;
+          return { ...rest, url: firstUrl };
+        })()
+      : payload;
+    const bodyStr = JSON.stringify(reqBody);
+    await addRequestSignature(headers, bodyStr);
+    res = await fetch(url, { method: "POST", headers, body: bodyStr, signal });
   } catch (e: any) {
     // network error -> fall back to normal (will throw a better ApiError)
     return await generateComments(baseUrl, payload, accessToken, authToken, signal);
@@ -370,18 +452,20 @@ export async function generateCommentsStream(
     const data = unwrapEnvelope<any>(body);
     const okRaw = (data?.results || []) as any[];
     const failedRaw = (data?.failed || []) as any[];
-    const ok: ResultItem[] = okRaw.map((it) => ({
-      url: String(it.url || ""),
-      status: "ok",
-      comments: Array.isArray(it.comments) ? it.comments : [],
-    }));
-    const failed: ResultItem[] = failedRaw.map((f) => ({
-      url: String(f.url || ""),
-      status: "error",
-      reason: String(f.reason || f.error || "Failed"),
-    }));
+    const ok: ResultItem[] = okRaw.map((it) => normalizeResultItem(it, payload));
+    const failed: ResultItem[] = failedRaw.map((f) =>
+      normalizeResultItem(
+        {
+          ...f,
+          status: (f as any)?.status || "error",
+          comments: [],
+        },
+        payload
+      )
+    );
     const results = [...ok, ...failed];
-    return { results, meta: { run_id: body?.meta?.run_id } };
+    const meta = body && typeof body === "object" ? (body as any).meta : undefined;
+    return { results, meta: meta || undefined };
   }
 
   // Streaming reader
@@ -392,6 +476,7 @@ export async function generateCommentsStream(
   const decoder = new TextDecoder();
   let buf = "";
   const collected: ResultItem[] = [];
+  let runId: string | undefined;
   const flushLine = (line: string) => {
     const t = line.trim();
     if (!t) return;
@@ -400,18 +485,23 @@ export async function generateCommentsStream(
     try {
       const obj = JSON.parse(raw);
       // Common patterns
-      if (obj?.meta?.run_id) onUpdate({ type: "meta", run_id: obj.meta.run_id });
+      if (obj?.meta?.run_id) {
+        runId = obj.meta.run_id;
+        onUpdate({ type: "meta", run_id: obj.meta.run_id });
+      }
       if (obj?.type === "result" && obj?.item) {
-        collected.push(obj.item);
-        onUpdate({ type: "result", item: obj.item });
+        const item = normalizeResultItem(obj.item, payload);
+        collected.push(item);
+        onUpdate({ type: "result", item });
       } else if (obj?.result?.url) {
-        const item = obj.result as ResultItem;
+        const item = normalizeResultItem(obj.result, payload);
         collected.push(item);
         onUpdate({ type: "result", item });
       } else if (Array.isArray(obj?.results)) {
         for (const it of obj.results) {
-          collected.push(it);
-          onUpdate({ type: "result", item: it });
+          const item = normalizeResultItem(it, payload);
+          collected.push(item);
+          onUpdate({ type: "result", item });
         }
       } else if (obj?.type === "done") {
         onUpdate({ type: "done", results: collected });
@@ -434,7 +524,7 @@ export async function generateCommentsStream(
   flushLine(buf);
   onUpdate({ type: "done", results: collected });
 
-  return { results: collected, meta: {} };
+  return { results: collected, meta: runId ? { run_id: runId } : {} };
 }
 
 export type SourcePreview = { title: string; excerpt: string; source_url: string };
@@ -449,10 +539,13 @@ export async function sourcePreview(
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
+  const bodyStr = JSON.stringify({ source_url });
+  await addRequestSignature(headers, bodyStr);
+
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/source_preview`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ source_url }),
+    body: bodyStr,
   });
 
   const body = await readBody(res);

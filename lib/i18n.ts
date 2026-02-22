@@ -1,0 +1,176 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getUiLang, type UiLang } from "./uiLanguage";
+
+type Messages = Record<string, string>;
+type MessageTable = Record<UiLang, Messages>;
+
+// Minimal UI string table – extend as needed.
+// Minimal UI string table – extend as needed.
+const messages: MessageTable = {
+  en: {
+    "fx.auto": "FX Auto",
+    "fx.full": "FX Full",
+    "fx.low": "Low motion",
+    "fx.toggle": "Toggle effects / low motion",
+    "tagline.pro": "Professional X comment generator",
+    "label.proBadge": "CrownTALK Pro",
+    "label.tweetUrls": "Tweet URLs",
+    "hint.pasteXLinks": "Paste one or more X (Twitter) post links — one per line",
+    "mobile.history": "History",
+    "mobile.presets": "Presets",
+    "mobile.controls": "Controls",
+    "mobile.generate": "Generate",
+  },
+  bn: {
+    "fx.auto": "এফএক্স অটো",
+    "fx.full": "এফএক্স ফুল",
+    "fx.low": "লো মোশন",
+    "fx.toggle": "ইফেক্ট / লো মোশন বদলান",
+    "tagline.pro": "প্রফেশনাল X কমেন্ট জেনারেটর",
+    "label.proBadge": "CrownTALK প্রো",
+    "label.tweetUrls": "টুইট URL",
+    "hint.pasteXLinks": "এক বা একাধিক X (Twitter) পোস্টের লিংক পেস্ট করুন — প্রতি লাইনে একটি",
+    "mobile.history": "হিস্ট্রি",
+    "mobile.presets": "প্রিসেট",
+    "mobile.controls": "কন্ট্রোল",
+    "mobile.generate": "জেনারেট",
+  },
+  hi: {
+    "fx.auto": "एफएक्स ऑटो",
+    "fx.full": "एफएक्स फुल",
+    "fx.low": "लो मोशन",
+    "fx.toggle": "इफेक्ट / लो मोशन बदलें",
+    "tagline.pro": "प्रोफेशनल X कमेंट जेनरेटर",
+    "label.proBadge": "CrownTALK प्रो",
+    "label.tweetUrls": "ट्वीट URL",
+    "hint.pasteXLinks": "एक या अधिक X (Twitter) पोस्ट लिंक पेस्ट करें — हर लाइन पर एक",
+    "mobile.history": "हिस्ट्री",
+    "mobile.presets": "प्रीसेट्स",
+    "mobile.controls": "कंट्रोल्स",
+    "mobile.generate": "जेनरेट",
+  },
+  ar: {
+    "fx.auto": "تأثيرات تلقائية",
+    "fx.full": "تأثيرات كاملة",
+    "fx.low": "حركة منخفضة",
+    "fx.toggle": "تبديل التأثيرات / الحركة المنخفضة",
+    "tagline.pro": "مولّد تعليقات احترافي لـ X",
+    "label.proBadge": "CrownTALK برو",
+    "label.tweetUrls": "روابط التغريدات",
+    "hint.pasteXLinks": "الصق رابطًا واحدًا أو أكثر لمنشورات X (تويتر) — رابط واحد في كل سطر",
+    "mobile.history": "السجل",
+    "mobile.presets": "التهيئات",
+    "mobile.controls": "عناصر التحكم",
+    "mobile.generate": "إنشاء",
+  },
+  ur: {
+    "fx.auto": "ایف ایکس آٹو",
+    "fx.full": "ایف ایکس فل",
+    "fx.low": "کم موشن",
+    "fx.toggle": "ایفیکٹس / کم موشن تبدیل کریں",
+    "tagline.pro": "پروفیشنل X کمنٹ جنریٹر",
+    "label.proBadge": "CrownTALK پرو",
+    "label.tweetUrls": "ٹوئٹ URL",
+    "hint.pasteXLinks": "ایک یا زیادہ X (Twitter) پوسٹ لنکس پیسٹ کریں — ہر لائن میں ایک",
+    "mobile.history": "ہسٹری",
+    "mobile.presets": "پری سیٹس",
+    "mobile.controls": "کنٹرولز",
+    "mobile.generate": "جنریٹ",
+  },
+  id: {
+    "fx.auto": "FX Otomatis",
+    "fx.full": "FX Penuh",
+    "fx.low": "Gerakan rendah",
+    "fx.toggle": "Ubah efek / gerakan rendah",
+    "tagline.pro": "Generator komentar X profesional",
+    "label.proBadge": "CrownTALK Pro",
+    "label.tweetUrls": "URL Tweet",
+    "hint.pasteXLinks": "Tempel satu atau lebih link post X (Twitter) — satu per baris",
+    "mobile.history": "Riwayat",
+    "mobile.presets": "Preset",
+    "mobile.controls": "Kontrol",
+    "mobile.generate": "Generate",
+  },
+  es: {
+    "fx.auto": "FX Auto",
+    "fx.full": "FX Completo",
+    "fx.low": "Bajo movimiento",
+    "fx.toggle": "Cambiar efectos / bajo movimiento",
+    "tagline.pro": "Generador profesional de comentarios para X",
+    "label.proBadge": "CrownTALK Pro",
+    "label.tweetUrls": "URLs de tuits",
+    "hint.pasteXLinks": "Pega uno o varios enlaces de publicaciones de X (Twitter), uno por línea",
+    "mobile.history": "Historial",
+    "mobile.presets": "Presets",
+    "mobile.controls": "Controles",
+    "mobile.generate": "Generar",
+  },
+  zh: {
+    "fx.auto": "特效自动",
+    "fx.full": "特效全开",
+    "fx.low": "低动态",
+    "fx.toggle": "切换特效 / 低动态",
+    "tagline.pro": "专业版 X 评论生成器",
+    "label.proBadge": "CrownTALK 专业版",
+    "label.tweetUrls": "推文链接",
+    "hint.pasteXLinks": "粘贴一个或多个 X（Twitter）帖子链接，每行一个",
+    "mobile.history": "历史",
+    "mobile.presets": "预设",
+    "mobile.controls": "控制",
+    "mobile.generate": "生成",
+  },
+  ja: {
+    "fx.auto": "FX オート",
+    "fx.full": "FX フル",
+    "fx.low": "低モーション",
+    "fx.toggle": "エフェクト / 低モーション切替",
+    "tagline.pro": "プロ向け X コメントジェネレーター",
+    "label.proBadge": "CrownTALK Pro",
+    "label.tweetUrls": "ツイートURL",
+    "hint.pasteXLinks": "X（Twitter）の投稿リンクを1行に1つずつ貼り付けてください",
+    "mobile.history": "履歴",
+    "mobile.presets": "プリセット",
+    "mobile.controls": "コントロール",
+    "mobile.generate": "生成",
+  },
+  ko: {
+    "fx.auto": "FX 자동",
+    "fx.full": "FX 전체",
+    "fx.low": "저모션",
+    "fx.toggle": "이펙트 / 저모션 전환",
+    "tagline.pro": "프로용 X 댓글 생성기",
+    "label.proBadge": "CrownTALK 프로",
+    "label.tweetUrls": "트윗 URL",
+    "hint.pasteXLinks": "X(트위터) 게시물 링크를 한 줄에 하나씩 붙여 넣으세요",
+    "mobile.history": "기록",
+    "mobile.presets": "프리셋",
+    "mobile.controls": "컨트롤",
+    "mobile.generate": "생성",
+  },
+};
+
+
+export function translate(key: string, lang: UiLang): string {
+  const table = messages[lang] || messages.en;
+  return table[key] || messages.en[key] || key;
+}
+
+export function useUiLang(): UiLang {
+  const [lang, setLang] = useState<UiLang>(() => {
+    if (typeof window === "undefined") return "en";
+    return getUiLang();
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => {
+      setLang(getUiLang());
+    };
+    window.addEventListener("ct.uiLangChange", handler);
+    return () => window.removeEventListener("ct.uiLangChange", handler);
+  }, []);
+
+  return lang;
+}

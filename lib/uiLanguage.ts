@@ -34,4 +34,9 @@ export function getUiLang(): UiLang {
 export function setUiLang(lang: UiLang) {
   if (typeof window === "undefined") return;
   localStorage.setItem(KEY, lang);
+  try {
+    window.dispatchEvent(new CustomEvent("ct.uiLangChange", { detail: { lang } }));
+  } catch {
+    // no-op
+  }
 }

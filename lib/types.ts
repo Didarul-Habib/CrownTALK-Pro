@@ -16,6 +16,12 @@ export type GenerateRequest = {
   tone?: Tone;
   intent?: Intent;
   include_alternates?: boolean;
+  // UI voice index (0=Pro, 1=Neutral, 2=Degen, 3=Builder, 4=Analyst)
+  voice?: number;
+  // Advanced style / quality flags (optional)
+  tone_match?: boolean;
+  thread_ready?: boolean;
+  anti_cringe?: boolean;
 };
 
 export type CommentItem = {
@@ -29,9 +35,28 @@ export type ResultItem = {
   input_url?: string;
   tweet_id?: string;
   handle?: string;
+  // Backend-provided lightweight tweet preview
+  tweet?: {
+    text?: string;
+    author_name?: string | null;
+    handle?: string | null;
+    lang?: string | null;
+    entities?: { cashtags?: string[]; handles?: string[]; numbers?: string[] };
+  };
+  // Backend-provided project match from local project folder
+  project?: {
+    handle?: string;
+    file?: string;
+    summary?: string;
+  } | null;
   status: "ok" | "error" | "skipped" | "pending";
   reason?: string;
   comments?: CommentItem[];
+  // Request-level metadata
+  lang_native?: boolean;
+  native_lang?: string;
+  used_research?: boolean;
+  project_handles?: string[];
   // UI-only metadata (frontend upgrades)
   timeline?: TimelineEvent[];
   versions?: ResultVersion[];
