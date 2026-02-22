@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-const MotionDiv = motion.div;
 import clsx from "clsx";
 
 export type Stage = "idle" | "fetching" | "generating" | "polishing" | "finalizing" | "done";
@@ -52,7 +51,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
 
       {/* Premium progress rail */}
       <div className="mt-3 h-2 w-full overflow-hidden rounded-full border border-[color:var(--ct-border)] bg-white/5">
-        <MotionDiv
+        <motion.div
           className="h-full rounded-full"
           style={{
             background:
@@ -98,7 +97,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
               </div>
 
               {current && !isLowMotion ? (
-                <MotionDiv
+                <motion.div
                   className="absolute inset-0 opacity-30"
                   style={{
                     background:

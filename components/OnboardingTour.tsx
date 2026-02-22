@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-const MotionDiv = motion.div;
 import { MOTION } from "@/lib/motion";
 
 type Step = {
@@ -98,7 +97,7 @@ export default function OnboardingTour() {
   return (
     <AnimatePresence>
       {open && step ? (
-        <MotionDiv
+        <motion.div
           className="fixed inset-0 z-[70]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -117,7 +116,7 @@ export default function OnboardingTour() {
             />
           ) : null}
 
-          <MotionDiv
+          <motion.div
             className="absolute left-1/2 top-24 w-[min(520px,calc(100vw-24px))] -translate-x-1/2"
             initial={{ y: 10, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
@@ -155,8 +154,8 @@ export default function OnboardingTour() {
                 </div>
               </div>
             </div>
-          </MotionDiv>
-        </MotionDiv>
+          </motion.div>
+        </motion.div>
       ) : null}
     </AnimatePresence>
   );

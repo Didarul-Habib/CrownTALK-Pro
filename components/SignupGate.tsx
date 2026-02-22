@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-const MotionDiv = motion.div;
 import clsx from "clsx";
 import { Eye, EyeOff, KeyRound, Lock, ShieldCheck, Trash2, User, X } from "lucide-react";
 import { login, signup, verifyAccess } from "@/lib/api";
@@ -148,13 +147,13 @@ export default function SignupGate({
   return (
     <AnimatePresence>
       {open ? (
-        <MotionDiv
+        <motion.div
           className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <MotionDiv
+          <motion.div
             className={clsx(
               "relative w-full max-w-lg overflow-hidden rounded-3xl border p-5 shadow-2xl backdrop-blur-xl",
               "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)]"
@@ -164,7 +163,7 @@ export default function SignupGate({
             exit={{ y: 10, scale: 0.98, opacity: 0 }}
           >
             {/* Premium animated glow */}
-            <MotionDiv
+            <motion.div
               aria-hidden
               className="pointer-events-none absolute -inset-24 opacity-60 blur-3xl"
               style={{
@@ -316,8 +315,8 @@ export default function SignupGate({
               </div>
             </div>
             </div>
-          </MotionDiv>
-        </MotionDiv>
+          </motion.div>
+        </motion.div>
       ) : null}
     </AnimatePresence>
   );

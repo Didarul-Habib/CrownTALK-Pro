@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-const MotionDiv = motion.div;
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Menu, Trash2, AlertTriangle } from "lucide-react";
@@ -422,7 +421,7 @@ export default function Results({
         const spam = spamMap.get(it.url) || null;
         const delay = idx * 0.03;
         return (
-          <MotionDiv
+          <motion.div
             key={it.url}
             initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
             animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
@@ -436,7 +435,7 @@ export default function Results({
               warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
               warnSpam={spam}
             />
-          </MotionDiv>
+          </motion.div>
         );
       })}
     </div>

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { motion } from "framer-motion";
-const MotionDiv = motion.div;
 
 export type ThemeId =
   | "neon"
@@ -118,7 +117,7 @@ export default function ThemeStudioBar({
           )}
         >
         {/* Active slider */}
-        <MotionDiv
+        <motion.div
           className="pointer-events-none absolute top-1 bottom-1 left-0 rounded-2xl border"
           style={{
             borderColor: "rgba(255,255,255,.10)",

@@ -6,7 +6,6 @@ import ThemeStudioBar, { ThemeId } from "@/components/ThemeStudioBar";
 import UserMenu from "@/components/UserMenu";
 import UiLangSelect from "@/components/UiLangSelect";
 import { motion } from "framer-motion";
-const MotionDiv = motion.div;
 import { applyFxMode, type FxMode, shouldReduceEffects } from "@/lib/motion";
 import { LS, lsGet, lsSet } from "@/lib/storage";
 import { useMemo, useState } from "react";
@@ -47,7 +46,7 @@ export default function TopBar({
   }
 
   return (
-    <MotionDiv
+    <motion.div
       className="sticky top-0 z-40 border-b border-[color:var(--ct-border)] bg-[color:var(--ct-bg)]/70 backdrop-blur-xl"
       initial={canAnimate ? { y: -12, opacity: 0 } : undefined}
       animate={canAnimate ? { y: 0, opacity: 1 } : undefined}
@@ -103,6 +102,6 @@ export default function TopBar({
           </div>
         </div>
       </div>
-    </MotionDiv>
+    </motion.div>
   );
 }

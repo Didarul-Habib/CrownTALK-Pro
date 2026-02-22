@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-const MotionDiv = motion.div;
 import Image from "next/image";
 
 // Premium splash shown on hard refresh / first mount.
@@ -39,7 +38,7 @@ export default function SplashScreen({
   return (
     <AnimatePresence>
       {show && !ready && (
-        <MotionDiv
+        <motion.div
           key="ct-splash"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -47,7 +46,7 @@ export default function SplashScreen({
           className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--ct-bg)]"
         >
           <div className="relative w-full max-w-md px-6">
-            <MotionDiv
+            <motion.div
               initial={{ scale: 0.98, y: 6, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               transition={{ type: "spring", stiffness: 220, damping: 18 }}
@@ -65,7 +64,7 @@ export default function SplashScreen({
 
               <div className="mt-5">
                 <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                  <MotionDiv
+                  <motion.div
                     initial={{ x: "-40%" }}
                     animate={{ x: "140%" }}
                     transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
@@ -74,9 +73,9 @@ export default function SplashScreen({
                 </div>
                 <div className="mt-2 text-[11px] opacity-60">Loading UI, restoring history, syncing tabs</div>
               </div>
-            </MotionDiv>
+            </motion.div>
 
-            <MotionDiv
+            <motion.div
               aria-hidden
               className="pointer-events-none absolute -inset-10 -z-10 blur-3xl opacity-40"
               initial={{ opacity: 0.15 }}
@@ -88,7 +87,7 @@ export default function SplashScreen({
               }}
             />
           </div>
-        </MotionDiv>
+        </motion.div>
       )}
     </AnimatePresence>
   );
