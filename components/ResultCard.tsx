@@ -7,6 +7,9 @@ import { RotateCcw, Copy, ExternalLink, Check } from "lucide-react";
 import type { ResultItem } from "@/lib/types";
 import { getQualityInfo } from "@/lib/quality";
 
+const MotionDiv = motion.div;
+
+
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
   // Subtle haptic confirmation on mobile (safe no-op on unsupported devices).
@@ -104,7 +107,7 @@ export default function ResultCard({
   }
 
   return (
-    <motion.div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
+    <MotionDiv className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
       <div className="flex items-start justify-between gap-3">
         <a
           href={getDisplayUrl(item) || item.url}
@@ -152,7 +155,7 @@ export default function ResultCard({
       {tweetPreview?.text && item.status === "ok" ? (
         <details className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3">
           <summary className="cursor-pointer text-xs opacity-80">Tweet context</summary>
-          <motion.div className="mt-2 space-y-2 text-[12px] leading-5" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+          <MotionDiv className="mt-2 space-y-2 text-[12px] leading-5" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
             {(tweetPreview.author_name || tweetPreview.handle) ? (
               <div className="opacity-80">
                 <span className="font-semibold">{tweetPreview.author_name || ""}</span>
@@ -166,7 +169,7 @@ export default function ResultCard({
                 <div className="mt-1 text-[11px] opacity-75 whitespace-pre-wrap break-words">{String(project.summary).slice(0, 600)}</div>
               </div>
             ) : null}
-          </motion.div>
+          </MotionDiv>
         </details>
       ) : null}
 
@@ -220,7 +223,7 @@ export default function ResultCard({
                 </div>
               </div>
             ) : null}
-          </motion.div>
+          </MotionDiv>
         </details>
       ) : null}
 
@@ -407,6 +410,6 @@ export default function ResultCard({
           })}
         </>
       )}
-    </motion.div>
+    </MotionDiv>
   );
 }
