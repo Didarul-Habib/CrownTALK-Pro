@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useMemo, useState } from "react";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { toast } from "sonner";
+import { translate, useUiLang } from "@/lib/i18n";
 import { classifyLines, parseUrls, extractUrlsAll, normalizeXUrl } from "@/lib/validate";
 import UrlScanner from "@/components/UrlScanner";
 
@@ -57,6 +58,7 @@ export default function UrlInput({
   canUndo?: boolean;
   canRedo?: boolean;
 }) {
+  const uiLang = useUiLang();
   const [inboxExpanded, setInboxExpanded] = useState(false);
 
   const debouncedValue = useDebouncedValue(value, 180);
@@ -97,6 +99,7 @@ export default function UrlInput({
     return out;
   }, [lineInfo]);
 
+
   const nonStatusXLinks = useMemo(() => {
     const out: string[] = [];
     const re = /(https?:\/\/[^\s]+)/g;
@@ -104,7 +107,7 @@ export default function UrlInput({
     for (const m of s.matchAll(re)) {
       const u = String(m[1] || "");
       const lower = u.toLowerCase();
-      const isX = lower.includes("x.com") || lower.includes("twitter.com");
+      const isX = lower.includes("x.com/") || lower.includes("twitter.com/");
       const isStatus = /\/status\/\d+/.test(lower) || /x\.com\/i\/status\/\d+/.test(lower);
       if (isX && !isStatus) {
         const clean = u.replace(/[)\]\},]+$/, "");
@@ -115,6 +118,20 @@ export default function UrlInput({
     return out;
   }, [debouncedValue]);
 
+  // Mobile keyboard: keep URL box in view when focused.
+  const handleFocus = () => {
+    if (typeof window === "undefined") return;
+    try {
+      const isSmall = window.innerWidth <= 768;
+      if (!isSmall) return;
+      const el = document.getElementById("ct-url-input");
+      if (el && "scrollIntoView" in el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const inbox = useMemo(() => {
     // Preserve order from the user's input.
@@ -165,8 +182,8 @@ export default function UrlInput({
     <div id="ct-url-input" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <label className="text-sm font-medium">Tweet URLs</label>
-          <div className="text-xs opacity-70 -mt-0.5">Paste one or more X (Twitter) post links — one per line</div>
+          <label className="text-sm font-medium">{translate("label.tweetUrls", uiLang)}</label>
+          <div className="text-xs opacity-70 -mt-0.5">{translate("hint.pasteXLinks", uiLang)}</div>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -212,7 +229,6 @@ export default function UrlInput({
           </button>
         </div>
       </div>
-
       <textarea
         className={clsx(
           "mt-3 w-full min-h-[170px] rounded-2xl border p-3 text-sm outline-none",
@@ -221,9 +237,13 @@ export default function UrlInput({
         )}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={handleFocus}
         placeholder="https://x.com/i/status/1234567890"
+        inputMode="url"
+        autoCapitalize="off"
         spellCheck={false}
       />
+
 
       {/* Smart preview chips (favicon + domain) */}
       {urls.length ? (

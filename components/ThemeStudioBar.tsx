@@ -142,7 +142,7 @@ export default function ThemeStudioBar({
                 btnRefs.current[t.id] = el;
               }}
               className={clsx(
-                "relative z-10 flex w-[110px] items-center justify-between gap-2 rounded-2xl px-3 py-2",
+                "relative z-10 flex w-[118px] items-center justify-between gap-2 rounded-2xl px-4 py-2.5 min-h-[40px]",
                 "transition",
                 active ? "text-white" : "opacity-80 hover:opacity-100"
               )}

@@ -7,6 +7,8 @@ import { Copy, Download, Menu, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { ResultItem } from "@/lib/types";
 import { detectSpammy, findNearDuplicates } from "@/lib/similarity";
+import { LS, lsGet } from "@/lib/storage";
+import { shouldReduceEffects, type FxMode } from "@/lib/motion";
 import ResultCard from "./ResultCard";
 
 function copyText(text: string) {
@@ -153,6 +155,16 @@ export default function Results({
     return base.filter((it) => it.status === "ok" && (it.comments?.length ?? 0) > 0);
   }, [displayItemsDedup, loading, showFailedCards]);
 
+
+  const [canAnimateCards, setCanAnimateCards] = useState(true);
+  useEffect(() => {
+    try {
+      const mode = (lsGet(LS.fxMode, "auto") as FxMode) || "auto";
+      setCanAnimateCards(!shouldReduceEffects(mode));
+    } catch {
+      setCanAnimateCards(true);
+    }
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -407,22 +419,23 @@ export default function Results({
       {displayItems.map((it, idx) => {
         const sim = similarMap.get(it.url);
         const spam = spamMap.get(it.url) || null;
+        const delay = idx * 0.03;
         return (
-        <motion.div
-          key={it.url}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: idx * 0.03 }}
-        >
-          <ResultCard
-            item={it}
-            onReroll={() => onRerollUrl(it.url)}
-            onCopy={onCopy}
-            onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
-            warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
-            warnSpam={spam}
-          />
-        </motion.div>
+          <motion.div
+            key={it.url}
+            initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
+            animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
+            transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
+          >
+            <ResultCard
+              item={it}
+              onReroll={() => onRerollUrl(it.url)}
+              onCopy={onCopy}
+              onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
+              warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
+              warnSpam={spam}
+            />
+          </motion.div>
         );
       })}
     </div>

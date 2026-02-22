@@ -4,10 +4,13 @@ import Image from "next/image";
 import StatusPill from "@/components/StatusPill";
 import ThemeStudioBar, { ThemeId } from "@/components/ThemeStudioBar";
 import UserMenu from "@/components/UserMenu";
-import { applyFxMode, type FxMode } from "@/lib/motion";
+import UiLangSelect from "@/components/UiLangSelect";
+import { motion } from "framer-motion";
+import { applyFxMode, type FxMode, shouldReduceEffects } from "@/lib/motion";
 import { LS, lsGet, lsSet } from "@/lib/storage";
 import { useMemo, useState } from "react";
 import type { UserProfile } from "@/lib/persist";
+import { translate, useUiLang } from "@/lib/i18n";
 
 export default function TopBar({
   theme,
@@ -23,7 +26,18 @@ export default function TopBar({
   onLogout?: () => void;
 }) {
   const [fxMode, setFxMode] = useState<FxMode>(() => (lsGet(LS.fxMode, "auto") as FxMode) || "auto");
-  const label = useMemo(() => (fxMode === "auto" ? "FX Auto" : fxMode === "full" ? "FX Full" : "Low motion"), [fxMode]);
+  const uiLang = useUiLang();
+  const reduceFx = shouldReduceEffects(fxMode);
+  const canAnimate = !reduceFx;
+  const label = useMemo(
+    () =>
+      fxMode === "auto"
+        ? translate("fx.auto", uiLang)
+        : fxMode === "full"
+        ? translate("fx.full", uiLang)
+        : translate("fx.low", uiLang),
+    [fxMode, uiLang],
+  );
   function cycleFx() {
     const next: FxMode = fxMode === "auto" ? "lite" : fxMode === "lite" ? "full" : "auto";
     setFxMode(next);
@@ -32,7 +46,12 @@ export default function TopBar({
   }
 
   return (
-    <div className="sticky top-0 z-40 border-b border-[color:var(--ct-border)] bg-[color:var(--ct-bg)]/70 backdrop-blur-xl">
+    <motion.div
+      className="sticky top-0 z-40 border-b border-[color:var(--ct-border)] bg-[color:var(--ct-bg)]/70 backdrop-blur-xl"
+      initial={canAnimate ? { y: -12, opacity: 0 } : undefined}
+      animate={canAnimate ? { y: 0, opacity: 1 } : undefined}
+      transition={canAnimate ? { duration: 0.35, ease: "easeOut" } : undefined}
+    >
       {/*
         NOTE: use `lg:` for the "desktop" layout so phone browsers in "Desktop site"
         mode don't squeeze everything into 2 columns.
@@ -54,19 +73,27 @@ export default function TopBar({
               <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
               <span
                 className="ct-badge-pro -mt-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90"
-                aria-label="CrownTALK Pro"
+                aria-label={translate("label.proBadge", uiLang)}
               >
                 PRO
               </span>
             </div>
-            <div className="text-xs opacity-70 -mt-0.5">Professional X comment generator</div>
+            <div className="text-xs opacity-70 -mt-0.5">{translate("tagline.pro", uiLang)}</div>
           </div>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <button type="button" onClick={cycleFx} className="ct-btn text-xs px-3 py-2" title="Toggle effects / low motion">
-            {label}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={cycleFx}
+              className="ct-btn text-xs px-4 py-2.5 min-h-[36px]"
+              title={translate("fx.toggle", uiLang)}
+            >
+              {label}
+            </button>
+            <UiLangSelect compact />
+          </div>
 
           <ThemeStudioBar value={theme} onChange={setTheme} />
           <div className="flex items-center flex-wrap gap-3 lg:justify-end">
@@ -75,6 +102,6 @@ export default function TopBar({
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

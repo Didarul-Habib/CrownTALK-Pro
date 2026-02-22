@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { motion } from "framer-motion";
 import { RotateCcw, Copy, ExternalLink, Check } from "lucide-react";
 import type { ResultItem } from "@/lib/types";
+import { getQualityInfo } from "@/lib/quality";
 
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -78,6 +80,9 @@ export default function ResultCard({
   });
   const showSkeleton = item.status === "pending" && !hasComments;
 
+  const tweetPreview = (item as any).tweet as any | undefined;
+  const project = (item as any).project as any | null | undefined;
+
 
   useEffect(() => {
     // Reset local editable text when the item changes (reroll/retry)
@@ -99,7 +104,7 @@ export default function ResultCard({
   }
 
   return (
-    <div className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-xl">
+    <motion.div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
       <div className="flex items-start justify-between gap-3">
         <a
           href={getDisplayUrl(item) || item.url}
@@ -120,6 +125,50 @@ export default function ResultCard({
           Reroll
         </button>
       </div>
+
+      {(project || tweetPreview?.text) && item.status === "ok" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {project?.handle ? (
+            <span
+              className="ct-chip text-[11px] border border-[color:var(--ct-border)] bg-white/5"
+              title={project?.file ? `Matched from: ${project.file}` : "Matched project profile"}
+            >
+              Project: {String(project.handle)}
+            </span>
+          ) : null}
+          {tweetPreview?.entities?.cashtags?.length ? (
+            <span className="ct-chip text-[11px] border border-[color:var(--ct-border)] bg-white/5" title="Cashtags found in the tweet">
+              {tweetPreview.entities.cashtags.slice(0, 3).join(" ")}
+            </span>
+          ) : null}
+          {tweetPreview?.lang ? (
+            <span className="ct-chip text-[11px] border border-[color:var(--ct-border)] bg-white/5" title="Tweet language hint">
+              Lang: {String(tweetPreview.lang).toUpperCase()}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tweetPreview?.text && item.status === "ok" ? (
+        <details className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3">
+          <summary className="cursor-pointer text-xs opacity-80">Tweet context</summary>
+          <motion.div className="mt-2 space-y-2 text-[12px] leading-5" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+            {(tweetPreview.author_name || tweetPreview.handle) ? (
+              <div className="opacity-80">
+                <span className="font-semibold">{tweetPreview.author_name || ""}</span>
+                {tweetPreview.handle ? <span className="ml-1 opacity-70">@{String(tweetPreview.handle).replace(/^@/, "")}</span> : null}
+              </div>
+            ) : null}
+            <div className="whitespace-pre-wrap break-words opacity-90">{String(tweetPreview.text)}</div>
+            {project?.summary ? (
+              <div className="mt-2 rounded-2xl border border-white/10 bg-black/10 p-2">
+                <div className="text-[11px] font-semibold opacity-80">Project notes</div>
+                <div className="mt-1 text-[11px] opacity-75 whitespace-pre-wrap break-words">{String(project.summary).slice(0, 600)}</div>
+              </div>
+            ) : null}
+          </motion.div>
+        </details>
+      ) : null}
 
       {(warnSimilar || warnSpam) && item.status === "ok" ? (
         <div className="flex flex-wrap gap-2">
@@ -171,7 +220,7 @@ export default function ResultCard({
                 </div>
               </div>
             ) : null}
-          </div>
+          </motion.div>
         </details>
       ) : null}
 
@@ -206,6 +255,8 @@ export default function ResultCard({
             const isCopied = copiedKey === key;
             const editing = editingKey === key;
             const currentText = texts[idx] ?? String(c?.text ?? c ?? "");
+            const quality = getQualityInfo(currentText, { lang_native: (item as any).lang_native });
+            const badges = quality.badges.slice(0, 3);
             return (
               <div
                 key={idx}
@@ -243,11 +294,38 @@ export default function ResultCard({
                 ) : null}
 
                 <div className="flex items-center justify-between">
-                  <div className="text-xs opacity-70">{c?.provider ? `via ${c.provider}` : ""}</div>
+                  <div className="flex flex-col gap-1 text-xs">
+                    <div className="opacity-70">
+                      {c?.provider ? `via ${c.provider}` : ""}
+                    </div>
+                    {badges.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {badges.map((b) => (
+                          <span
+                            key={b}
+                            className={clsx(
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] tracking-wide uppercase",
+                              b === "factSafe"
+                                ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
+                                : b === "lowHype"
+                                ? "bg-sky-500/10 text-sky-300 border border-sky-500/40"
+                                : "bg-violet-500/10 text-violet-300 border border-violet-500/40"
+                            )}
+                          >
+                            {b === "factSafe"
+                              ? "Fact-safe"
+                              : b === "lowHype"
+                              ? "Low hype"
+                              : "Native tone"}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className={clsx("ct-btn ct-btn-xs", editing ? "ct-btn-primary" : "")}
+                      className={clsx("ct-btn ct-btn-xs min-h-[36px] px-3.5 transition-transform duration-150 hover:scale-[1.02] active:scale-95", editing ? "ct-btn-primary" : "")}
                       onClick={() => setEditingKey((v) => (v === key ? "" : key))}
                       aria-label="Edit this comment"
                       title="Edit"
@@ -257,7 +335,7 @@ export default function ResultCard({
 
                     <button
                       type="button"
-                      className={clsx("ct-btn ct-btn-xs", isCopied ? "ct-btn-primary" : "")}
+                      className={clsx("ct-btn ct-btn-xs min-h-[36px] px-3.5 transition-transform duration-150 hover:scale-[1.02] active:scale-95", isCopied ? "ct-btn-primary" : "")}
                       onClick={() => {
                         copyText(currentText);
                         markCopied(key);
@@ -307,7 +385,7 @@ export default function ResultCard({
                               </button>
                               <button
                                 type="button"
-                                className={clsx("ct-btn ct-btn-xs", aCopied ? "ct-btn-primary" : "")}
+                                className={clsx("ct-btn ct-btn-xs min-h-[36px] px-3.5 transition-transform duration-150 hover:scale-[1.02] active:scale-95", aCopied ? "ct-btn-primary" : "")}
                                 onClick={() => {
                                   copyText(a);
                                   markCopied(aKey);
@@ -329,6 +407,6 @@ export default function ResultCard({
           })}
         </>
       )}
-    </div>
+    </motion.div>
   );
 }
