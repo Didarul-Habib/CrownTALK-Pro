@@ -23,7 +23,6 @@ import ResumeBanner from "@/components/ResumeBanner";
 import SessionDiffBanner from "@/components/SessionDiffBanner";
 // Heavy panels are lazy-loaded for better route-level performance.
 import Footer from "@/components/Footer";
-import RenderProfilerPanel from "@/components/RenderProfilerPanel";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +50,7 @@ const DEFAULT_BACKEND = "https://crowntalk.onrender.com";
 const PerfPanel = dynamic(() => import("@/components/PerfPanel"), { ssr: false });
 const RunHistoryPanelLazy = dynamic(() => import("@/components/RunHistoryPanel"), { ssr: false });
 const ClipboardHistoryPanelLazy = dynamic(() => import("@/components/ClipboardHistoryPanel"), { ssr: false });
+const RenderProfilerPanelLazy = dynamic(() => import("@/components/RenderProfilerPanel"), { ssr: false });
 
 export default function Home() {
   useRenderCount("Home");
@@ -58,6 +58,21 @@ export default function Home() {
   const [baseUrl] = useState<string>(() =>
     (process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_BACKEND).replace(/\/+$/, "")
   );
+
+  const [showRenderProfiler, setShowRenderProfiler] = useState(false);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      setShowRenderProfiler(true);
+      return;
+    }
+    try {
+      if (typeof window !== "undefined" && window.location.search.includes("ff_render=1")) {
+        setShowRenderProfiler(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
@@ -162,6 +177,7 @@ const genMutation = useMutation({
         native_lang: langNative ? nativeLang : undefined,
         tone: tone === "auto" ? undefined : tone,
         intent: intent === "auto" ? undefined : intent,
+        voice,
         include_alternates: includeAlternates,
         fast: fastMode,
         preset: preset !== "auto" ? preset : undefined,
@@ -998,7 +1014,7 @@ setFailStreak((prev) => {
       <OnboardingTour />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
       <PerfPanel />
-      <RenderProfilerPanel />
+      {showRenderProfiler ? <RenderProfilerPanelLazy /> : null}
 
       <SignupGate
         open={signupOpen}
