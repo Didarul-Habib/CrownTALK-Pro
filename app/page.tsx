@@ -2,7 +2,6 @@
 
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-const MotionDiv = motion.div;
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -1044,7 +1043,7 @@ setFailStreak((prev) => {
           <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
         ) : null}
 
-        <MotionDiv
+        <motion.div
           className="grid gap-6 lg:grid-cols-2"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1134,7 +1133,7 @@ setFailStreak((prev) => {
             <ProgressStepper stage={stage} />
           </div>
           </div>
-        </MotionDiv>
+        </motion.div>
 
         <Results
           items={items}
