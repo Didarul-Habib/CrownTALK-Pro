@@ -15,17 +15,22 @@ export type GenerateRequest = {
   native_lang?: string;
   tone?: Tone;
   intent?: Intent;
-  include_alternates?: boolean;
-  // UI voice index (0=Pro, 1=Neutral, 2=Degen, 3=Builder, 4=Analyst)
-  voice?: number;
-  // Advanced style / quality flags (optional)
-  tone_match?: boolean;
-  thread_ready?: boolean;
-  anti_cringe?: boolean;
+  // Degree of "hype" / promotional tone; 0 = flat, 1 = max hype.
+  hype_level?: number;
+  // Max number of comments per URL (usually 2).
+  max_per_url?: number;
+  // Optional project key for extra context / alignment.
+  project?: string;
+  // Whether to enable Pro/KOL-style rewrites (more polished).
+  pro_mode?: boolean;
+  // Whether to emit extra telemetry / debug info.
+  debug?: boolean;
 };
 
 export type CommentItem = {
   text: string;
+  // Optional English gloss for native-language comments
+  translation_en?: string;
   provider?: string;
   alternates?: string[];
 };
@@ -41,41 +46,36 @@ export type ResultItem = {
     author_name?: string | null;
     handle?: string | null;
     lang?: string | null;
-    entities?: { cashtags?: string[]; handles?: string[]; numbers?: string[] };
-  };
-  // Backend-provided project match from local project folder
-  project?: {
-    handle?: string;
-    file?: string;
-    summary?: string;
+    entities?: { cashtags?: string[] | null } | null;
   } | null;
-  status: "ok" | "error" | "skipped" | "pending";
-  reason?: string;
+  // Optional matched project profile (if any)
+  project?: {
+    handle?: string | null;
+    file?: string | null;
+  } | null;
+  status: "pending" | "ok" | "error";
+  error_code?: string | null;
+  error_message?: string | null;
+  // Primary comments
   comments?: CommentItem[];
-  // Request-level metadata
-  lang_native?: boolean;
-  native_lang?: string;
-  used_research?: boolean;
-  project_handles?: string[];
-  // UI-only metadata (frontend upgrades)
-  timeline?: TimelineEvent[];
-  versions?: ResultVersion[];
-  flags?: {
-    spamReason?: string | null;
-    similarity?: { maxSim: number; withUrl?: string } | null;
-  };
+  // Whether this URL was part of the last active run
+  in_last_run?: boolean;
+  // Native language hint from backend (for quality heuristics etc.)
+  lang_native?: string | null;
+  // Internal timing/latency info
+  latency_ms?: number;
 };
 
 export type TimelineStage =
   | "queued"
-  | "sending"
-  | "received"
-  | "copied"
-  | "rerolled"
-  | "failed"
-  | "skipped";
+  | "fetching"
+  | "generating"
+  | "polishing"
+  | "finalizing"
+  | "done"
+  | "error";
 
-export type TimelineEvent = {
+export type TimelineEntry = {
   at: number;
   stage: TimelineStage;
   note?: string;
