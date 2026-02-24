@@ -14,14 +14,12 @@ function copyText(text: string) {
   } catch {}
 }
 
-function getDisplayUrl(item: ResultItem): string {
-  const anyItem = item as any;
-  const raw: string = item.url || anyItem.input_url || "";
+function getDisplayUrl(item: ResultItem): string | undefined {
+  const raw = item.input_url || item.url;
+  const handle = item.handle;
+  const tweetId = item.tweet_id;
 
-  const handle: string | undefined = anyItem.handle;
-  const tweetId: string | undefined = anyItem.tweet_id;
-
-  if (tweetId) {
+  if (raw && raw.startsWith("https://x.com/") && handle && tweetId) {
     const cleanHandle =
       (handle || "")
         .replace(/^@/, "")
@@ -37,12 +35,12 @@ function getDisplayUrl(item: ResultItem): string {
       u.hostname = "x.com";
     }
     // If we have an /i/status URL and a handle, normalise to /handle/status
-    if (u.hostname === "x.com" && u.pathname.startsWith("/i/status/") && handle) {
-      const cleanHandle = handle.replace(/^@/, "").trim();
-      const id = u.pathname.split("/").pop();
-      if (id) {
-        u.pathname = `/${cleanHandle}/status/${id}`;
-      }
+    if (u.hostname === "x.com" && u.pathname.startsWith("/i/status/") && handle && tweetId) {
+      const cleanHandle =
+        (handle || "")
+          .replace(/^@/, "")
+          .trim() || "i";
+      u.pathname = `/${cleanHandle}/status/${tweetId}`;
     }
     return u.toString();
   } catch {
@@ -82,7 +80,6 @@ export default function ResultCard({
   const tweetPreview = (item as any).tweet as any | undefined;
   const project = (item as any).project as any | null | undefined;
 
-
   useEffect(() => {
     // Reset local editable text when the item changes (reroll/retry)
     setTexts((item.comments || []).map((c: any) => String(c?.text ?? c ?? "")));
@@ -103,7 +100,7 @@ export default function ResultCard({
   }
 
   return (
-    <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 space-y-3 backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
+    <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_18px_80px_rgba(0,0,0,0.75)] backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
       <div className="flex items-start justify-between gap-3">
         <a
           href={getDisplayUrl(item) || item.url}
@@ -142,31 +139,10 @@ export default function ResultCard({
           ) : null}
           {tweetPreview?.lang ? (
             <span className="ct-chip text-[11px] border border-[color:var(--ct-border)] bg-white/5" title="Tweet language hint">
-              Lang: {String(tweetPreview.lang).toUpperCase()}
+              Lang: {tweetPreview.lang.toUpperCase()}
             </span>
           ) : null}
         </div>
-      ) : null}
-
-      {tweetPreview?.text && item.status === "ok" ? (
-        <details className="rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-3">
-          <summary className="cursor-pointer text-xs opacity-80">Tweet context</summary>
-          <div className="mt-2 space-y-2 text-[12px] leading-5">
-            {(tweetPreview.author_name || tweetPreview.handle) ? (
-              <div className="opacity-80">
-                <span className="font-semibold">{tweetPreview.author_name || ""}</span>
-                {tweetPreview.handle ? <span className="ml-1 opacity-70">@{String(tweetPreview.handle).replace(/^@/, "")}</span> : null}
-              </div>
-            ) : null}
-            <div className="whitespace-pre-wrap break-words opacity-90">{String(tweetPreview.text)}</div>
-            {project?.summary ? (
-              <div className="mt-2 rounded-2xl border border-white/10 bg-black/10 p-2">
-                <div className="text-[11px] font-semibold opacity-80">Project notes</div>
-                <div className="mt-1 text-[11px] opacity-75 whitespace-pre-wrap break-words">{String(project.summary).slice(0, 600)}</div>
-              </div>
-            ) : null}
-          </div>
-        </details>
       ) : null}
 
       {(warnSimilar || warnSpam) && item.status === "ok" ? (
@@ -194,56 +170,29 @@ export default function ResultCard({
         </div>
       ) : null}
 
-      {(warnSimilar || warnSpam) && item.status === "ok" ? (
-        <details className="rounded-2xl border border-white/10 bg-black/10 p-3">
-          <summary className="cursor-pointer text-xs opacity-80">Why flagged?</summary>
-          <div className="mt-2 space-y-2 text-[11px] opacity-80">
-            {warnSpam ? (
-              <div>
-                <div className="font-semibold">Spam signal</div>
-                <div className="opacity-80">{warnSpam}</div>
-                <div className="mt-1 opacity-70">
-                  Tip: reduce clichés, remove excessive praise, add a specific detail from the post.
-                </div>
-              </div>
-            ) : null}
-            {warnSimilar ? (
-              <div>
-                <div className="font-semibold">Similarity signal</div>
-                <div className="opacity-80">
-                  This reply is {Math.round(warnSimilar.score * 100)}% similar to another reply
-                  {warnSimilar.withUrl ? ` (${warnSimilar.withUrl})` : ""}.
-                </div>
-                <div className="mt-1 opacity-70">
-                  Tip: change the opening line, add a unique angle, or ask a different question.
-                </div>
-              </div>
-            ) : null}
+      {item.status === "error" ? (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs">
+          <div className="font-semibold text-red-100">Generation failed</div>
+          <div className="mt-1 opacity-80">
+            {item.error_message || "The model failed to generate a reply for this URL."}
           </div>
-        </details>
+          {onRetry ? (
+            <button
+              type="button"
+              className="ct-btn ct-btn-xs mt-2"
+              onClick={onRetry}
+              aria-label="Retry this URL"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {showSkeleton ? (
         <div className="space-y-2">
-          <div className="ct-skeleton rounded-2xl p-3">
-            <div className="h-3 w-1/3 rounded-full bg-white/10" />
-            <div className="mt-3 h-8 rounded-2xl bg-white/10" />
-            <div className="mt-2 h-8 rounded-2xl bg-white/10" />
-          </div>
-        </div>
-      ) : null}
-
-      {item.status !== "ok" && item.status !== "pending" ? (
-        <div className="text-sm">
-          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs mr-2 border border-[color:var(--ct-border)] bg-white/5">
-            {String(item.status).toUpperCase()}
-          </span>
-          <span className="opacity-80">{item.reason || "No details"}</span>
-          {onRetry ? (
-            <button type="button" className="ct-btn ct-btn-xs ml-2" onClick={onRetry}>
-              Retry
-            </button>
-          ) : null}
+          <div className="h-10 w-full rounded-2xl bg-[color:var(--ct-skeleton)]" />
+          <div className="h-6 w-1/2 rounded-full bg-[color:var(--ct-skeleton)]" />
         </div>
       ) : null}
 
@@ -254,6 +203,10 @@ export default function ResultCard({
             const isCopied = copiedKey === key;
             const editing = editingKey === key;
             const currentText = texts[idx] ?? String(c?.text ?? c ?? "");
+            const translationEn =
+              typeof c?.translation_en === "string" && c.translation_en.trim().length
+                ? c.translation_en.trim()
+                : undefined;
             const quality = getQualityInfo(currentText, { lang_native: (item as any).lang_native });
             const badges = quality.badges.slice(0, 3);
             return (
@@ -263,11 +216,17 @@ export default function ResultCard({
                   "rounded-2xl border bg-[color:var(--ct-surface)] p-3 space-y-2",
                   "border-[color:var(--ct-border)]",
                   isCopied
-                    ? "border-[color:var(--ct-accent)] shadow-[0_18px_60px_rgba(0,0,0,.45),0_0_0_1px_color-mix(in_srgb,var(--ct-accent)_35%,transparent)]"
+                    ? "border-[color:var(--ct-accent)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--ct-accent)_35%,transparent)]"
                     : ""
                 )}
               >
                 <div className="text-sm leading-6 whitespace-pre-wrap break-words">{currentText}</div>
+
+                {!editing && translationEn ? (
+                  <div className="mt-1 text-xs opacity-70 whitespace-pre-wrap break-words">
+                    {translationEn}
+                  </div>
+                ) : null}
 
                 {editing ? (
                   <div className="pt-2 space-y-2">
@@ -312,19 +271,23 @@ export default function ResultCard({
                             )}
                           >
                             {b === "factSafe"
-                              ? "Fact-safe"
+                              ? "FACT-SAFE"
                               : b === "lowHype"
-                              ? "Low hype"
-                              : "Native tone"}
+                              ? "LOW HYPE"
+                              : "NATIVE TONE"}
                           </span>
                         ))}
                       </div>
                     ) : null}
                   </div>
+
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className={clsx("ct-btn ct-btn-xs min-h-[36px] px-3.5 transition-transform duration-150 hover:scale-[1.02] active:scale-95", editing ? "ct-btn-primary" : "")}
+                      className={clsx(
+                        "ct-btn ct-btn-xs min-w-[72px] transition-transform hover:scale-[1.02] active:scale-95",
+                        editing ? "ct-btn-primary" : ""
+                      )}
                       onClick={() => setEditingKey((v) => (v === key ? "" : key))}
                       aria-label="Edit this comment"
                       title="Edit"
@@ -334,73 +297,25 @@ export default function ResultCard({
 
                     <button
                       type="button"
-                      className={clsx("ct-btn ct-btn-xs min-h-[36px] px-3.5 transition-transform duration-150 hover:scale-[1.02] active:scale-95", isCopied ? "ct-btn-primary" : "")}
+                      className={clsx(
+                        "ct-btn ct-btn-xs min-w-[72px] transition-transform hover:scale-[1.02] active:scale-95",
+                        isCopied ? "ct-btn-primary" : ""
+                      )}
                       onClick={() => {
                         copyText(currentText);
                         markCopied(key);
                         onCopy?.(currentText, item.url);
                       }}
                     >
-                      {isCopied ? <Check className="h-4 w-4 opacity-90" /> : <Copy className="h-4 w-4 opacity-80" />}
-                      {isCopied ? "Copied" : "Copy"}
+                      {isCopied ? (
+                        <Check className="h-4 w-4 opacity-90" />
+                      ) : (
+                        <Copy className="h-4 w-4 opacity-80" />
+                      )}
+                      <span className="ml-1">{isCopied ? "Copied" : "Copy"}</span>
                     </button>
                   </div>
                 </div>
-
-                {Array.isArray(c?.alternates) && c.alternates.length ? (
-                  <details className="text-sm">
-                    <summary className="cursor-pointer text-xs opacity-85">Alternates</summary>
-                    <div className="mt-2 space-y-2">
-                      {c.alternates.map((a: string, j: number) => {
-                        const aKey = `a-${idx}-${j}`;
-                        const aCopied = copiedKey === aKey;
-                        return (
-                          <div
-                            key={j}
-                            className={clsx(
-                              "rounded-2xl border bg-black/10 p-2",
-                              "border-[color:var(--ct-border)]",
-                              aCopied
-                                ? "border-[color:var(--ct-accent)] shadow-[0_18px_60px_rgba(0,0,0,.40),0_0_0_1px_color-mix(in_srgb,var(--ct-accent)_30%,transparent)]"
-                                : ""
-                            )}
-                          >
-                            <div className="whitespace-pre-wrap text-sm">{a}</div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <button
-                                type="button"
-                                className="ct-btn ct-btn-xs"
-                                onClick={() => {
-                                  setTexts((prev) => {
-                                    const next = [...prev];
-                                    next[idx] = a;
-                                    return next;
-                                  });
-                                  setEditingKey(`c-${idx}`);
-                                }}
-                                title="Replace the main reply with this alternate"
-                              >
-                                Swap into reply
-                              </button>
-                              <button
-                                type="button"
-                                className={clsx("ct-btn ct-btn-xs min-h-[36px] px-3.5 transition-transform duration-150 hover:scale-[1.02] active:scale-95", aCopied ? "ct-btn-primary" : "")}
-                                onClick={() => {
-                                  copyText(a);
-                                  markCopied(aKey);
-                                  onCopy?.(a, item.url);
-                                }}
-                              >
-                                {aCopied ? <Check className="h-4 w-4 opacity-90" /> : <Copy className="h-4 w-4 opacity-80" />}
-                                {aCopied ? "Copied" : "Copy"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </details>
-                ) : null}
               </div>
             );
           })}
