@@ -68,6 +68,8 @@ export type ResultItem = {
   lang_native?: string | null;
   // Internal timing/latency info
   latency_ms?: number;
+  // Optional pipeline timeline events for this URL
+  timeline?: { at: number; stage: TimelineStage; note?: string }[];
 };
 
 export type TimelineStage =
