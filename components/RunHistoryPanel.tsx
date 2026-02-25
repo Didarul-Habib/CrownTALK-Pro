@@ -85,7 +85,10 @@ export default function RunHistoryPanel({
         if (r.label) parts.push(r.label);
         if (r.request.sourceUrl) parts.push(r.request.sourceUrl);
         if (r.request.urls?.length) parts.push(...r.request.urls);
-        if (r.results?.length) parts.push(r.results[0]?.text || "");
+        if (r.results?.length) {
+          const c = r.results[0]?.comments?.[0]?.text || "";
+          if (c) parts.push(c);
+        }
         return parts.join(" ").toLowerCase().includes(q);
       });
     }
@@ -203,7 +206,7 @@ export default function RunHistoryPanel({
         {filteredRuns.map((run) => {
           const title = defaultLabel(run);
           const urlsCount = run.request.urls?.length || 0;
-          const firstText = run.results?.[0]?.text || "";
+          const firstText = run.results?.[0]?.comments?.[0]?.text || "";
 
           return (
             <div
