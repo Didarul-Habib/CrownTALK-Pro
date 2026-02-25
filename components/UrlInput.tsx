@@ -298,89 +298,42 @@ export default function UrlInput({
       </div>
 
       {/* URL Inbox (parsing preview + selection) */}
-      <div className={clsx(
-        "mt-3 rounded-2xl border p-3",
-        "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]"
-      )}>
+      <div
+        className={clsx(
+          "mt-3 rounded-2xl border p-3",
+          "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]",
+        )}
+      >
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="text-xs font-semibold tracking-tight">URL Inbox</div>
-            <div className="text-[11px] opacity-70">Preview what will be processed. Uncheck anything you don't want to include.</div>
+            <div className="text-xs font-semibold tracking-tight">
+              {translate("urlInbox.title", uiLang)}
+            </div>
+            <div className="text-[11px] opacity-70">
+              {translate("urlInbox.subtitle", uiLang)}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              className={clsx("ct-btn ct-btn-sm", inbox.length ? "" : "opacity-50 cursor-not-allowed")}
-              disabled={!inbox.length}
-              onClick={() => {
-                const onlyValid = inbox.filter((x) => x.valid).map((x) => x.url);
-                onSelectedChange?.(onlyValid);
-                toast.success("Selected valid URLs only");
-              }}
-              title="Select only valid X post URLs"
-            >
-              Select valid
-            </button>
-            <button
-              type="button"
-              className={clsx("ct-btn ct-btn-sm", inbox.length ? "" : "opacity-50 cursor-not-allowed")}
-              disabled={!inbox.length}
-              onClick={() => {
-                onSelectedChange?.(inbox.map((x) => x.url));
-                toast("Selected all");
-              }}
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              className={clsx("ct-btn ct-btn-sm", selectedSet.size ? "" : "opacity-50 cursor-not-allowed")}
-              disabled={!selectedSet.size}
-              onClick={() => {
-                onSelectedChange?.([]);
-                toast("Cleared selection");
-              }}
-            >
-              Clear
-            </button>
-
-            <button
-              type="button"
-              className={clsx("ct-btn ct-btn-sm", duplicates.length ? "" : "opacity-50 cursor-not-allowed")}
-              disabled={!duplicates.length}
-              onClick={removeDuplicates}
-              title="Remove duplicate URLs from the input"
-            >
-              Remove dups
-            </button>
-
-            <button
-              type="button"
-              className={clsx("ct-btn ct-btn-sm", inbox.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
-              disabled={inbox.length < 2}
-              onClick={() => {
-                const grouped = [...inbox]
-                  .map((x) => x.url)
-                  .sort((a, b) => domainOf(a).localeCompare(domainOf(b)) || a.localeCompare(b));
-                onChange(grouped.join("\n"));
-                toast.success("Grouped by domain");
-              }}
-              title="Sort URLs by domain"
-            >
-              Group domains
-            </button>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setInboxExpanded((v) => !v)}
-              className="ml-1 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--ct-border)] bg-black/10 hover:bg-black/20"
-              title={inboxExpanded ? "Collapse URL inbox" : "Expand URL inbox"}
-              aria-label={inboxExpanded ? "Collapse URL inbox" : "Expand URL inbox"}
+              className="ml-1 grid h-8 w-8 place-items-center rounded-2xl border border-[color:var(--ct-border)] bg-black/10 hover:bg-black/20"
+              title={
+                inboxExpanded
+                  ? translate("urlInbox.collapse", uiLang)
+                  : translate("urlInbox.expand", uiLang)
+              }
+              aria-label={
+                inboxExpanded
+                  ? translate("urlInbox.collapse", uiLang)
+                  : translate("urlInbox.expand", uiLang)
+              }
             >
               <span
                 className={clsx(
                   "block h-3 w-3 border-b border-l border-white/70 transition-transform",
-                  inboxExpanded ? "-rotate-45" : "rotate-135"
+                  inboxExpanded ? "-rotate-45" : "rotate-135",
                 )}
               />
             </button>
@@ -389,197 +342,234 @@ export default function UrlInput({
 
         {inboxExpanded && (
           <>
-        {/* Preview chips */}
-        {inbox.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {inbox.slice(0, 24).map((x) => (
-              <span
-                key={x.url}
-                className={clsx(
-                  "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]",
-                  "border-[color:var(--ct-border)] bg-white/5"
-                )}
-                title={x.url}
-              >
-                {faviconFor(x.url) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={faviconFor(x.url)} alt="" className="h-4 w-4 rounded" />
-                ) : null}
-                <span className="opacity-80">{domainOf(x.url) || "link"}</span>
-              </span>
-            ))}
-            {inbox.length > 24 ? <span className="text-[11px] opacity-60">+{inbox.length - 24} more</span> : null}
-          </div>
-        ) : null}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-[11px]">
+                <span className="font-mono opacity-80">{selectedSet.size}</span>
+                <span className="opacity-70">
+                  {translate("urlInbox.selected", uiLang)}
+                </span>
+                <span className="opacity-40">·</span>
+                <span className="font-mono opacity-80">{inbox.length}</span>
+                <span className="opacity-70">
+                  {translate("urlInbox.detected", uiLang)}
+                </span>
+              </div>
 
-        {inbox.length ? (
-          <div className="mt-3 max-h-[220px] overflow-auto pr-1">
-            <div className="space-y-2">
-              {inbox.slice(0, 60).map((row, i) => {
-                const checked = row.valid && selectedSet.has(row.url);
-                return (
-                  <label
-                    key={row.url}
-                    draggable={row.valid}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", String(i));
-                      e.dataTransfer.effectAllowed = "move";
-                    }}
-                    onDragOver={(e) => {
-                      if (!row.valid) return;
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const from = Number.parseInt(e.dataTransfer.getData("text/plain") || "-1", 10);
-                      const to = i;
-                      if (!Number.isFinite(from) || from < 0 || from === to) return;
-                      const arr = inbox.map((x) => x.url);
-                      const moved = arr.splice(from, 1)[0];
-                      arr.splice(to, 0, moved);
-                      onChange(arr.join("\n"));
-                      toast("Reordered");
-                    }}
-                    className={clsx(
-                    "flex items-start gap-3 rounded-2xl border px-3 py-2",
-                    "border-white/10 bg-black/10",
-                    row.valid ? "" : "border-red-500/25 opacity-70"
-                  )}>
-                    <span
-                      className={clsx(
-                        "mt-0.5 select-none rounded-lg border px-1.5 py-0.5 text-[10px] opacity-70",
-                        "border-white/10 bg-white/5"
-                      )}
-                      title={row.valid ? "Drag to reorder" : "Only valid posts can be reordered"}
-                      aria-hidden
-                    >
-                      ⋮⋮
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 accent-white"
-                      checked={checked}
-                      disabled={!row.valid}
-                      onChange={(e) => {
-                        const next = new Set(selectedSet);
-                        if (e.target.checked) next.add(row.url);
-                        else next.delete(row.url);
-                        onSelectedChange?.([...next]);
-                      }}
-                      aria-label={checked ? "Deselect URL" : "Select URL"}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] break-all opacity-85">{row.url}</div>
-                      <div className="mt-0.5 flex flex-wrap gap-2 text-[10px]">
-                        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
-                          {faviconFor(row.url) ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={faviconFor(row.url)} alt="" className="h-3 w-3 rounded" />
-                          ) : null}
-                          {domainOf(row.url) || ""}
-                        </span>
-                        <span className={clsx(
-                          "rounded-full border px-2 py-0.5",
-                          row.valid ? "border-white/10 bg-white/5" : "border-red-500/25 bg-red-500/10"
-                        )}>
-                          {row.valid ? "Valid post" : "Not a post"}
-                        </span>
-                        {row.duplicateCount > 1 ? (
-                          <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5">Duplicate ×{row.duplicateCount}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="ct-btn ct-btn-sm"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const nextInbox = inbox.filter((x) => x.url !== row.url).map((x) => x.url);
-                        onChange(nextInbox.join("\n"));
-                        toast("Removed URL");
-                      }}
-                      aria-label="Remove URL"
-                      title="Remove from input"
-                    >
-                      Remove
-                    </button>
-                  </label>
-                );
-              })}
-              {inbox.length > 60 ? (
-                <div className="text-[11px] opacity-70">Showing first 60. Clean/sort to reduce.</div>
-              ) : null}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className={clsx(
+                    "ct-btn ct-btn-xs",
+                    inbox.length ? "" : "opacity-50 cursor-not-allowed",
+                  )}
+                  disabled={!inbox.length}
+                  onClick={() => {
+                    const onlyValid = inbox.filter((x) => x.valid).map((x) => x.url);
+                    onSelectedChange?.(onlyValid);
+                    toast.success(translate("urlInbox.selectValidToast", uiLang));
+                  }}
+                >
+                  {translate("urlInbox.selectValid", uiLang)}
+                </button>
+                <button
+                  type="button"
+                  className={clsx(
+                    "ct-btn ct-btn-xs",
+                    inbox.length ? "" : "opacity-50 cursor-not-allowed",
+                  )}
+                  disabled={!inbox.length}
+                  onClick={() => {
+                    onSelectedChange?.(inbox.map((x) => x.url));
+                    toast(translate("urlInbox.selectAllToast", uiLang));
+                  }}
+                >
+                  {translate("urlInbox.selectAll", uiLang)}
+                </button>
+                <button
+                  type="button"
+                  className={clsx(
+                    "ct-btn ct-btn-xs",
+                    selectedSet.size ? "" : "opacity-50 cursor-not-allowed",
+                  )}
+                  disabled={!selectedSet.size}
+                  onClick={() => {
+                    onSelectedChange?.([]);
+                    toast(translate("urlInbox.clearSelectionToast", uiLang));
+                  }}
+                >
+                  {translate("urlInbox.clearSelection", uiLang)}
+                </button>
+
+                <button
+                  type="button"
+                  className={clsx(
+                    "ct-btn ct-btn-xs",
+                    duplicates.length ? "" : "opacity-50 cursor-not-allowed",
+                  )}
+                  disabled={!duplicates.length}
+                  onClick={removeDuplicates}
+                >
+                  {translate("urlInbox.removeDups", uiLang)}
+                </button>
+
+                <button
+                  type="button"
+                  className={clsx(
+                    "ct-btn ct-btn-xs",
+                    inbox.length < 2 ? "opacity-50 cursor-not-allowed" : "",
+                  )}
+                  disabled={inbox.length < 2}
+                  onClick={() => {
+                    const grouped = [...inbox]
+                      .map((x) => x.url)
+                      .sort(
+                        (a, b) =>
+                          domainOf(a).localeCompare(domainOf(b)) ||
+                          a.localeCompare(b),
+                      );
+                    onChange(grouped.join("\n"));
+                    toast.success(translate("urlInbox.groupByDomainToast", uiLang));
+                  }}
+                >
+                  {translate("urlInbox.groupByDomain", uiLang)}
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="mt-3 text-xs opacity-70">Paste links above to see them here.</div>
-        )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] opacity-70">
-          <div>
-            Selected: <span className="font-semibold text-white/90">{selectedValidCount}</span> / {urls.length} valid
-          </div>
-          <div className="hidden sm:block">Tip: paste messy text — we extract links automatically.</div>
-        </div>
+            {/* Preview chips */}
+            {inbox.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {inbox.slice(0, 24).map((x) => (
+                  <span
+                    key={x.url}
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]",
+                      "border-[color:var(--ct-border)] bg-white/5",
+                    )}
+                    title={x.url}
+                  >
+                    {faviconFor(x.url) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={faviconFor(x.url)} alt="" className="h-4 w-4 rounded" />
+                    ) : null}
+                    <span className="opacity-80">
+                      {domainOf(x.url) || "link"}
+                    </span>
+                  </span>
+                ))}
+                {inbox.length > 24 ? (
+                  <span className="text-[11px] opacity-60">
+                    +{inbox.length - 24} {translate("urlInbox.more", uiLang)}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {inbox.length ? (
+              <div className="mt-3 max-h-[220px] overflow-auto pr-1">
+                <div className="space-y-2">
+                  {inbox.slice(0, 60).map((row, i) => {
+                    const checked = row.valid && selectedSet.has(row.url);
+                    return (
+                      <label
+                        key={row.url}
+                        draggable={row.valid}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", String(i));
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(e) => {
+                          if (!row.valid) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const from = Number.parseInt(
+                            e.dataTransfer.getData("text/plain") || "-1",
+                            10,
+                          );
+                          const to = i;
+                          if (!Number.isFinite(from) || from < 0 || from === to) return;
+                          const arr = inbox.map((x) => x.url);
+                          const moved = arr.splice(from, 1)[0];
+                          arr.splice(to, 0, moved);
+                          onChange(arr.join("\n"));
+                          toast(translate("urlInbox.reorderedToast", uiLang));
+                        }}
+                        className={clsx(
+                          "flex items-start gap-3 rounded-2xl border px-3 py-2",
+                          "border-white/10 bg-black/10",
+                          row.valid ? "" : "border-red-500/25 opacity-70",
+                        )}
+                      >
+                        <span
+                          className={clsx(
+                            "mt-0.5 select-none rounded-lg border px-1.5 py-0.5 text-[10px] opacity-70",
+                            "border-white/10 bg-white/5",
+                          )}
+                          title={
+                            row.valid
+                              ? translate("urlInbox.dragHint", uiLang)
+                              : translate("urlInbox.dragHintDisabled", uiLang)
+                          }
+                          aria-hidden
+                        >
+                          ⋮⋮
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 accent-white"
+                          checked={checked}
+                          disabled={!row.valid}
+                          onChange={(e) => {
+                            const next = new Set(selectedSet);
+                            if (e.target.checked) next.add(row.url);
+                            else next.delete(row.url);
+                            onSelectedChange?.([...next]);
+                          }}
+                          aria-label={
+                            checked
+                              ? translate("urlInbox.deselectUrl", uiLang)
+                              : translate("urlInbox.selectUrl", uiLang)
+                          }
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] break-all opacity-85">
+                            {row.url}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap gap-2 text-[10px]">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
+                              {faviconFor(row.url) ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={faviconFor(row.url)} alt="" className="h-3 w-3 rounded" />
+                              ) : null}
+                              <span className="opacity-80">
+                                {domainOf(row.url) || "x.com"}
+                              </span>
+                            </span>
+                            {row.duplicateCount > 1 ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] text-red-200">
+                                {row.duplicateCount}×{" "}
+                                {translate("urlInbox.duplicateTag", uiLang)}
+                              </span>
+                            ) : null}
+                            {!row.valid ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] text-red-200">
+                                {translate("urlInbox.invalidTag", uiLang)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </div>
-
-
-      {(duplicates.length || invalidLines || nonStatusXLinks.length) ? (
-        <div className={clsx("mt-3 rounded-2xl border p-3", "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]")}>
-          <div className="text-xs font-semibold tracking-tight">Validation</div>
-          <div className="mt-1 text-[11px] opacity-70">We'll only process valid X post URLs. Fix the items below for best results.</div>
-
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-              <div className="text-[11px] font-semibold">Duplicates</div>
-              {duplicates.length ? (
-                <div className="mt-2 space-y-1">
-                  {duplicates.slice(0,3).map((d) => (
-                    <div key={d.url} className="text-[11px] opacity-80 break-all">{d.count}× {d.url}</div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-2 text-[11px] opacity-60">None</div>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-              <div className="text-[11px] font-semibold">Invalid lines</div>
-              {invalidLines ? (
-                <div className="mt-2 space-y-1">
-                  {invalidExamples.map((t, i) => (
-                    <div key={i} className="text-[11px] opacity-80 truncate" title={t}>{t}</div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-2 text-[11px] opacity-60">None</div>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-              <div className="text-[11px] font-semibold">Non-post X links</div>
-              {nonStatusXLinks.length ? (
-                <div className="mt-2 space-y-1">
-                  {nonStatusXLinks.map((u) => (
-                    <div key={u} className="text-[11px] opacity-80 truncate" title={u}>{u}</div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-2 text-[11px] opacity-60">None</div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-    </div>
-  );
-}
-
-// helpers for parent
 export function sortUrlsInRaw(raw: string): string {
   const urls = parseUrls(raw);
   return [...urls].sort((a, b) => a.localeCompare(b)).join("\n");

@@ -13,10 +13,18 @@ export default function UiLangSelect({ compact }: { compact?: boolean }) {
   }, []);
 
   return (
-    <label className={clsx("inline-flex items-center gap-2", compact ? "text-xs" : "text-sm")}>
-      <span className="opacity-75 hidden md:inline">UI</span>
+    <label
+      className={clsx(
+        "inline-flex items-center gap-1 rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)]/80 px-2 py-1.5 text-[11px]",
+        compact ? "min-h-[32px]" : "min-h-[36px]",
+      )}
+    >
+      <span className="hidden sm:inline opacity-70">UI</span>
       <select
-        className={clsx("ct-input", compact ? "h-8 px-2 text-xs" : "h-9 px-3 text-sm")}
+        className={clsx(
+          "bg-transparent text-xs outline-none",
+          "focus-visible:ring-0 focus-visible:outline-none",
+        )}
         value={lang}
         onChange={(e) => {
           const v = e.target.value as UiLang;

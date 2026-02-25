@@ -20,16 +20,24 @@ export default function TopBar({
   onLogout,
 }: {
   theme: ThemeId;
-  setTheme: (t: ThemeId) => void;
+  setTheme: (v: ThemeId) => void;
   baseUrl: string;
-  user?: UserProfile | null;
-  onLogout?: () => void;
+  user: UserProfile | null;
+  onLogout: () => void;
 }) {
-  const [fxMode, setFxMode] = useState<FxMode>(() => (lsGet(LS.fxMode, "auto") as FxMode) || "auto");
   const uiLang = useUiLang();
-  const reduceFx = shouldReduceEffects(fxMode);
-  const canAnimate = !reduceFx;
-  const label = useMemo(
+  const [fxMode, setFxMode] = useState<FxMode>(() => {
+    if (typeof window === "undefined") return "auto";
+    const stored = (lsGet(LS.fxMode, "auto") as FxMode) || "auto";
+    if (stored === "lite" || stored === "full" || stored === "auto") return stored;
+    if (shouldReduceEffects()) return "lite";
+    return "auto";
+  });
+  const [showTheme, setShowTheme] = useState(false);
+
+  const canAnimate = typeof window === "undefined" ? false : !shouldReduceEffects();
+
+  const fxLabel = useMemo(
     () =>
       fxMode === "auto"
         ? translate("fx.auto", uiLang)
@@ -65,20 +73,19 @@ export default function TopBar({
               width={36}
               height={36}
               priority
-              className="h-9 w-9 object-cover"
+              className="rounded-full"
             />
           </div>
-          <div>
-            <div className="flex items-start gap-2">
-              <div className="font-semibold tracking-tight ct-brand">CrownTALK</div>
-              <span
-                className="ct-badge-pro -mt-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90"
-                aria-label={translate("label.proBadge", uiLang)}
-              >
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold tracking-tight">CrownTALK</span>
+              <span className="rounded-full border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--ct-accent)]">
                 PRO
               </span>
             </div>
-            <div className="text-xs opacity-70 -mt-0.5">{translate("tagline.pro", uiLang)}</div>
+            <div className="text-xs opacity-70 -mt-0.5">
+              {translate("tagline.pro", uiLang)}
+            </div>
           </div>
         </div>
 
@@ -90,12 +97,23 @@ export default function TopBar({
               className="ct-btn text-xs px-4 py-2.5 min-h-[36px]"
               title={translate("fx.toggle", uiLang)}
             >
-              {label}
+              {fxLabel}
             </button>
+
             <UiLangSelect compact />
+
+            <button
+              type="button"
+              className="ct-btn ct-btn-xs"
+              onClick={() => setShowTheme((v) => !v)}
+              title="Theme studio"
+            >
+              {showTheme ? translate("theme.hide", uiLang) : translate("theme.show", uiLang)}
+            </button>
           </div>
 
-          <ThemeStudioBar value={theme} onChange={setTheme} />
+          {showTheme ? <ThemeStudioBar value={theme} onChange={setTheme} /> : null}
+
           <div className="flex items-center flex-wrap gap-3 lg:justify-end">
             <StatusPill baseUrl={baseUrl} />
             {user ? <UserMenu user={user} onLogout={onLogout} /> : null}
