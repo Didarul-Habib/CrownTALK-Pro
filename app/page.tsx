@@ -697,7 +697,13 @@ async function queueRunOffline(requestUrls: string[]) {
         okCount,
         failedCount,
       };
-      setRuns((prev) => [record, ...prev.filter((r) => r.id !== record.id)].slice(0, 20));
+
+      // Persist run immediately so it survives refresh and participates in Resume banner.
+      setRuns((prev) => {
+        const limit = prefs?.historyRetention ?? 20;
+        const next = [record, ...prev.filter((r) => r.id !== record.id)].slice(0, limit);
+        return next;
+      });
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
 
@@ -862,9 +868,15 @@ setFailStreak((prev) => {
           okCount: 1,
           failedCount: 0,
         };
-        setRuns((prev) => [record, ...prev].slice(0, 120));
-        try { lsSetJson(LS.runs, [record, ...(lsGetJson<RunRecord[]>(LS.runs, []) || [])].slice(0, 120)); } catch {}
-        try { await idbSet("ct:runs", [record, ...(runs || [])].slice(0, 120)); } catch {}
+
+        // Persist run so it appears in History and can be resumed later.
+        setRuns((prev) => {
+          const limit = prefs?.historyRetention ?? 20;
+          const next = [record, ...prev].slice(0, limit);
+          return next;
+        });
+        lsSet(LS.lastRunResult, rid);
+        lsSet(LS.dismissResume, "");
 
       } catch (e: any) {
         if (e?.name === "AbortError") {
