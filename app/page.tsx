@@ -85,9 +85,9 @@ export default function Home() {
   const [sourceUrl, setSourceUrl] = useState<string>("");
   const [sourcePrev, setSourcePrev] = useState<SourcePreview | null>(null);
 
-  const [langEn, setLangEn] = useState(true);
-  const [langNative, setLangNative] = useState(false);
-  const [nativeLang, setNativeLang] = useState("bn");
+  const [langEn, setLangEn] = useState(false);
+  const [langNative, setLangNative] = useState(true);
+  const [nativeLang, setNativeLang] = useState("auto");
 
   const [tone, setTone] = useState<Tone>("auto");
   const [intent, setIntent] = useState<Intent>("auto");
@@ -181,7 +181,13 @@ const genMutation = useMutation({
         include_alternates: includeAlternates,
         fast: fastMode,
         preset: preset !== "auto" ? preset : undefined,
-        output_language: langNative ? nativeLang : undefined,
+        // Preferred output language for the primary generation pass.
+        // When Native is on, let the backend auto-detect from the tweet unless user picked a specific code.
+        output_language: langNative
+          ? nativeLang === "auto"
+            ? "auto"
+            : nativeLang
+          : "en",
       },
       token,
       authToken,
@@ -232,9 +238,17 @@ const genMutation = useMutation({
         baseUrl,
         {
           source_url: vars.source_url,
-          output_language: langNative ? nativeLang : undefined,
+          // Language toggles: mirror the main generator so previews respect Native/English settings.
+          output_language: langNative
+            ? nativeLang === "auto"
+              ? "auto"
+              : nativeLang
+            : "en",
           fast: fastMode,
           quote_mode: true,
+          lang_en: langEn,
+          lang_native: langNative,
+          native_lang: langNative ? nativeLang : undefined,
         },
         token,
         authToken,
