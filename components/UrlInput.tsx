@@ -203,29 +203,48 @@ export default function UrlInput({
           >
             Redo
           </button>
-          <button
-            onClick={() => { onCleanInvalid?.(); toast.success("Cleaned invalid lines"); }}
-            className={clsx("ct-btn ct-btn-sm", !hasAny ? "opacity-50 cursor-not-allowed" : "")}
+          
+<button
+            onClick={() => {
+              onCleanInvalid?.();
+              toast.success(translate("urlBar.cleanInvalidToast", uiLang));
+            }}
+            className={clsx(
+              "ct-btn ct-btn-sm",
+              !hasAny ? "opacity-50 cursor-not-allowed" : "",
+            )}
             disabled={!hasAny}
-            title="Remove invalid lines and keep only valid URLs"
+            title={translate("urlBar.cleanInvalidHint", uiLang)}
           >
-            Clean invalid
+            {translate("urlBar.cleanInvalid", uiLang)}
           </button>
           <button
-            onClick={() => { onSort?.(); toast.success("Sorted URLs"); }}
-            className={clsx("ct-btn ct-btn-sm", urls.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
+            onClick={() => {
+              onSort?.();
+              toast.success(translate("urlBar.sortToast", uiLang));
+            }}
+            className={clsx(
+              "ct-btn ct-btn-sm",
+              urls.length < 2 ? "opacity-50 cursor-not-allowed" : "",
+            )}
             disabled={urls.length < 2}
-            title="Sort URLs A → Z"
+            title={translate("urlBar.sortHint", uiLang)}
           >
-            Sort A–Z
+            {translate("urlBar.sortAZ", uiLang)}
           </button>
           <button
-            onClick={() => { onShuffle?.(); toast.success("Shuffled URLs"); }}
-            className={clsx("ct-btn ct-btn-sm", urls.length < 2 ? "opacity-50 cursor-not-allowed" : "")}
+            onClick={() => {
+              onShuffle?.();
+              toast.success(translate("urlBar.shuffleToast", uiLang));
+            }}
+            className={clsx(
+              "ct-btn ct-btn-sm",
+              urls.length < 2 ? "opacity-50 cursor-not-allowed" : "",
+            )}
             disabled={urls.length < 2}
-            title="Shuffle URL order"
+            title={translate("urlBar.shuffleHint", uiLang)}
           >
-            Shuffle
+            {translate("urlBar.shuffle", uiLang)}
           </button>
         </div>
       </div>
