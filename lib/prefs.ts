@@ -13,8 +13,8 @@ export type UserPrefs = {
 };
 
 export const DEFAULT_PREFS: UserPrefs = {
-  defaultLangEn: true,
-  defaultLangNative: false,
+  defaultLangEn: false,
+  defaultLangNative: true,
   defaultNativeLang: "auto",
   defaultTone: "auto",
   defaultIntent: "auto",
@@ -28,10 +28,20 @@ const KEY = "ct:prefs";
 export async function loadPrefs(): Promise<UserPrefs> {
   // Prefer IDB, fall back to localStorage.
   const fromIdb = await idbGet<UserPrefs | null>(KEY, null);
-  if (fromIdb) return { ...DEFAULT_PREFS, ...fromIdb };
-  const fromLs = lsGetJson<UserPrefs | null>(LS.prefs as any, null);
-  if (fromLs) return { ...DEFAULT_PREFS, ...fromLs };
-  return DEFAULT_PREFS;
+  let base: UserPrefs | null = null;
+  if (fromIdb) base = { ...DEFAULT_PREFS, ...fromIdb };
+  else {
+    const fromLs = lsGetJson<UserPrefs | null>(LS.prefs as any, null);
+    if (fromLs) base = { ...DEFAULT_PREFS, ...fromLs };
+  }
+  if (!base) return DEFAULT_PREFS;
+  // Upgrade path: older builds used English-only defaults (en=true, native=false).
+  // If prefs still match that pattern, flip them to the new, more useful defaults
+  // (Native+auto-detect, English off by default).
+  if (base.defaultLangEn === true && base.defaultLangNative === false) {
+    base = { ...base, defaultLangEn: false, defaultLangNative: true, defaultNativeLang: "auto" };
+  }
+  return base;
 }
 
 export async function savePrefs(p: UserPrefs) {
