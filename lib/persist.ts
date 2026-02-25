@@ -27,6 +27,10 @@ export type RunRecord = {
   results: ResultItem[];
   okCount: number;
   failedCount: number;
+  /** Optional human label for this session (“MSVP yield thread”, etc.) */
+  label?: string;
+  /** Pinned sessions are sorted to the top and easier to find. */
+  pinned?: boolean;
 };
 
 export type ClipboardRecord = {
