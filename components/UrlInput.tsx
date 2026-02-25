@@ -570,6 +570,10 @@ export default function UrlInput({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
 export function sortUrlsInRaw(raw: string): string {
   const urls = parseUrls(raw);
   return [...urls].sort((a, b) => a.localeCompare(b)).join("\n");
