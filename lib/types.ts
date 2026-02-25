@@ -74,6 +74,7 @@ export type ResultItem = {
 
 export type TimelineStage =
   | "queued"
+  | "sending"
   | "fetching"
   | "generating"
   | "polishing"
