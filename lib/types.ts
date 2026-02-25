@@ -60,6 +60,8 @@ export type ResultItem = {
   status: "pending" | "ok" | "error";
   error_code?: string | null;
   error_message?: string | null;
+  // Optional human-readable reason for failure (frontend-only)
+  reason?: string | null;
   // Primary comments
   comments?: CommentItem[];
   // Whether this URL was part of the last active run
