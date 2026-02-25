@@ -24,7 +24,7 @@ export type GenerateRequest = {
   // Whether to enable Pro/KOL-style rewrites (more polished).
   pro_mode?: boolean;
   // Optional speaking/writing voice preset key.
-  voice?: string;
+  voice?: number | string;
   // Whether to emit extra telemetry / debug info.
   debug?: boolean;
 };
