@@ -64,6 +64,8 @@ export type ResultItem = {
   reason?: string | null;
   // Primary comments
   comments?: CommentItem[];
+  // Optional backend flags (rate-limit, research usage, etc.)
+  flags?: any;
   // Whether this URL was part of the last active run
   in_last_run?: boolean;
   // Native language hint from backend (for quality heuristics etc.)
