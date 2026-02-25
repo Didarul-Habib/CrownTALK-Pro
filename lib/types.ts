@@ -80,7 +80,11 @@ export type TimelineStage =
   | "polishing"
   | "finalizing"
   | "done"
-  | "error";
+  | "error"
+  | "received"
+  | "failed"
+  | "copied"
+  | "rerolled";
 
 export type TimelineEntry = {
   at: number;
