@@ -19,6 +19,8 @@ export type GenerateRequest = {
   hype_level?: number;
   // Max number of comments per URL (usually 2).
   max_per_url?: number;
+  // Whether to ask backend for extra alternate takes per provider.
+  include_alternates?: boolean;
   // Optional project key for extra context / alignment.
   project?: string;
   // Whether to enable Pro/KOL-style rewrites (more polished).
