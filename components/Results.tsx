@@ -54,7 +54,6 @@ export default function Results({
   loading?: boolean;
 }) {
   const uiLang = useUiLang();
-
   const okCount = items.filter((i) => i.status === "ok").length;
   const failedItems = useMemo(
     () => items.filter((i) => i.status !== "ok" && i.status !== "pending"),
@@ -63,13 +62,14 @@ export default function Results({
 
   const primaryPairs = useMemo(() => {
     return items
-      .filter((i) => i.status === "ok" && i.comments && i.comments.length > 0)
-      .map((i) => [i.url, i.comments![0].text] as const);
+      .filter((i) => i.status === "ok")
+      .map((i) => ({ url: i.url, text: i.comments?.[0]?.text || "" }))
+      .filter((p) => p.text.trim());
   }, [items]);
 
   const similarMap = useMemo(() => {
-    if (!primaryPairs.length) return new Map<string, string[]>();
-    return findNearDuplicates(primaryPairs);
+    // Tune threshold for X replies: high similarity means “reads the same”.
+    return findNearDuplicates(primaryPairs, 0.84);
   }, [primaryPairs]);
 
   const spamMap = useMemo(() => {
@@ -86,6 +86,7 @@ export default function Results({
   const similarCount = similarMap.size;
   const [hideNearDuplicates, setHideNearDuplicates] = useState(false);
   const [showFailedCards, setShowFailedCards] = useState(false);
+
 
   const hideSet = useMemo(() => {
     if (!hideNearDuplicates) return new Set<string>();
@@ -113,24 +114,15 @@ export default function Results({
 
     // While generating, keep pending cards visible (skeletons) so users see progress.
     if (loading) {
-      return base;
+      return showFailedCards ? base : base.filter((it) => it.status === "ok" || it.status === "pending");
     }
 
-    // When not loading:
-    if (showFailedCards) {
-      return base;
-    }
+    if (showFailedCards) return base;
 
-    // Only show ok+pending by default once done
-    return base.filter(
-      (it) => it.status === "ok" || it.status === "pending"
-    );
+    // Default: show only items that actually produced comments (clean UI on mobile).
+    return base.filter((it) => it.status === "ok" && (it.comments?.length ?? 0) > 0);
   }, [displayItemsDedup, loading, showFailedCards]);
 
-  const pendingCount = useMemo(
-    () => items.filter((i) => i.status === "pending").length,
-    [items]
-  );
 
   const [canAnimateCards, setCanAnimateCards] = useState(true);
   useEffect(() => {
@@ -141,28 +133,25 @@ export default function Results({
       setCanAnimateCards(true);
     }
   }, []);
-
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
-      if (target.closest("[data-results-menu-root]")) return;
+      if (target.closest("[data-results-menu]")) return;
       setMenuOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const allPlainText = useMemo(() => {
+  const exportText = useMemo(() => {
     const lines: string[] = [];
-
     for (const it of items) {
       if (!it.comments || !it.comments.length) continue;
-      const header = it.url ? `URL: ${it.url}` : "";
-      if (header) lines.push(header);
+      lines.push(`URL: ${it.url}`);
       for (const c of it.comments) {
-        lines.push(c.text);
+        lines.push(`- ${c.text.replace(/\n/g, " ").trim()}`);
       }
       lines.push("");
     }
@@ -177,36 +166,19 @@ export default function Results({
     return lines.join("\n\n").trim();
   }, [items]);
 
-  const allUrlsText = useMemo(
-    () => items.map((i) => i.url).join("\n"),
-    [items]
-  );
-  const failedUrlsText = useMemo(
-    () => failedItems.map((i) => i.url).join("\n"),
-    [failedItems]
-  );
+  const allUrlsText = useMemo(() => items.map((i) => i.url).join("\n"), [items]);
+  const failedUrlsText = useMemo(() => failedItems.map((i) => i.url).join("\n"), [failedItems]);
 
-  // 🔴 Hooks above, conditional UI below to keep hook order stable
   if (!items.length) {
     if (loading) {
       return (
-        <div
-          id="ct-results"
-          className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl"
-        >
-          <div className="text-sm font-semibold tracking-tight">
-            {translate("results.title", uiLang)}
-          </div>
-          <div className="mt-1 text-xs opacity-70">
-            {translate("results.generating", uiLang)}
-          </div>
+        <div id="ct-results" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
+          <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
+          <div className="mt-1 text-xs opacity-70">{translate("results.generating", uiLang)}</div>
 
           <div className="mt-4 space-y-3">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="ct-skeleton rounded-[var(--ct-radius)] p-4"
-              >
+            {[0,1,2].map((i) => (
+              <div key={i} className="ct-skeleton rounded-[var(--ct-radius)] p-4">
                 <div className="h-3 w-2/5 rounded-full bg-white/10" />
                 <div className="mt-3 h-8 rounded-2xl bg-white/10" />
                 <div className="mt-2 h-8 rounded-2xl bg-white/10" />
@@ -222,18 +194,15 @@ export default function Results({
         id="ct-results"
         className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-6 backdrop-blur-xl"
       >
-        <div className="text-sm font-semibold tracking-tight">
-          {translate("results.title", uiLang)}
-        </div>
-        <div className="mt-1 text-sm opacity-70">
-          {translate("results.subtitle", uiLang)}
-        </div>
+        <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
+        <div className="mt-1 text-sm opacity-70">{translate("results.subtitle", uiLang)}</div>
         <div className="mt-4 ct-card-surface p-4 text-xs opacity-75">
           {translate("results.tip", uiLang)}
         </div>
       </div>
     );
   }
+
 
   return (
     <div id="ct-results" className="space-y-4">
@@ -242,257 +211,240 @@ export default function Results({
           "relative z-30 overflow-visible",
           "flex flex-col gap-2 rounded-[var(--ct-radius)] border border-[color:var(--ct-border)]",
           "bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl",
-          "lg:flex-row lg:items-center lg:justify-between lg:gap-4"
+          "lg:flex-row lg:items-center lg:justify-between"
         )}
       >
-        <div className="flex flex-col gap-1">
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ct-accent)]">
-            {translate("results.title", uiLang)}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--ct-muted)]">
-            <div>
-              {translate("results.statsOk", uiLang, {
-                count: okCount.toString(),
-              })}
-            </div>
-            {!!pendingCount && (
-              <div>
-                {translate("results.statsPending", uiLang, {
-                  count: pendingCount.toString(),
-                })}
-              </div>
-            )}
-            {!!failedCount && (
-              <div className="text-[color:var(--ct-warning)]">
-                {translate("results.statsFailed", uiLang, {
-                  count: failedCount.toString(),
-                })}
-              </div>
-            )}
-            {!!similarCount && (
-              <div className="text-[color:var(--ct-muted-strong)]">
-                {translate("results.statsNearDupes", uiLang, {
-                  count: similarCount.toString(),
-                })}
-              </div>
-            )}
+        <div>
+          <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
+          <div className="text-xs opacity-70">
+            {translate("results.runLabel", uiLang)}{" "}
+            {runId ? <span className="font-mono">{runId}</span> : "—"} • {items.length} {translate("results.urls", uiLang)} • {okCount} {translate("results.ok", uiLang)} • {failedCount} {translate("results.failed", uiLang)}
+            {loading && queueTotal ? (
+              <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
+                {translate("results.queue", uiLang)}{" "}
+                {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        <div
-          className="flex flex-wrap items-center gap-2 text-xs"
-          data-results-menu-root
-        >
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            type="button"
+            onClick={onRetryFailed}
+            disabled={!failedCount}
             className={clsx(
-              "relative inline-flex items-center gap-1 rounded-full border border-[color:var(--ct-border-soft)] px-3 py-1.5 text-[0.72rem] font-medium",
-              "bg-[color:var(--ct-chip-bg)] text-[color:var(--ct-chip-fg)]",
-              "hover:border-[color:var(--ct-border-strong)] hover:bg-[color:var(--ct-chip-bg-hover)]"
+              "ct-btn ct-btn-sm",
+              failedCount ? "" : "opacity-50 cursor-not-allowed"
             )}
-            onClick={() => setHideNearDuplicates((v) => !v)}
+            title="Retry only failed URLs"
           >
-            <span className="relative flex h-2.5 w-2.5 items-center justify-center">
-              <span
-                className={clsx(
-                  "absolute inset-0 rounded-full border border-[color:var(--ct-border-soft)]",
-                  hideNearDuplicates
-                    ? "bg-[color:var(--ct-accent-soft)]"
-                    : "bg-[color:var(--ct-bg)]"
-                )}
-              />
-              <span
-                className={clsx(
-                  "relative h-1.5 w-1.5 rounded-full",
-                  hideNearDuplicates
-                    ? "bg-[color:var(--ct-accent)]"
-                    : "bg-[color:var(--ct-border-soft)]"
-                )}
-              />
-            </span>
-            <span className="truncate">
-              {translate("results.hideNearDupes", uiLang)}
-            </span>
+            Retry failed only
           </button>
 
-          {!!failedCount && (
+          <div className="relative z-40" data-results-menu>
             <button
               type="button"
-              className={clsx(
-                "inline-flex items-center gap-1 rounded-full border border-[color:var(--ct-border-soft)] px-3 py-1.5 text-[0.72rem] font-medium",
-                "bg-[color:var(--ct-chip-bg)] text-[color:var(--ct-chip-fg)]",
-                "hover:border-[color:var(--ct-border-strong)] hover:bg-[color:var(--ct-chip-bg-hover)]"
-              )}
-              onClick={() => setShowFailedCards((v) => !v)}
-            >
-              <AlertTriangle className="h-3 w-3 text-[color:var(--ct-warning)]" />
-              <span className="truncate">
-                {showFailedCards
-                  ? translate("results.hideFailed", uiLang)
-                  : translate("results.showFailed", uiLang)}
-              </span>
-            </button>
-          )}
-
-          <div className="relative">
-            <button
-              type="button"
-              className={clsx(
-                "inline-flex items-center gap-1 rounded-full border border-[color:var(--ct-border-soft)] px-3 py-1.5 text-[0.72rem] font-medium",
-                "bg-[color:var(--ct-chip-bg)] text-[color:var(--ct-chip-fg)]",
-                "hover:border-[color:var(--ct-border-strong)] hover:bg-[color:var(--ct-chip-bg-hover)]"
-              )}
+              className="ct-btn ct-btn-sm"
               onClick={() => setMenuOpen((v) => !v)}
+              title="Run menu" aria-label="Run menu"
             >
-              <Menu className="h-3 w-3" />
-              <span>{translate("results.actions", uiLang)}</span>
+              <Menu className="h-4 w-4 opacity-80" />
+              Menu
             </button>
 
-            {menuOpen && (
-              <div className="absolute right-0 top-[120%] z-40 w-56 rounded-[1rem] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel-strong)] p-2 text-xs shadow-[0_18px_45px_rgba(0,0,0,0.55)]">
-                <ResultsMenu
-                  onClear={onClear}
-                  allPlainText={allPlainText}
-                  allCommentsText={allCommentsText}
-                  allUrlsText={allUrlsText}
-                  failedUrlsText={failedUrlsText}
-                  onCopy={onCopy}
-                  uiLang={uiLang}
-                />
+            {menuOpen ? (
+              <div
+                className={clsx(
+                  "absolute right-0 mt-2 w-72 overflow-hidden rounded-3xl border shadow-2xl z-40",
+                  "bg-[color:var(--ct-panel)] border-[color:var(--ct-border)] backdrop-blur-xl"
+                )}
+              >
+                <div className="p-2 space-y-1">
+                  <MenuItem
+                    icon={<Copy className="h-4 w-4 opacity-80" />}
+                    label="Copy all comments"
+                    onClick={() => {
+                      copyText(allCommentsText || "");
+                      toast.success("Copied all comments");
+                      setMenuOpen(false);
+                    }}
+                    disabled={!allCommentsText}
+                  />
+                  <MenuItem
+                    icon={<Download className="h-4 w-4 opacity-80" />}
+                    label="Download .txt"
+                    onClick={() => {
+                      downloadTxt("crowntalk-comments.txt", exportText || "");
+                      toast.success("Downloaded .txt");
+                      setMenuOpen(false);
+                    }}
+                    disabled={!exportText}
+                  />
+
+                  <div className="my-2 h-px bg-white/10" />
+
+                  <MenuItem
+                    icon={<Copy className="h-4 w-4 opacity-80" />}
+                    label="Copy all URLs"
+                    onClick={() => {
+                      copyText(allUrlsText);
+                      toast.success("Copied all URLs");
+                      setMenuOpen(false);
+                    }}
+                    disabled={!items.length}
+                  />
+                  <MenuItem
+                    icon={<Copy className="h-4 w-4 opacity-80" />}
+                    label="Copy failed URLs"
+                    onClick={() => {
+                      copyText(failedUrlsText);
+                      toast.success("Copied failed URLs");
+                      setMenuOpen(false);
+                    }}
+                    disabled={!failedItems.length}
+                  />
+                  <MenuItem
+                    icon={<AlertTriangle className="h-4 w-4 opacity-80" />}
+                    label={showFailedCards ? "Hide failed cards" : "Show failed cards"}
+                    onClick={() => {
+                      setShowFailedCards((v) => !v);
+                      setMenuOpen(false);
+                    }}
+                    disabled={!failedItems.length}
+                  />
+
+
+                  {onClear ? (
+                    <>
+                      <div className="my-2 h-px bg-white/10" />
+                      <MenuItem
+                        icon={<Trash2 className="h-4 w-4 opacity-80" />}
+                        label="Clear results"
+                        danger
+                        onClick={() => {
+                          onClear();
+                          toast("Cleared results");
+                          setMenuOpen(false);
+                        }}
+                      />
+                    </>
+                  ) : null}
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        {displayItems.map((it, idx) => (
+      {(similarCount || spamMap.size) && !loading ? (
+        <div className={clsx("ct-card", "p-4")}>
+          <div className="text-sm font-semibold tracking-tight">
+            {translate("results.quality.title", uiLang)}
+          </div>
+          <div className="mt-1 text-xs opacity-70">
+            {similarCount ? (
+              <span>
+                {similarCount} {translate("results.quality.similar", uiLang)}
+              </span>
+            ) : null}
+            {similarCount && spamMap.size ? <span> • </span> : null}
+            {spamMap.size ? (
+              <span>
+                {spamMap.size} {translate("results.quality.spam", uiLang)}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-3 text-xs opacity-70">
+            {translate("results.quality.tip", uiLang)}
+          </div>
+          {similarCount ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={clsx("ct-btn ct-btn-xs", hideNearDuplicates ? "ct-btn-primary" : "")}
+                onClick={() => setHideNearDuplicates((v) => !v)}
+              >
+                {hideNearDuplicates ? "Showing uniques" : "Hide near-duplicates"}
+              </button>
+              <span className="text-xs opacity-70">(keeps the first, hides the rest)</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {failedItems.length && false ? (
+        <div className={clsx("ct-card", "p-4")}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-300" />
+              <div className="text-sm font-semibold tracking-tight">Failed</div>
+              <span className="ct-chip text-[11px]">{failedItems.length}</span>
+            </div>
+            <button
+              type="button"
+              className="ct-btn ct-btn-sm"
+              onClick={onRetryFailed}
+            >
+              Retry all failed
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {failedItems.map((f) => (
+              <div key={f.url} className={clsx("ct-card-surface", "p-3")}
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-xs opacity-70 break-all">{f.url}</div>
+                    <div className="mt-1 text-sm opacity-85 break-words">{f.reason || "No details"}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      className="ct-btn ct-btn-xs"
+                      onClick={() => onRerollUrl(f.url)}
+                    >
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      className="ct-btn ct-btn-xs"
+                      onClick={() => { copyText(f.url); toast.success("Copied URL"); }}
+                    >
+                      <Copy className="h-4 w-4 opacity-80" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {displayItems.map((it, idx) => {
+        const sim = similarMap.get(it.url);
+        const spam = spamMap.get(it.url) || null;
+        const delay = idx * 0.03;
+        return (
           <motion.div
             key={it.url}
-            layout={canAnimateCards}
-            initial={
-              canAnimateCards
-                ? { opacity: 0, y: 8, scale: 0.99 }
-                : undefined
-            }
-            animate={
-              canAnimateCards
-                ? { opacity: 1, y: 0, scale: 1 }
-                : undefined
-            }
-            transition={{
-              type: "spring",
-              stiffness: 260,
-              damping: 26,
-              delay: canAnimateCards ? idx * 0.02 : 0,
-            }}
+            initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
+            animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
+            transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
           >
             <ResultCard
               item={it}
-              onRerollUrl={onRerollUrl}
-              onRetryUrl={onRetryUrl}
-              onRetryFailed={onRetryFailed}
-              spamReason={spamMap.get(it.url)}
-              similarTo={similarMap.get(it.url)}
-              runId={runId}
+              onReroll={() => onRerollUrl(it.url)}
               onCopy={onCopy}
+              onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
+              warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
+              warnSpam={spam}
             />
           </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ResultsMenu({
-  onClear,
-  allPlainText,
-  allCommentsText,
-  allUrlsText,
-  failedUrlsText,
-  onCopy,
-  uiLang,
-}: {
-  onClear?: () => void;
-  allPlainText: string;
-  allCommentsText: string;
-  allUrlsText: string;
-  failedUrlsText: string;
-  onCopy?: (text: string, url?: string) => void;
-  uiLang: string;
-}) {
-  const canDownload = typeof window !== "undefined";
-
-  return (
-    <div className="space-y-1">
-      <MenuItem
-        icon={<Copy className="h-3 w-3" />}
-        label={translate("results.copyAll", uiLang)}
-        onClick={() => {
-          const text = allPlainText;
-          if (!text) return;
-          copyText(text);
-          toast.success(translate("toast.copiedAll", uiLang));
-          onCopy?.(text);
-        }}
-      />
-      <MenuItem
-        icon={<Copy className="h-3 w-3" />}
-        label={translate("results.copyOnlyComments", uiLang)}
-        onClick={() => {
-          const text = allCommentsText;
-          if (!text) return;
-          copyText(text);
-          toast.success(translate("toast.copiedComments", uiLang));
-          onCopy?.(text);
-        }}
-      />
-      <MenuItem
-        icon={<Copy className="h-3 w-3" />}
-        label={translate("results.copyUrls", uiLang)}
-        onClick={() => {
-          const text = allUrlsText;
-          if (!text) return;
-          copyText(text);
-          toast.success(translate("toast.copiedUrls", uiLang));
-          onCopy?.(text);
-        }}
-      />
-      <MenuItem
-        icon={<Copy className="h-3 w-3" />}
-        label={translate("results.copyFailedUrls", uiLang)}
-        onClick={() => {
-          const text = failedUrlsText;
-          if (!text) return;
-          copyText(text);
-          toast.success(translate("toast.copiedFailedUrls", uiLang));
-          onCopy?.(text);
-        }}
-      />
-      <MenuItem
-        icon={<Download className="h-3 w-3" />}
-        label={translate("results.downloadTxt", uiLang)}
-        disabled={!canDownload}
-        onClick={() => {
-          const text = allPlainText;
-          if (!text) return;
-          const filename = `crowntalk_run_${runId || "export"}.txt`;
-          downloadTxt(filename, text);
-          toast.success(translate("toast.downloadStarted", uiLang));
-        }}
-      />
-      {onClear && (
-        <MenuItem
-          icon={<Trash2 className="h-3 w-3" />}
-          label={translate("results.clearAll", uiLang)}
-          danger
-          onClick={() => {
-            onClear();
-            toast.success(translate("toast.clearedResults", uiLang));
-          }}
-        />
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -506,7 +458,7 @@ function MenuItem({
 }: {
   icon: React.ReactNode;
   label: string;
-  onClick?: () => void;
+  onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
 }) {
