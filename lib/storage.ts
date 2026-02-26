@@ -15,6 +15,9 @@ export const LS = {
   dismissSessionDiff: "ct_dismiss_session_diff_v2",
   prefs: "ct_prefs_v2",
   queuedRuns: "ct_queued_runs_v2",
+  // Exponential moving average for a single URL generation duration (ms/url).
+  // Used to make the pipeline feel accurate on slow/fast devices without hardcoded timers.
+  avgMsPerUrl: "ct_avg_ms_per_url_v1",
 };
 
 export function lsGet(key: string, fallback = ""): string {
