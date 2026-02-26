@@ -28,6 +28,7 @@ import type { ThemeId } from "@/components/ThemeStudioBar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { translate, useUiLang } from "@/lib/i18n";
 import { parseUrls } from "@/lib/validate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { ApiError, logout as apiLogout } from "@/lib/api";
@@ -53,6 +54,8 @@ const ClipboardHistoryPanelLazy = dynamic(() => import("@/components/ClipboardHi
 const RenderProfilerPanelLazy = dynamic(() => import("@/components/RenderProfilerPanel"), { ssr: false });
 
 export default function Home() {
+  const uiLang = useUiLang();
+
   useRenderCount("Home");
   const reduceFx = prefersReducedEffects();
   const [baseUrl] = useState<string>(() =>
@@ -1124,9 +1127,9 @@ setFailStreak((prev) => {
           <div className="space-y-6">
             <div className="block">
               <div className="lg:hidden mb-3 flex items-center justify-between">
-                <div className="text-sm font-semibold opacity-80">Controls</div>
+                <div className="text-sm font-semibold opacity-80">{translate("controls.title", uiLang)}</div>
                 <button type="button" className="ct-btn ct-btn-xs" onClick={() => setMobileControlsOpen(true)}>
-                  Open sheet
+                  {translate("controls.openSheet", uiLang)}
                 </button>
               </div>
               <Controls
