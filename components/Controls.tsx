@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import PremiumButton from "@/components/PremiumButton";
 import { Ban, ChevronDown, ChevronUp, Eraser, Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone } from "@/lib/types";
+import { translate, useUiLang } from "@/lib/i18n";
 
 const NATIVE_LANGS = [
   { value: "auto", label: "Auto (detect)" },
@@ -70,6 +71,8 @@ export default function Controls({
   loading: boolean;
   clearDisabled?: boolean;
 }) {
+  const uiLang = useUiLang();
+
   const [expanded, setExpanded] = useState(true);
   // Auto-collapse on small screens for speed
   useEffect(() => {
@@ -83,7 +86,7 @@ export default function Controls({
   return (
     <div id="ct-controls" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold tracking-tight">Controls</div>
+        <div className="text-sm font-semibold tracking-tight">{translate("controls.title", uiLang)}</div>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}

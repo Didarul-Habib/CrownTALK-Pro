@@ -2,14 +2,16 @@
 
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import { translate, useUiLang } from "@/lib/i18n";
+
 
 export type Stage = "idle" | "fetching" | "generating" | "polishing" | "finalizing" | "done";
 
-const STEPS: Array<{ id: Exclude<Stage, "idle" | "done">; label: string }> = [
-  { id: "fetching", label: "Fetching" },
-  { id: "generating", label: "Generating" },
-  { id: "polishing", label: "Polishing" },
-  { id: "finalizing", label: "Finalizing" },
+const STEPS: Array<{ id: Exclude<Stage, "idle" | "done">; labelKey: string }> = [
+  { id: "fetching", labelKey: "pipeline.step.fetching" },
+  { id: "generating", labelKey: "pipeline.step.generating" },
+  { id: "polishing", labelKey: "pipeline.step.polishing" },
+  { id: "finalizing", labelKey: "pipeline.step.finalizing" },
 ];
 
 function stepIndex(stage: Stage) {
@@ -19,6 +21,9 @@ function stepIndex(stage: Stage) {
 }
 
 export default function ProgressStepper({ stage }: { stage: Stage }) {
+  const uiLang = useUiLang();
+  const t = (key: string) => translate(key, uiLang);
+
   const idx = stepIndex(stage);
   const active = idx >= 0 && stage !== "done";
 
@@ -43,7 +48,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
   return (
     <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-3 backdrop-blur-xl">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold tracking-tight">Pipeline</div>
+        <div className="text-sm font-semibold tracking-tight">{t("pipeline.title")}</div>
         <div className={clsx("text-xs", active ? "opacity-80" : "opacity-60")}>
           {stage === "idle" ? "Ready" : stage === "done" ? "Completed" : "Working…"}
         </div>
@@ -78,7 +83,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
               )}
             >
               <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold">{s.label}</div>
+                <div className="text-xs font-semibold">{t(s.labelKey)}</div>
                 <div
                   className="h-2.5 w-2.5 rounded-full"
                   style={{
@@ -93,7 +98,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
               </div>
 
               <div className="mt-2 text-[11px] opacity-70">
-                {done ? "Done" : current ? "In progress" : "Pending"}
+                {done ? t("pipeline.step.done") : current ? t("pipeline.step.inProgress") : t("pipeline.step.pending")}
               </div>
 
               {current && !isLowMotion ? (

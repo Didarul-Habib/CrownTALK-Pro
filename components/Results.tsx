@@ -9,6 +9,7 @@ import type { ResultItem } from "@/lib/types";
 import { detectSpammy, findNearDuplicates } from "@/lib/similarity";
 import { LS, lsGet } from "@/lib/storage";
 import { shouldReduceEffects, type FxMode } from "@/lib/motion";
+import { translate, useUiLang } from "@/lib/i18n";
 import ResultCard from "./ResultCard";
 
 function copyText(text: string) {
@@ -52,12 +53,13 @@ export default function Results({
   onCopy?: (text: string, url?: string) => void;
   loading?: boolean;
 }) {
+  const uiLang = useUiLang();
   if (!items.length) {
     if (loading) {
       return (
         <div id="ct-results" className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-4 backdrop-blur-xl">
-          <div className="text-sm font-semibold tracking-tight">Results</div>
-          <div className="mt-1 text-xs opacity-70">Generating…</div>
+          <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
+          <div className="mt-1 text-xs opacity-70">{translate("results.generating", uiLang)}</div>
 
           <div className="mt-4 space-y-3">
             {[0,1,2].map((i) => (
@@ -77,10 +79,10 @@ export default function Results({
         id="ct-results"
         className="rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-6 backdrop-blur-xl"
       >
-        <div className="text-sm font-semibold tracking-tight">Results</div>
-        <div className="mt-1 text-sm opacity-70">Paste X post URLs, select the ones you want, then hit Generate.</div>
+        <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
+        <div className="mt-1 text-sm opacity-70">{translate("results.subtitle", uiLang)}</div>
         <div className="mt-4 ct-card-surface p-4 text-xs opacity-75">
-          Tip: you can paste messy text—CrownTALK will extract valid status links.
+          {translate("results.tip", uiLang)}
         </div>
       </div>
     );
@@ -212,12 +214,14 @@ export default function Results({
         )}
       >
         <div>
-          <div className="text-sm font-semibold tracking-tight">Results</div>
+          <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
           <div className="text-xs opacity-70">
-            Run {runId ? <span className="font-mono">{runId}</span> : "—"} • {items.length} URLs • {okCount} ok • {failedCount} failed
+            {translate("results.runLabel", uiLang)}{" "}
+            {runId ? <span className="font-mono">{runId}</span> : "—"} • {items.length} {translate("results.urls", uiLang)} • {okCount} {translate("results.ok", uiLang)} • {failedCount} {translate("results.failed", uiLang)}
             {loading && queueTotal ? (
               <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
-                Queue {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
+                {translate("results.queue", uiLang)}{" "}
+                {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
               </span>
             ) : null}
           </div>
@@ -333,22 +337,24 @@ export default function Results({
 
       {(similarCount || spamMap.size) && !loading ? (
         <div className={clsx("ct-card", "p-4")}>
-          <div className="text-sm font-semibold tracking-tight">Quality checks</div>
+          <div className="text-sm font-semibold tracking-tight">
+            {translate("results.quality.title", uiLang)}
+          </div>
           <div className="mt-1 text-xs opacity-70">
             {similarCount ? (
               <span>
-                {similarCount} reply{similarCount === 1 ? "" : "ies"} look very similar across different URLs.
+                {similarCount} {translate("results.quality.similar", uiLang)}
               </span>
             ) : null}
             {similarCount && spamMap.size ? <span> • </span> : null}
             {spamMap.size ? (
               <span>
-                {spamMap.size} reply{spamMap.size === 1 ? "" : "ies"} might read as spammy.
+                {spamMap.size} {translate("results.quality.spam", uiLang)}
               </span>
             ) : null}
           </div>
           <div className="mt-3 text-xs opacity-70">
-            Tip: reroll flagged cards or tweak tone/intent to increase variety.
+            {translate("results.quality.tip", uiLang)}
           </div>
           {similarCount ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
