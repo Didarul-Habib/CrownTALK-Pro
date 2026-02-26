@@ -167,7 +167,15 @@ export default function Home() {
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const suppressAbortRef = useRef(false);
+  const runStartedAtRef = useRef(0);
   const queueCancelRef = useRef(false);
+
+  // Expose queue metrics for lightweight UI components (e.g., ProgressStepper) without widening props.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__ct_queueTotal = queueTotal;
+    (window as any).__ct_queueDone = queueDone;
+  }, [queueTotal, queueDone]);
 
   // Keep the current run's canonical order so we can safely merge results without
   // duplicating cards (prevents the "10 urls for a 5-url run" bug).
@@ -199,6 +207,22 @@ export default function Home() {
     if (p < 0.78) return "generating";
     if (p < 0.96) return "polishing";
     return "finalizing";
+  }
+
+
+  function updateAvgMsPerUrl(durationMs: number, urlCount: number) {
+    try {
+      if (!urlCount || urlCount <= 0) return;
+      const perUrl = Math.max(1500, Math.round(durationMs / urlCount));
+      const prevRaw = lsGet(LS.avgMsPerUrl, "");
+      const prev = prevRaw ? Number(prevRaw) : NaN;
+      const next = Number.isFinite(prev) ? Math.round(prev * 0.75 + perUrl * 0.25) : perUrl;
+      // Clamp to sane bounds (ms/url) so one weird run does not ruin the UX.
+      const clamped = Math.max(3000, Math.min(60000, next));
+      lsSet(LS.avgMsPerUrl, String(clamped));
+    } catch {
+      // ignore
+    }
   }
 
   function mergeIncomingResults(prev: ResultItem[], incoming: ResultItem[]) {
@@ -719,6 +743,7 @@ async function queueRunOffline(requestUrls: string[]) {
     }
 
     queueCancelRef.current = false;
+    runStartedAtRef.current = Date.now();
     setError("");
     setLoading(true);
     setStage("fetching");
@@ -813,6 +838,7 @@ async function queueRunOffline(requestUrls: string[]) {
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
 
+      updateAvgMsPerUrl(Date.now() - (runStartedAtRef.current || Date.now()), allUrls.length);
       completedOk = true;
 
       setStage("done");
