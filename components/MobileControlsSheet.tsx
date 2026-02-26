@@ -71,13 +71,16 @@ export default function MobileControlsSheet({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="fixed bottom-0 left-0 right-0 top-auto max-h-[88vh] translate-y-0 rounded-t-[28px] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-0 shadow-[0_-20px_80px_rgba(0,0,0,0.55)]"
+        // Centered modal (mobile-safe). DialogContent already positions itself
+        // centered using left/top + translate. Mixing that with bottom/left/right
+        // positioning can push the modal off-screen on mobile.
+        className="p-0 max-h-[85vh] overflow-hidden flex flex-col border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)]"
       >
         <DialogHeader className="px-4 pt-4">
           <DialogTitle className="text-base">Controls</DialogTitle>
           <div className="mt-2 h-1.5 w-12 rounded-full bg-white/10 mx-auto" />
         </DialogHeader>
-        <div className="px-3 pb-5 pt-2 overflow-auto">
+        <div className="px-3 pb-5 pt-2 overflow-auto flex-1">
           <Controls
             langEn={langEn}
             setLangEn={setLangEn}
