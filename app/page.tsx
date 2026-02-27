@@ -336,21 +336,24 @@ const genMutation = useMutation({
       token,
       authToken,
       vars.signal,
-      (u) => {
-        if (u.type === "meta" && u.run_id) setRunId(u.run_id);
-        if (u.type === "status" && (u as any).stage) {
-          const s = String((u as any).stage);
-          if (s === "fetching" || s === "extracting") advanceStage("fetching");
-          else if (s === "generating") advanceStage("generating");
-          else if (s === "polishing") advanceStage("polishing");
-          else if (s === "finalizing") advanceStage("finalizing");
-        }
-        if (u.type === "result") {
-          startTransition(() => {
-            setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
-          });
-        }
-      }
+(u) => {
+  if (u.type === "meta" && u.run_id) setRunId(u.run_id);
+  if (u.type === "status" && (u as any).stage) {
+    const s = String((u as any).stage);
+    if (s === "fetching" || s === "extracting") {
+      advanceStage("fetching");
+    } else if (s === "generating") {
+      advanceStage("generating");
+    }
+    // NOTE: we intentionally ignore "polishing"/"finalizing" here.
+    // Late pipeline stages are derived from overall run progress in runQueue().
+  }
+  if (u.type === "result") {
+    startTransition(() => {
+      setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
+    });
+  }
+}
     );
   },
   retry: 0,
@@ -851,14 +854,29 @@ async function queueRunOffline(requestUrls: string[]) {
         } catch {}
       }
 
-      // Auto-scroll to results
+      // Auto-scroll to results (mobile only, and only if results are off-screen).
       window.requestAnimationFrame(() => {
-        // Avoid "mystery" scrolling while the user is actively editing the URL input.
+        const el = document.getElementById("ct-results");
+        if (!el) return;
+
         const active = document.activeElement as HTMLElement | null;
+        // Don't scroll if the user is typing in any input/textarea (including the URL box).
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
         const inputRoot = document.getElementById("ct-url-input");
         if (active && inputRoot && inputRoot.contains(active)) return;
-        const el = document.getElementById("ct-results");
-        el?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+
+        // On larger screens keep the controls in view; avoid surprising jumps.
+        if (window.innerWidth >= 768) return;
+
+        const rect = el.getBoundingClientRect();
+        const viewportH = window.innerHeight || 0;
+        // Only nudge the view if the results panel is mostly below the fold.
+        if (rect.top > viewportH * 0.75) {
+          el.scrollIntoView({
+            behavior: prefersReducedMotion() ? "auto" : "smooth",
+            block: "start",
+          });
+        }
       });
     } catch (e: any) {
       if (e?.name === "AbortError") {
