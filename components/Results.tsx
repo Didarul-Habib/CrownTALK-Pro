@@ -14,7 +14,7 @@ import ResultCard from "./ResultCard";
 
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
-One of the trash social app
+}
 
 function downloadTxt(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -484,5 +484,4 @@ function MenuItem({
       {label}
     </button>
   );
-    }
-                  
+}
