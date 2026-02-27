@@ -31,10 +31,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { translate, useUiLang } from "@/lib/i18n";
 import { parseUrls } from "@/lib/validate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { ApiError, logout as apiLogout } from "@/lib/api";
+import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
-import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
+import type { GenerateResponse, Intent, ResultItem, Tone, QualityMode } from "@/lib/types";
 import type { TimelineStage } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
 import { nowId } from "@/lib/persist";
@@ -96,6 +96,13 @@ export default function Home() {
   const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
   const [fastMode, setFastMode] = useState(false);
+  const [qualityMode, setQualityMode] = useState<QualityMode>("balanced");
+
+  // Temporary mapping: until the dedicated Quality selector UI is wired,
+  // derive qualityMode from the existing fastMode toggle.
+  useEffect(() => {
+    setQualityMode(fastMode ? "fast" : "balanced");
+  }, [fastMode]);
   const [preset, setPreset] = useState<string>("auto");
   const [voice, setVoice] = useState<number>(1);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
@@ -323,7 +330,11 @@ const genMutation = useMutation({
         intent: intent === "auto" ? undefined : intent,
         voice,
         include_alternates: includeAlternates,
-        fast: fastMode,
+        // Preferred quality mode; backend falls back to "balanced" when omitted.
+        quality_mode: qualityMode,
+        // Legacy flags for backwards compatibility with older backends.
+        fast: qualityMode === "fast" || fastMode,
+        pro_mode: qualityMode === "pro",
         preset: preset !== "auto" ? preset : undefined,
         // Preferred output language for the primary generation pass.
         // When Native is on, let the backend auto-detect from the tweet unless user picked a specific code.
@@ -337,16 +348,31 @@ const genMutation = useMutation({
       authToken,
       vars.signal,
 (u) => {
-  if (u.type === "meta" && u.run_id) setRunId(u.run_id);
-  if (u.type === "status" && (u as any).stage) {
-    const s = String((u as any).stage);
+  if (u.type === "meta") {
+    if (u.run_id) setRunId(u.run_id);
+    // If backend reports batch size / dedupe info, reflect that.
+    if (typeof (u as any).total === "number" && (u as any).total > 0) {
+      setQueueTotal((u as any).total);
+    }
+  }
+  if (u.type === "status") {
+    const s = String((u as any).stage || "");
+    // Prefer explicit progress numbers from the stream when available.
+    if (typeof (u as any).total === "number" && (u as any).total >= 0) {
+      setQueueTotal((u as any).total);
+    }
+    if (typeof (u as any).done === "number" && (u as any).done >= 0) {
+      startTransition(() => setQueueDone((u as any).done));
+    }
     if (s === "fetching" || s === "extracting") {
       advanceStage("fetching");
     } else if (s === "generating") {
       advanceStage("generating");
+    } else if (s === "polishing") {
+      advanceStage("polishing");
+    } else if (s === "finalizing") {
+      advanceStage("finalizing");
     }
-    // NOTE: we intentionally ignore "polishing"/"finalizing" here.
-    // Late pipeline stages are derived from overall run progress in runQueue().
   }
   if (u.type === "result") {
     startTransition(() => {
@@ -906,6 +932,14 @@ setFailStreak((prev) => {
       const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
       const code = e?.body?.code;
 
+      // Run lock conflicts: surface a clear, non-fatal message.
+      if (status === 409 || code === "run_conflict") {
+        try {
+          toast.error("A run is already active. Cancel it first.");
+        } catch {}
+        return;
+      }
+
       if (
         status === 401 ||
         code === "missing_auth" ||
@@ -956,7 +990,14 @@ setFailStreak((prev) => {
     try { toast("Canceled"); } catch {}
     clearTimers();
     setStage("idle");
+    // Abort the local fetch stream.
     abortRef.current?.abort();
+    // Best-effort server-side cancellation so the backend stops work early.
+    try {
+      cancelActiveRun(baseUrl, runId || null, token, authToken);
+    } catch {
+      // Ignore cancellation errors; this is best-effort.
+    }
     setQueueTotal(0);
     setQueueDone(0);
   }
