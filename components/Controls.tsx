@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import PremiumButton from "@/components/PremiumButton";
 import { Ban, ChevronDown, ChevronUp, Eraser, Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone, QualityMode } from "@/lib/types";
+import type { SessionPreset } from "@/lib/sessionPresets";
 import { translate, useUiLang } from "@/lib/i18n";
 
 const NATIVE_LANGS = [
@@ -37,6 +38,9 @@ export default function Controls({
   setFastMode,
   qualityMode,
   setQualityMode,
+  sessionPresets,
+  onSavePreset,
+  onApplyPreset,
   preset,
   setPreset,
   voice,
@@ -64,6 +68,9 @@ export default function Controls({
   setFastMode: (v: boolean) => void;
   qualityMode: QualityMode;
   setQualityMode: (v: QualityMode) => void;
+  sessionPresets?: SessionPreset[];
+  onSavePreset?: () => void;
+  onApplyPreset?: (id: string) => void;
   preset: string;
   setPreset: (v: string) => void;
   voice: number;
