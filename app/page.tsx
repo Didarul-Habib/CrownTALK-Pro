@@ -34,6 +34,7 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
+import { logMetric } from "@/lib/metrics";
 import type { GenerateResponse, Intent, ResultItem, Tone, QualityMode } from "@/lib/types";
 import type { TimelineStage } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
@@ -77,6 +78,16 @@ export default function Home() {
     }
   }, []);
 
+              useEffect(() => {
+                if (typeof window === "undefined") return;
+                try {
+                  const flag = lsGet(LS.promptProto, "0") === "1";
+                  setUsePromptProto(flag);
+                } catch {
+                  // ignore
+                }
+              }, []);
+            
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
@@ -134,6 +145,10 @@ export default function Home() {
 
   useEffect(() => {
     applyVoice(voice);
+    // Load saved session presets on first mount (client-side only)
+    if (typeof window !== "undefined") {
+      setSessionPresets(loadSessionPresets());
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice]);
 
@@ -161,6 +176,8 @@ export default function Home() {
   }, [preset]);
 
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [sessionPresets, setSessionPresets] = useState<SessionPreset[]>([]);
+
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardRecord[]>([]);
   const [resumeCandidate, setResumeCandidate] = useState<RunRecord | null>(null);
@@ -236,6 +253,30 @@ export default function Home() {
   }
 
   function mergeIncomingResults(prev: ResultItem[], incoming: ResultItem[]) {
+  // Frontend-only helper: update comment text/lock state for a given URL+index.
+  function updateCommentMeta(url: string, index: number, patch: { text?: string; is_locked?: boolean }) {
+    setItems((prev) =>
+      prev.map((it) => {
+        const key = ((it as any).input_url || it.url) as string;
+        const targetKey = ((url as any) || "") as string;
+        if (!key || !targetKey) return it;
+        if (key !== targetKey && it.url !== url) return it;
+        if (!Array.isArray(it.comments)) return it;
+        if (index < 0 || index >= it.comments.length) return it;
+        const nextComments = it.comments.map((c, i) =>
+          i === index
+            ? ({
+                ...c,
+                ...(patch.text !== undefined ? { text: patch.text, is_user_edited: true } : {}),
+                ...(patch.is_locked !== undefined ? { is_locked: patch.is_locked } : {}),
+              } as any)
+            : c
+        );
+        return { ...it, comments: nextComments };
+      })
+    );
+  }
+
     const order = activeRunOrderRef.current || [];
     const orderSet = new Set(order);
     const byId = new Map<string, string>();
@@ -267,6 +308,36 @@ export default function Home() {
 
       const existing = map.get(key);
       const merged: any = { ...(existing || {}), ...(r || {}) };
+
+      // If there are user-locked comments on the existing item, never drop them.
+      if (
+        existing &&
+        Array.isArray(existing.comments) &&
+        existing.comments.some((c: any) => (c as any)?.is_locked)
+      ) {
+        const prevComments = existing.comments as any[];
+        const lockedComments = prevComments.filter((c: any) => (c as any)?.is_locked);
+        const newComments = Array.isArray((r as any)?.comments) ? ((r as any).comments as any[]) : [];
+        if (lockedComments.length) {
+          // Simple merge: keep all locked comments first, then append new ones.
+          const mergedComments: any[] = [...lockedComments];
+
+          for (const nc of newComments) {
+            const text = String((nc as any)?.text ?? "").trim().toLowerCase();
+            if (!text) {
+              mergedComments.push(nc);
+              continue;
+            }
+            const dup = mergedComments.some((c: any) => {
+              const t2 = String((c as any)?.text ?? "").trim().toLowerCase();
+              return t2 && t2 === text;
+            });
+            if (!dup) mergedComments.push(nc);
+          }
+
+          merged.comments = mergedComments;
+        }
+      }
 
       // Preserve timeline + versions (frontend-only) across updates.
       if (existing?.timeline) merged.timeline = existing.timeline;
@@ -824,6 +895,7 @@ async function queueRunOffline(requestUrls: string[]) {
 
     queueCancelRef.current = false;
     runStartedAtRef.current = Date.now();
+    logMetric("run_started", { url_count: allUrls.length });
     setError("");
     setLoading(true);
     setStage("fetching");
@@ -933,6 +1005,8 @@ const request: RunRequestSnapshot = {
       updateAvgMsPerUrl(Date.now() - (runStartedAtRef.current || Date.now()), allUrls.length);
       completedOk = true;
 
+  const elapsedMs = runStartedAtRef.current ? Date.now() - runStartedAtRef.current : undefined;
+        logMetric("run_completed", { url_count: allUrls.length, ok_count: okCount, failed_count: failedCount, duration_ms: elapsedMs });
       setStage("done");
       toast.success(`Generation finished (${okCount} ok${failedCount ? `, ${failedCount} failed` : ""})`);
 
@@ -969,6 +1043,7 @@ const request: RunRequestSnapshot = {
       });
     } catch (e: any) {
       if (e?.name === "AbortError") {
+        logMetric("run_cancelled", { reason: "abort_error" });
         if (!suppressAbortRef.current) setError("Generation cancelled.");
         suppressAbortRef.current = false;
         setStage("idle");
@@ -1048,6 +1123,7 @@ setFailStreak((prev) => {
   }
 
   function cancelRun() {
+    logMetric("run_cancelled", { reason: "user_cancel" });
     suppressAbortRef.current = false;
     queueCancelRef.current = true;
     try { toast("Canceled"); } catch {}
@@ -1202,6 +1278,7 @@ setFailStreak((prev) => {
   }
 
   async function rerollUrl(url: string) {
+    logMetric("reroll_clicked", { url_present: Boolean(url) });
     addTimelineEvent(url, "rerolled");
     await runQueue([url]);
   }
@@ -1273,6 +1350,7 @@ setFailStreak((prev) => {
   }
 
   function onCopied(text: string, url?: string) {
+    logMetric("variant_copied", { has_url: Boolean(url) });
     if (url) addTimelineEvent(url, "copied");
     const rec: ClipboardRecord = {
       id: nowId("clip"),
@@ -1300,12 +1378,33 @@ setFailStreak((prev) => {
     setAuthToken("");
   }
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!loading) {
+          onGenerate();
+        }
+      } else if (e.key === "Escape") {
+        if (loading) {
+          e.preventDefault();
+          cancelRun();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [loading, onGenerate, cancelRun]);
+
   return (
     <div className="min-h-screen pb-28">
       <WelcomePopup />
       <OnboardingTour />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
       <PerfPanel />
+      <RunTimingsPanelLazy items={items} />
       {showRenderProfiler ? <RenderProfilerPanelLazy /> : null}
 
       <SignupGate
@@ -1363,7 +1462,8 @@ setFailStreak((prev) => {
                 onSort={() => setRaw(sortUrlsInRaw(raw))}
                 onCleanInvalid={() => setRaw(cleanInvalidInRaw(raw))}
                 onShuffle={() => setRaw(shuffleUrlsInRaw(raw))}
-              />
+                      onLoadDemo={loadDemoRun}
+/>
             ) : (
               <Card>
                 <CardHeader>
@@ -1416,6 +1516,9 @@ setFailStreak((prev) => {
               setFastMode={setFastMode}
               qualityMode={qualityMode}
               setQualityMode={setQualityMode}
+              sessionPresets={sessionPresets}
+              onSavePreset={saveCurrentAsPreset}
+              onApplyPreset={applySessionPreset}
               preset={preset}
               setPreset={setPreset}
               voice={voice}
@@ -1435,6 +1538,7 @@ setFailStreak((prev) => {
 
         <Results
           items={items}
+          isDemoRun={isDemoRun}
           runId={runId}
           onRerollUrl={rerollUrl}
           onRetryUrl={(u) => runQueue([u])}
@@ -1446,6 +1550,7 @@ setFailStreak((prev) => {
             setError("");
           }}
           onCopy={onCopied}
+          onUpdateCommentMeta={updateCommentMeta}
           loading={loading}
           queueTotal={queueTotal}
           queueDone={queueDone}
@@ -1453,6 +1558,10 @@ setFailStreak((prev) => {
           runDone={runDone}
           runOk={runOk}
           runCancelled={runCancelled}
+          qualityMode={qualityMode}
+          langEn={langEn}
+          langNative={langNative}
+          nativeLang={nativeLang}
         />
 
         
@@ -1512,6 +1621,12 @@ setFailStreak((prev) => {
               setItems(r.results);
               setRunId(r.id);
               setError("");
+              if (typeof window !== "undefined") {
+                window.scrollTo({
+                  top: 0,
+                  behavior: prefersReducedMotion() ? "auto" : "smooth",
+                });
+              }
             }}
             onRemove={(id) => setRuns((prev) => prev.filter((r) => r.id !== id))}
             onShare={prefs?.enableShareLinks ? (id) => {
@@ -1613,4 +1728,49 @@ setFailStreak((prev) => {
       />
     </div>
   );
+const saveCurrentAsPreset = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const name = window.prompt("Preset name?");
+    if (!name) return;
+    const preset: SessionPreset = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim(),
+      createdAt: Date.now(),
+      config: {
+        langEn,
+        langNative,
+        nativeLang,
+        tone,
+        intent,
+        qualityMode,
+        includeAlternates,
+        fastMode,
+        voice,
+      },
+    };
+    setSessionPresets((prev) => {
+      const next = [preset, ...prev].slice(0, 20);
+      saveSessionPresets(next);
+      return next;
+    });
+  }, [langEn, langNative, nativeLang, tone, intent, qualityMode, includeAlternates, fastMode, voice]);
+
+  const applySessionPreset = useCallback(
+    (id: string) => {
+      const p = sessionPresets.find((sp) => sp.id === id);
+      if (!p) return;
+      const { config } = p;
+      setLangEn(config.langEn);
+      setLangNative(config.langNative);
+      setNativeLang(config.nativeLang);
+      setTone(config.tone as any);
+      setIntent(config.intent as any);
+      setQualityMode(config.qualityMode);
+      setIncludeAlternates(config.includeAlternates);
+      setFastMode(config.fastMode);
+      setVoice(config.voice);
+    },
+    [sessionPresets]
+  );
+
 }

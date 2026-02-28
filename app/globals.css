@@ -687,3 +687,41 @@ html[data-fx="lite"] .ct-border-spin {
   transform: none !important;
   filter: none !important;
 }
+
+
+/* Motion & accessibility: soft transitions only on opted elements.
+   Used on pipeline, cards, and key chrome that should feel smooth but not heavy. */
+.ct-anim-soft {
+  transition-property: opacity, transform, box-shadow, background-color, border-color;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-anim-soft {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+/* High contrast mode overrides */
+
+html[data-high-contrast="1"] {
+  --ct-bg: #020617;
+  --ct-surface: rgba(15, 23, 42, 0.98);
+  --ct-surface-elevated: rgba(15, 23, 42, 1);
+  --ct-border: rgba(148, 163, 184, 0.7);
+  --ct-text: rgba(248, 250, 252, 0.98);
+  --ct-text-muted: rgba(148, 163, 184, 0.95);
+}
+
+html[data-high-contrast="1"] body {
+  background-color: var(--ct-bg);
+  color: var(--ct-text);
+}
+
+html[data-high-contrast="1"] .ct-card-surface {
+  background-color: var(--ct-surface-elevated);
+  border-color: var(--ct-border);
+}
