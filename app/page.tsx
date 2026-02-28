@@ -170,6 +170,10 @@ export default function Home() {
   const [stage, setStage] = useState<Stage>("idle");
   const [queueTotal, setQueueTotal] = useState(0);
   const [queueDone, setQueueDone] = useState(0);
+  const [runTotal, setRunTotal] = useState(0);
+  const [runDone, setRunDone] = useState(0);
+  const [runOk, setRunOk] = useState(0);
+  const [runCancelled, setRunCancelled] = useState(false);
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const suppressAbortRef = useRef(false);
@@ -347,22 +351,42 @@ const genMutation = useMutation({
       authToken,
       vars.signal,
 (u) => {
+  // StreamUpdate handler: keep queue and run summary in sync with backend events.
   if (u.type === "meta") {
     if (u.run_id) setRunId(u.run_id);
-    // If backend reports batch size / dedupe info, reflect that.
-    if (typeof (u as any).total === "number" && (u as any).total > 0) {
-      setQueueTotal((u as any).total);
+    const total = (u as any).total;
+    if (typeof total === "number" && total > 0) {
+      // Initialize queue + run summary on first meta.
+      setQueueTotal(total);
+      setQueueDone(0);
+      setRunTotal(total);
+      setRunDone(0);
+      setRunOk(0);
+      setRunCancelled(false);
+      // Enter fetching stage as soon as we know there is work.
+      advanceStage("fetching");
     }
+    return;
   }
+
   if (u.type === "status") {
     const s = String((u as any).stage || "");
+    const total = (u as any).total;
+    const done = (u as any).done;
+
     // Prefer explicit progress numbers from the stream when available.
-    if (typeof (u as any).total === "number" && (u as any).total >= 0) {
-      setQueueTotal((u as any).total);
+    if (typeof total === "number" && total >= 0) {
+      setQueueTotal(total);
+      setRunTotal(total);
     }
-    if (typeof (u as any).done === "number" && (u as any).done >= 0) {
-      startTransition(() => setQueueDone((u as any).done));
+    if (typeof done === "number" && done >= 0) {
+      startTransition(() => {
+        setQueueDone(done);
+        setRunDone(done);
+      });
     }
+
+    // Map backend stages to coarse UI stages.
     if (s === "fetching" || s === "extracting") {
       advanceStage("fetching");
     } else if (s === "generating") {
@@ -372,11 +396,39 @@ const genMutation = useMutation({
     } else if (s === "finalizing") {
       advanceStage("finalizing");
     }
+    return;
   }
+
   if (u.type === "result") {
+    // Merge each per-URL result into the list as it arrives.
     startTransition(() => {
       setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
     });
+    return;
+  }
+
+  if (u.type === "done") {
+    const total = (u as any).total;
+    const done = (u as any).done;
+    const ok = (u as any).ok_count;
+    const cancelled = Boolean((u as any).cancelled);
+
+    if (typeof total === "number" && total >= 0) {
+      setQueueTotal(total);
+      setRunTotal(total);
+    }
+    if (typeof done === "number" && done >= 0) {
+      setQueueDone(done);
+      setRunDone(done);
+    }
+    if (typeof ok === "number" && ok >= 0) {
+      setRunOk(ok);
+    }
+    setRunCancelled(cancelled);
+    // Let the batch runner flip us to "done"; here we just ensure
+    // the visual pipeline is in its final segment.
+    advanceStage("finalizing");
+    return;
   }
 }
     );
@@ -777,6 +829,10 @@ async function queueRunOffline(requestUrls: string[]) {
     setStage("fetching");
     setQueueTotal(allUrls.length);
     setQueueDone(0);
+    setRunTotal(allUrls.length);
+    setRunDone(0);
+    setRunOk(0);
+    setRunCancelled(false);
     activeRunOrderRef.current = allUrls;
     // Optimistic placeholders (skeleton cards) so the UI feels instant.
     setItems(
@@ -837,7 +893,15 @@ async function queueRunOffline(requestUrls: string[]) {
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
       const failedCount = combined.filter((i) => i.status === "error").length;
-      const request: RunRequestSnapshot = {
+      
+// Ensure run summary reflects the final state, even if the backend
+// did not emit a `done` event (e.g., non-streaming fallback).
+setRunTotal(allUrls.length);
+setRunDone(allUrls.length);
+setRunOk(okCount);
+setRunCancelled(false);
+
+const request: RunRequestSnapshot = {
         mode: "urls",
         urls: allUrls,
         langEn,
@@ -1014,6 +1078,10 @@ setFailStreak((prev) => {
     setStage("idle");
     setQueueTotal(0);
     setQueueDone(0);
+    setRunTotal(0);
+    setRunDone(0);
+    setRunOk(0);
+    setRunCancelled(false);
   }
 
   async function onGenerate() {
@@ -1381,6 +1449,10 @@ setFailStreak((prev) => {
           loading={loading}
           queueTotal={queueTotal}
           queueDone={queueDone}
+          runTotal={runTotal}
+          runDone={runDone}
+          runOk={runOk}
+          runCancelled={runCancelled}
         />
 
         
