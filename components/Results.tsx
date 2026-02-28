@@ -11,7 +11,6 @@ import { LS, lsGet } from "@/lib/storage";
 import { shouldReduceEffects, type FxMode } from "@/lib/motion";
 import { translate, useUiLang } from "@/lib/i18n";
 import ResultCard from "./ResultCard";
-import VirtualResultList from "./VirtualResultList";
 
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -151,9 +150,6 @@ const totalUrls = items.length;
 
   const exportText = useMemo(() => {
     const lines: string[] = [];
-
-  const useVirtualList = displayItems.length > 24;
-
     for (const it of items) {
       if (!it.comments || !it.comments.length) continue;
       lines.push(`URL: ${it.url}`);
@@ -433,40 +429,28 @@ const totalUrls = items.length;
         </div>
       ) : null}
 
-      {useVirtualList ? (
-        <VirtualResultList
-          items={displayItems}
-          onRerollUrl={onRerollUrl}
-          onCopy={onCopy}
-        />
-      ) : (
-        displayItems.map((it, idx) => {
-          const sim = similarMap.get(it.url);
-          const spam = spamMap.get(it.url) || null;
-          const delay = idx * 0.03;
-          return (
-            <motion.div
-              key={it.url}
-              initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
-              animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
-              transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
-            >
-              <ResultCard
-                item={it}
-                onReroll={() => onRerollUrl(it.url)}
-                onCopy={onCopy}
-                onRetry={
-                  it.status !== "ok" && it.status !== "pending"
-                    ? () => onRetryUrl(it.url)
-                    : undefined
-                }
-                warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
-                warnSpam={spam}
-              />
-            </motion.div>
-          );
-        })
-      )}
+      {displayItems.map((it, idx) => {
+        const sim = similarMap.get(it.url);
+        const spam = spamMap.get(it.url) || null;
+        const delay = idx * 0.03;
+        return (
+          <motion.div
+            key={it.url}
+            initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
+            animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
+            transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
+          >
+            <ResultCard
+              item={it}
+              onReroll={() => onRerollUrl(it.url)}
+              onCopy={onCopy}
+              onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
+              warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
+              warnSpam={spam}
+            />
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
