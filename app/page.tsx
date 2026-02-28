@@ -41,6 +41,8 @@ import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from
 import { nowId } from "@/lib/persist";
 import { idbGet, idbSet } from "@/lib/idb";
 import { loadPrefs, savePrefs, type UserPrefs } from "@/lib/prefs";
+import type { SessionPreset } from "@/lib/sessionPresets";
+import { loadSessionPresets, saveSessionPresets } from "@/lib/sessionPresets";
 import { useUndoStack } from "@/lib/useUndoStack";
 import { useOnline } from "@/lib/useOnline";
 import { broadcast, onBroadcast } from "@/lib/syncChannel";
