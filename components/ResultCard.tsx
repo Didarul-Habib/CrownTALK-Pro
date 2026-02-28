@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { RotateCcw, Copy, ExternalLink, Check } from "lucide-react";
 import type { ResultItem } from "@/lib/types";
@@ -49,7 +49,7 @@ function getDisplayUrl(item: ResultItem): string | undefined {
 }
 
 
-function ResultCard({
+export default function ResultCard({
   item,
   onReroll,
   onCopy,
@@ -437,5 +437,3 @@ function cancelLongPress() {
     </div>
   );
 }
-
-export default memo(ResultCard);

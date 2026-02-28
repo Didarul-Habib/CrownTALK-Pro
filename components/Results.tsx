@@ -128,8 +128,6 @@ const totalUrls = items.length;
   }, [displayItemsDedup, loading, showFailedCards]);
 
 
-  const useVirtualList = displayItems.length > 24;
-
   const [canAnimateCards, setCanAnimateCards] = useState(true);
   useEffect(() => {
     try {
@@ -153,6 +151,9 @@ const totalUrls = items.length;
 
   const exportText = useMemo(() => {
     const lines: string[] = [];
+
+  const useVirtualList = displayItems.length > 24;
+
     for (const it of items) {
       if (!it.comments || !it.comments.length) continue;
       lines.push(`URL: ${it.url}`);
