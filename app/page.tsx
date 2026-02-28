@@ -31,10 +31,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { translate, useUiLang } from "@/lib/i18n";
 import { parseUrls } from "@/lib/validate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
+import { ApiError, logout as apiLogout } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
-import type { GenerateResponse, Intent, ResultItem, Tone, QualityMode } from "@/lib/types";
+import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
 import type { TimelineStage } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
 import { nowId } from "@/lib/persist";
@@ -96,12 +96,6 @@ export default function Home() {
   const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
   const [fastMode, setFastMode] = useState(false);
-  const [qualityMode, setQualityMode] = useState<QualityMode>("balanced");
-
-  // Quality mode is the primary UX control; keep the legacy fast flag in sync for older backends.
-  useEffect(() => {
-    setFastMode(qualityMode === "fast");
-  }, [qualityMode]);
   const [preset, setPreset] = useState<string>("auto");
   const [voice, setVoice] = useState<number>(1);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
@@ -173,148 +167,7 @@ export default function Home() {
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const suppressAbortRef = useRef(false);
-  const runStartedAtRef = useRef(0);
   const queueCancelRef = useRef(false);
-
-  // Expose queue metrics for lightweight UI components (e.g., ProgressStepper) without widening props.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    (window as any).__ct_queueTotal = queueTotal;
-    (window as any).__ct_queueDone = queueDone;
-  }, [queueTotal, queueDone]);
-
-  // Keep the current run's canonical order so we can safely merge results without
-  // duplicating cards (prevents the "10 urls for a 5-url run" bug).
-  const activeRunOrderRef = useRef<string[]>([]);
-
-  const STAGE_ORDER: Record<Stage, number> = {
-    idle: 0,
-    fetching: 1,
-    generating: 2,
-    polishing: 3,
-    finalizing: 4,
-    done: 5,
-  };
-
-  function advanceStage(next: Stage) {
-    setStage((prev) => (STAGE_ORDER[next] > STAGE_ORDER[prev] ? next : prev));
-  }
-
-  function extractStatusId(u: string): string | null {
-    const s = String(u || "");
-    const m = s.match(/\/status\/(\d{5,})/);
-    return m?.[1] || null;
-  }
-
-  function stageFromProgress(done: number, total: number): Stage {
-    if (!total || total <= 0) return "generating";
-    const p = Math.max(0, Math.min(1, done / total));
-    if (p <= 0.08) return "fetching";
-    if (p < 0.78) return "generating";
-    if (p < 0.96) return "polishing";
-    return "finalizing";
-  }
-
-
-  function updateAvgMsPerUrl(durationMs: number, urlCount: number) {
-    try {
-      if (!urlCount || urlCount <= 0) return;
-      const perUrl = Math.max(1500, Math.round(durationMs / urlCount));
-      const prevRaw = lsGet(LS.avgMsPerUrl, "");
-      const prev = prevRaw ? Number(prevRaw) : NaN;
-      const next = Number.isFinite(prev) ? Math.round(prev * 0.75 + perUrl * 0.25) : perUrl;
-      // Clamp to sane bounds (ms/url) so one weird run does not ruin the UX.
-      const clamped = Math.max(3000, Math.min(60000, next));
-      lsSet(LS.avgMsPerUrl, String(clamped));
-    } catch {
-      // ignore
-    }
-  }
-
-  function mergeIncomingResults(prev: ResultItem[], incoming: ResultItem[]) {
-    const order = activeRunOrderRef.current || [];
-    const orderSet = new Set(order);
-    const byId = new Map<string, string>();
-    for (const u of order) {
-      const id = extractStatusId(u);
-      if (id) byId.set(id, u);
-    }
-
-    const map = new Map<string, ResultItem>();
-    for (const p of prev) {
-      const key = ((p as any).input_url || p.url) as string;
-      map.set(key, p);
-    }
-
-    for (const r of incoming || []) {
-      const rInput = String((r as any)?.input_url || "").trim();
-      const rUrl = String((r as any)?.url || "").trim();
-      let key = rInput || rUrl;
-
-      // If the backend rewrites display URLs (e.g., /i/status -> /handle/status),
-      // map by tweet_id as a fallback.
-      if (key && !orderSet.has(key)) {
-        const rid =
-          ((r as any)?.tweet_id ? String((r as any).tweet_id) : "") ||
-          extractStatusId(rInput) ||
-          extractStatusId(rUrl);
-        if (rid && byId.has(rid)) key = byId.get(rid)!;
-      }
-
-      const existing = map.get(key);
-      const merged: any = { ...(existing || {}), ...(r || {}) };
-
-      // Preserve timeline + versions (frontend-only) across updates.
-      if (existing?.timeline) merged.timeline = existing.timeline;
-      if ((existing as any)?.versions) merged.versions = (existing as any).versions;
-
-      // Track versions for rerolls / overwrites.
-      if (
-        existing?.status === "ok" &&
-        existing.comments?.length &&
-        (r as any)?.status === "ok" &&
-        (r as any)?.comments?.length
-      ) {
-        const versions = [...(((existing as any).versions as any[]) || [])];
-        if (!versions.length) {
-          versions.push({ at: Date.now(), label: "original", comments: existing.comments });
-        }
-        versions.push({ at: Date.now(), label: "reroll", comments: (r as any).comments || [] });
-        merged.versions = versions;
-      }
-
-      // Stabilize keys.
-      const stableInput = (existing as any)?.input_url || rInput || key;
-      merged.input_url = stableInput;
-      merged.url = rUrl || existing?.url || stableInput;
-      merged.status = (r as any)?.status || existing?.status || "ok";
-
-      map.set(key, merged as ResultItem);
-    }
-
-    // Output in stable order first.
-    const out: ResultItem[] = [];
-    const seen = new Set<string>();
-    for (const u of order) {
-      const it = map.get(u);
-      if (it) {
-        out.push({ ...it, input_url: (it as any).input_url || u, url: it.url || u } as any);
-        seen.add(u);
-      }
-    }
-    for (const [k, it] of map.entries()) {
-      if (seen.has(k)) continue;
-      out.push({ ...it, input_url: (it as any).input_url || k, url: it.url || k } as any);
-    }
-
-    // Final de-dupe by stable key.
-    const finalMap = new Map<string, ResultItem>();
-    for (const it of out) {
-      const k = ((it as any).input_url || it.url) as string;
-      if (!finalMap.has(k)) finalMap.set(k, it);
-    }
-    return Array.from(finalMap.values());
-  }
 
 const genMutation = useMutation({
   mutationFn: async (vars: { requestUrls: string[]; signal?: AbortSignal }) => {
@@ -329,11 +182,7 @@ const genMutation = useMutation({
         intent: intent === "auto" ? undefined : intent,
         voice,
         include_alternates: includeAlternates,
-        // Preferred quality mode; backend falls back to "balanced" when omitted.
-        quality_mode: qualityMode,
-        // Legacy flags for backwards compatibility with older backends.
-        fast: qualityMode === "fast" || fastMode,
-        pro_mode: qualityMode === "pro",
+        fast: fastMode,
         preset: preset !== "auto" ? preset : undefined,
         // Preferred output language for the primary generation pass.
         // When Native is on, let the backend auto-detect from the tweet unless user picked a specific code.
@@ -346,39 +195,40 @@ const genMutation = useMutation({
       token,
       authToken,
       vars.signal,
-(u) => {
-  if (u.type === "meta") {
-    if (u.run_id) setRunId(u.run_id);
-    // If backend reports batch size / dedupe info, reflect that.
-    if (typeof (u as any).total === "number" && (u as any).total > 0) {
-      setQueueTotal((u as any).total);
-    }
-  }
-  if (u.type === "status") {
-    const s = String((u as any).stage || "");
-    // Prefer explicit progress numbers from the stream when available.
-    if (typeof (u as any).total === "number" && (u as any).total >= 0) {
-      setQueueTotal((u as any).total);
-    }
-    if (typeof (u as any).done === "number" && (u as any).done >= 0) {
-      startTransition(() => setQueueDone((u as any).done));
-    }
-    if (s === "fetching" || s === "extracting") {
-      advanceStage("fetching");
-    } else if (s === "generating") {
-      advanceStage("generating");
-    } else if (s === "polishing") {
-      advanceStage("polishing");
-    } else if (s === "finalizing") {
-      advanceStage("finalizing");
-    }
-  }
-  if (u.type === "result") {
-    startTransition(() => {
-      setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
-    });
-  }
-}
+      (u) => {
+        if (u.type === "meta" && u.run_id) setRunId(u.run_id);
+        if (u.type === "result") {
+          startTransition(() => {
+            setItems((prev) => {
+              const byUrl = new Map<string, any>();
+              for (const p of prev) {
+                byUrl.set(p.input_url || p.url, p);
+                byUrl.set(p.url, p);
+              }
+              const key = (u.item as any).input_url || u.item.url;
+              const p = byUrl.get(key) || byUrl.get(u.item.url);
+              const nextItem = { ...(p || u.item), ...u.item, input_url: (u.item as any).input_url || (p as any)?.input_url || undefined, status: u.item.status || "ok" };
+              // versions: keep original before overwrite
+              if (p?.status === "ok" && p.comments?.length && u.item.status === "ok" && u.item.comments?.length) {
+                const versions = [...(p.versions || [])];
+                if (!versions.length) versions.push({ at: Date.now(), label: "original", comments: p.comments });
+                versions.push({ at: Date.now(), label: "reroll", comments: u.item.comments || [] });
+                (nextItem as any).versions = versions;
+              }
+              let found = false;
+              const mapped = prev.map((x) => {
+                const xKey = (x as any).input_url || x.url;
+                if (x.url === u.item.url || xKey === key || (x as any).input_url === key) {
+                  found = true;
+                  return nextItem;
+                }
+                return x;
+              });
+              return found ? mapped : [...mapped, nextItem];
+            });
+          });
+        }
+      }
     );
   },
   retry: 0,
@@ -750,15 +600,36 @@ async function queueRunOffline(requestUrls: string[]) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    startPipeline();
+
     const resp: GenerateResponse = await genMutation.mutateAsync({ requestUrls, signal: controller.signal });
 
     const results = resp.results || [];
     const rid = resp.meta?.run_id || nowId("run");
-    // Keep the runId stable across batches.
-    setRunId((prev) => prev || rid);
-
-    // Robust merge (dedupes by input_url / tweet_id and preserves the requested order).
-    setItems((prev) => mergeIncomingResults(prev, results as any));
+    setRunId(rid);
+    setItems((prev) => {
+      const byKey = new Map<string, any>();
+      for (const r of results as any[]) {
+        const key = (r as any).input_url || r.url;
+        if (key) byKey.set(key, r);
+        if (r.url) byKey.set(r.url, r);
+      }
+      // Replace placeholders / older entries in-place to keep list stable.
+      const next = prev.map((p: any) => {
+        const pKey = (p as any).input_url || p.url;
+        return byKey.get(pKey) || byKey.get(p.url) || p;
+      });
+      // Append any truly new URLs (shouldn't happen, but safe).
+      for (const r of results as any[]) {
+        const rKey = (r as any).input_url || r.url;
+        const exists = prev.some((p: any) => {
+          const pKey = (p as any).input_url || p.url;
+          return pKey === rKey || p.url === r.url || (p as any).input_url === r.url || (r as any).input_url === p.url;
+        });
+        if (!exists) next.push(r);
+      }
+      return opts.append ? next : (results as any);
+    });
     return { results, rid };
   }
 
@@ -771,25 +642,13 @@ async function queueRunOffline(requestUrls: string[]) {
     }
 
     queueCancelRef.current = false;
-    runStartedAtRef.current = Date.now();
     setError("");
     setLoading(true);
     setStage("fetching");
     setQueueTotal(allUrls.length);
     setQueueDone(0);
-    activeRunOrderRef.current = allUrls;
     // Optimistic placeholders (skeleton cards) so the UI feels instant.
-    setItems(
-      allUrls.map((url) => ({
-        url,
-        input_url: url,
-        status: "pending" as const,
-        comments: [],
-        reason: "Generating…",
-        in_last_run: true,
-        timeline: [{ at: Date.now(), stage: "queued" as const }],
-      })) as any,
-    );
+    setItems(allUrls.map((url) => ({ url, status: "pending" as const, reason: "Generating…", timeline: [{ at: Date.now(), stage: "queued" as const }] })));
     setRunId("");
 
     const BATCH_SIZE = 6;
@@ -801,42 +660,27 @@ async function queueRunOffline(requestUrls: string[]) {
       toast(`Queued ${batches.length} batches (${allUrls.length} URLs)`);
     }
 
-    let combined: ResultItem[] = allUrls.map((url) => ({
-      url,
-      input_url: url,
-      status: "pending" as const,
-      comments: [],
-      reason: "Generating…",
-      in_last_run: true,
-    })) as any;
+    let combined: ResultItem[] = [];
     let lastRid = "";
-    let runIdLocal = "";
-    let doneSoFar = 0;
-    let completedOk = false;
 
     try {
       for (let bi = 0; bi < batches.length; bi++) {
         if (queueCancelRef.current) throw Object.assign(new Error("Queue canceled"), { name: "AbortError" });
         const batch = batches[bi];
         toast(`Generating batch ${bi + 1}/${batches.length}…`);
-        advanceStage("generating");
         addTimelineMany(batch, "sending");
 
         const { results, rid } = await generateOneBatch(batch, { append: true });
         lastRid = rid;
-        if (!runIdLocal && rid) runIdLocal = rid;
-        combined = mergeIncomingResults(combined, results as any);
-        doneSoFar = Math.min(allUrls.length, doneSoFar + batch.length);
-        const stageGuess = stageFromProgress(doneSoFar, allUrls.length);
-        advanceStage(stageGuess);
-        startTransition(() => setQueueDone(doneSoFar));
+        combined = [...combined, ...results];
+        startTransition(() => setQueueDone((prev) => Math.min(allUrls.length, prev + batch.length)));
         // Mark received/failed
         for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
       }
 
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
-      const failedCount = combined.filter((i) => i.status === "error").length;
+      const failedCount = combined.filter((i) => i.status !== "ok").length;
       const request: RunRequestSnapshot = {
         mode: "urls",
         urls: allUrls,
@@ -848,7 +692,7 @@ async function queueRunOffline(requestUrls: string[]) {
         includeAlternates,
       };
       const record: RunRecord = {
-        id: runIdLocal || lastRid || nowId("run"),
+        id: lastRid || nowId("run"),
         mode: "urls",
         at: Date.now(),
         request,
@@ -866,9 +710,6 @@ async function queueRunOffline(requestUrls: string[]) {
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
 
-      updateAvgMsPerUrl(Date.now() - (runStartedAtRef.current || Date.now()), allUrls.length);
-      completedOk = true;
-
       setStage("done");
       toast.success(`Generation finished (${okCount} ok${failedCount ? `, ${failedCount} failed` : ""})`);
 
@@ -879,29 +720,10 @@ async function queueRunOffline(requestUrls: string[]) {
         } catch {}
       }
 
-      // Auto-scroll to results (mobile only, and only if results are off-screen).
+      // Auto-scroll to results
       window.requestAnimationFrame(() => {
         const el = document.getElementById("ct-results");
-        if (!el) return;
-
-        const active = document.activeElement as HTMLElement | null;
-        // Don't scroll if the user is typing in any input/textarea (including the URL box).
-        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
-        const inputRoot = document.getElementById("ct-url-input");
-        if (active && inputRoot && inputRoot.contains(active)) return;
-
-        // On larger screens keep the controls in view; avoid surprising jumps.
-        if (window.innerWidth >= 768) return;
-
-        const rect = el.getBoundingClientRect();
-        const viewportH = window.innerHeight || 0;
-        // Only nudge the view if the results panel is mostly below the fold.
-        if (rect.top > viewportH * 0.75) {
-          el.scrollIntoView({
-            behavior: prefersReducedMotion() ? "auto" : "smooth",
-            block: "start",
-          });
-        }
+        el?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
       });
     } catch (e: any) {
       if (e?.name === "AbortError") {
@@ -931,14 +753,6 @@ setFailStreak((prev) => {
       const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
       const code = e?.body?.code;
 
-      // Run lock conflicts: surface a clear, non-fatal message.
-      if (status === 409 || code === "run_conflict") {
-        try {
-          toast.error("A run is already active. Cancel it first.");
-        } catch {}
-        return;
-      }
-
       if (
         status === 401 ||
         code === "missing_auth" ||
@@ -965,19 +779,17 @@ setFailStreak((prev) => {
       clearTimers();
       // If a run fails or is cancelled mid-way, mark any remaining pending
       // cards as errors so the shimmer skeleton disappears and the user can retry.
-      if (!completedOk) {
-        setItems((prev) =>
-          prev.map((it) =>
-            it.status === "pending" && (!it.comments || it.comments.length === 0)
-              ? {
-                  ...it,
-                  status: "error",
-                  reason: queueCancelRef.current ? "Cancelled." : "No comment generated (run did not complete).",
-                }
-              : it,
-          ),
-        );
-      }
+      setItems((prev) =>
+        prev.map((it) =>
+          it.status === "pending" && (!it.comments || it.comments.length === 0)
+            ? {
+                ...it,
+                status: "error",
+                reason: "No comment generated (run did not complete).",
+              }
+            : it,
+        ),
+      );
       setLoading(false);
       window.setTimeout(() => setStage("idle"), 1600);
     }
@@ -989,14 +801,7 @@ setFailStreak((prev) => {
     try { toast("Canceled"); } catch {}
     clearTimers();
     setStage("idle");
-    // Abort the local fetch stream.
     abortRef.current?.abort();
-    // Best-effort server-side cancellation so the backend stops work early.
-    try {
-      cancelActiveRun(baseUrl, runId || null, token, authToken);
-    } catch {
-      // Ignore cancellation errors; this is best-effort.
-    }
     setQueueTotal(0);
     setQueueDone(0);
   }
@@ -1141,8 +946,8 @@ setFailStreak((prev) => {
   const failedUrls = useMemo(() => {
     const out: string[] = [];
     for (const it of items) {
-      // Only count true failures ("pending" is not a failure).
-      if (it.status === "error") out.push(((it as any).input_url || it.url) as string);
+      // ResultItem doesn't have a boolean `ok`; success is encoded in `status`.
+      if (it.status !== "ok") out.push(it.url);
     }
     return out;
   }, [items]);
@@ -1285,10 +1090,6 @@ setFailStreak((prev) => {
               <UrlInput
                 value={raw}
                 onChange={setRaw}
-                onUndo={rawStack.undo}
-                onRedo={rawStack.redo}
-                canUndo={rawStack.canUndo}
-                canRedo={rawStack.canRedo}
                 selected={selectedUrls}
                 onSelectedChange={setSelectedUrls}
                 helper={`${urls.length} valid URL${urls.length === 1 ? "" : "s"} detected`}
@@ -1346,8 +1147,6 @@ setFailStreak((prev) => {
               setIncludeAlternates={setIncludeAlternates}
               fastMode={fastMode}
               setFastMode={setFastMode}
-              qualityMode={qualityMode}
-              setQualityMode={setQualityMode}
               preset={preset}
               setPreset={setPreset}
               voice={voice}
@@ -1481,62 +1280,6 @@ setFailStreak((prev) => {
       </main>
 
       <Footer />
-
-      {/* Mobile UX: bottom action bar + sheets (previously not wired, so buttons appeared to do nothing). */}
-      <MobileControlsSheet
-        open={mobileControlsOpen}
-        onOpenChange={setMobileControlsOpen}
-        langEn={langEn}
-        setLangEn={setLangEn}
-        langNative={langNative}
-        setLangNative={setLangNative}
-        nativeLang={nativeLang}
-        setNativeLang={setNativeLang}
-        tone={tone}
-        setTone={setTone}
-        intent={intent}
-        setIntent={setIntent}
-        includeAlternates={includeAlternates}
-        setIncludeAlternates={setIncludeAlternates}
-        fastMode={fastMode}
-        setFastMode={setFastMode}
-        preset={preset}
-        setPreset={setPreset}
-        voice={voice}
-        setVoice={setVoice}
-        baseUrl={baseUrl}
-        onGenerate={onGenerate}
-        onCancel={cancelRun}
-        onClear={clearAll}
-        loading={loading}
-        clearDisabled={(!raw.trim() && !items.length && !error) || loading}
-      />
-
-      <MobilePresetsSheet
-        open={mobilePresetsOpen}
-        onOpenChange={setMobilePresetsOpen}
-        preset={preset}
-        setPreset={setPreset}
-        voice={voice}
-        setVoice={setVoice}
-      />
-
-      <MobileActionBar
-        loading={loading}
-        canGenerate={
-          canGenerate &&
-          (inputMode === "urls"
-            ? (selectedUrls.length ? selectedUrls.length > 0 : urls.length > 0)
-            : !!sourceUrl.trim())
-        }
-        onGenerate={onGenerate}
-        onOpenControls={() => setMobileControlsOpen(true)}
-        onOpenPresets={() => setMobilePresetsOpen(true)}
-        onOpenHistory={() => {
-          const el = document.getElementById("ct-history");
-          el?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
-        }}
-      />
     </div>
   );
 }
