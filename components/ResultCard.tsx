@@ -226,7 +226,7 @@ function cancelLongPress() {
         </div>
       ) : null}
 
-      {item.status === "pending" && !(item.comments && item.comments.length) ? null : (
+            {item.status === "pending" && !(item.comments && item.comments.length) ? null : (
         <>
           {(item.comments || []).map((c: any, idx: number) => {
             const key = `c-${idx}`;
@@ -239,6 +239,7 @@ function cancelLongPress() {
                 : undefined;
             const quality = getQualityInfo(currentText, { lang_native: (item as any).lang_native });
             const badges = quality.badges.slice(0, 3);
+
             return (
               <div
                 key={idx}
@@ -356,81 +357,81 @@ function cancelLongPress() {
                     </button>
                   </div>
                 </div>
-  </div>
 
-  {actionsKey === key && (
-    <div
-      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40"
-      onClick={() => setActionsKey("")}
-    >
-      <div
-        className="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-[color:var(--ct-surface)] border border-[color:var(--ct-border)] p-4 space-y-2 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-xs font-semibold opacity-80 mb-2">Actions</div>
+                {actionsKey === key && (
+                  <div
+                    className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40"
+                    onClick={() => setActionsKey("")}
+                  >
+                    <div
+                      className="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-[color:var(--ct-surface-elevated)] border border-[color:var(--ct-border)] p-4 space-y-2 shadow-xl"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="text-xs font-semibold opacity-80 mb-2">Actions</div>
 
-        <button
-          type="button"
-          className="ct-btn ct-btn-sm w-full justify-start"
-          onClick={() => {
-            handleCardClick(key, currentText);
-            setActionsKey("");
-          }}
-        >
-          <Copy className="h-4 w-4 opacity-80" />
-          <span className="ml-2">Copy</span>
-        </button>
+                      <button
+                        type="button"
+                        className="ct-btn ct-btn-sm w-full justify-start"
+                        onClick={() => {
+                          handleCardClick(key, currentText);
+                          setActionsKey("");
+                        }}
+                      >
+                        <Copy className="h-4 w-4 opacity-80" />
+                        <span className="ml-2">Copy</span>
+                      </button>
 
-        <button
-          type="button"
-          className="ct-btn ct-btn-sm w-full justify-start"
-          onClick={() => {
-            const u = (item as any).display_url || item.url;
-            if (u) window.open(u, "_blank", "noopener,noreferrer");
-            setActionsKey("");
-          }}
-        >
-          <ExternalLink className="h-4 w-4 opacity-80" />
-          <span className="ml-2">Open on X</span>
-        </button>
+                      <button
+                        type="button"
+                        className="ct-btn ct-btn-sm w-full justify-start"
+                        onClick={() => {
+                          const u = (item as any).display_url || item.url;
+                          if (u) window.open(u, "_blank", "noopener,noreferrer");
+                          setActionsKey("");
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4 opacity-80" />
+                        <span className="ml-2">Open on X</span>
+                      </button>
 
-        <button
-          type="button"
-          className="ct-btn ct-btn-sm w-full justify-start"
-          onClick={() => {
-            setActionsKey("");
-            onReroll();
-          }}
-        >
-          <RotateCcw className="h-4 w-4 opacity-80" />
-          <span className="ml-2">Reroll</span>
-        </button>
+                      <button
+                        type="button"
+                        className="ct-btn ct-btn-sm w-full justify-start"
+                        onClick={() => {
+                          setActionsKey("");
+                          onReroll();
+                        }}
+                      >
+                        <RotateCcw className="h-4 w-4 opacity-80" />
+                        <span className="ml-2">Reroll</span>
+                      </button>
 
-        {onRetry && (
-          <button
-            type="button"
-            className="ct-btn ct-btn-sm w-full justify-start"
-            onClick={() => {
-              setActionsKey("");
-              onRetry();
-            }}
-          >
-            <RotateCcw className="h-4 w-4 opacity-80" />
-            <span className="ml-2">Retry</span>
-          </button>
-        )}
+                      {onRetry && (
+                        <button
+                          type="button"
+                          className="ct-btn ct-btn-sm w-full justify-start"
+                          onClick={() => {
+                            setActionsKey("");
+                            onRetry();
+                          }}
+                        >
+                          <RotateCcw className="h-4 w-4 opacity-80" />
+                          <span className="ml-2">Retry</span>
+                        </button>
+                      )}
 
-        <button
-          type="button"
-          className="ct-btn ct-btn-ghost w-full justify-center text-xs opacity-80"
-          onClick={() => setActionsKey("")}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  )}
-);
+                      <button
+                        type="button"
+                        className="ct-btn ct-btn-ghost w-full justify-center text-xs opacity-80"
+                        onClick={() => setActionsKey("")}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
           })}
         </>
       )}
