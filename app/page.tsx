@@ -98,6 +98,16 @@ export default function Home() {
   const setRaw = rawStack.set;
   const debouncedRaw = useDebouncedValue(raw, 180);
   const urls = useMemo(() => parseUrls(debouncedRaw), [debouncedRaw]);
+  const loadDemoRun = () => {
+    // Demo run: pre-fill a few sample X links so new users can see output without thinking.
+    const demoUrls = [
+      "https://x.com/cz_binance/status/1725292931962040418",
+      "https://x.com/ThiccyAltcoin/status/1745869203539626062",
+      "https://x.com/milesdeutscher/status/1756701714206280204",
+    ];
+    setRaw(demoUrls.join("\n"));
+  };
+
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const [inputMode, setInputMode] = useState<"urls" | "source">("urls");
