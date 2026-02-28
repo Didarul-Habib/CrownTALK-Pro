@@ -34,7 +34,7 @@ export default function Results({
   onRerollUrl,
   onRetryUrl,
   onRetryFailed,
-  failedCount: failedCountProp,
+  failedCount,
   queueTotal,
   queueDone,
   onClear,
@@ -46,7 +46,7 @@ export default function Results({
   onRerollUrl: (url: string) => void;
   onRetryUrl: (url: string) => void;
   onRetryFailed: () => void;
-  failedCount?: number;
+  failedCount: number;
   queueTotal?: number;
   queueDone?: number;
   onClear?: () => void;
@@ -59,9 +59,6 @@ export default function Results({
     () => items.filter((i) => i.status !== "ok" && i.status !== "pending"),
     [items]
   );
-
-const derivedFailedCount = failedItems.length;
-const totalUrls = items.length;
 
   const primaryPairs = useMemo(() => {
     return items
@@ -208,7 +205,7 @@ const totalUrls = items.length;
 
 
   return (
-    <div id="ct-results" className="space-y-4 pb-24 md:pb-12">
+    <div id="ct-results" className="space-y-4">
       <div
         className={clsx(
           "relative z-30 overflow-visible",
@@ -219,28 +216,25 @@ const totalUrls = items.length;
       >
         <div>
           <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
-  <div className="text-xs opacity-70">
-    {translate("results.runLabel", uiLang)}{" "}
-    {runId ? <span className="font-mono">{runId}</span> : "—"} •{" "}
-    {totalUrls} {translate("results.urls", uiLang)} •{" "}
-    {okCount} {translate("results.ok", uiLang)} •{" "}
-    {derivedFailedCount} {translate("results.failed", uiLang)}
-    {loading && queueTotal ? (
-      <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
-        {translate("results.queue", uiLang)}{" "}
-        {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
-      </span>
-    ) : null}
-  </div>
-</div>
+          <div className="text-xs opacity-70">
+            {translate("results.runLabel", uiLang)}{" "}
+            {runId ? <span className="font-mono">{runId}</span> : "—"} • {items.length} {translate("results.urls", uiLang)} • {okCount} {translate("results.ok", uiLang)} • {failedCount} {translate("results.failed", uiLang)}
+            {loading && queueTotal ? (
+              <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
+                {translate("results.queue", uiLang)}{" "}
+                {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
+              </span>
+            ) : null}
+          </div>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onRetryFailed}
-            disabled={!derivedFailedCount}
+            disabled={!failedCount}
             className={clsx(
               "ct-btn ct-btn-sm",
-              derivedFailedCount ? "" : "opacity-50 cursor-not-allowed"
+              failedCount ? "" : "opacity-50 cursor-not-allowed"
             )}
             title="Retry only failed URLs"
           >

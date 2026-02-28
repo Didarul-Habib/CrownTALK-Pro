@@ -32,17 +32,13 @@ export default function MobilePresetsSheet({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        // Centered modal (mobile-safe). Avoid mixing centered Dialog positioning
-        // with bottom/left/right sheet positioning, which can render off-screen.
-        className="p-0 max-h-[85vh] overflow-hidden flex flex-col border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)]"
-      >
+      <DialogContent className="fixed bottom-0 left-0 right-0 top-auto max-h-[80vh] translate-y-0 rounded-t-[28px] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-0 shadow-[0_-20px_80px_rgba(0,0,0,0.55)]">
         <DialogHeader className="px-4 pt-4">
           <DialogTitle className="text-base">Presets</DialogTitle>
           <div className="mt-2 h-1.5 w-12 rounded-full bg-white/10 mx-auto" />
         </DialogHeader>
 
-        <div className="px-4 pb-5 pt-2 overflow-auto flex-1">
+        <div className="px-4 pb-5 pt-2 overflow-auto">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-xs opacity-70">Voice</div>
