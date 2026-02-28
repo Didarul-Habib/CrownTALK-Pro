@@ -55,6 +55,7 @@ const PerfPanel = dynamic(() => import("@/components/PerfPanel"), { ssr: false }
 const RunHistoryPanelLazy = dynamic(() => import("@/components/RunHistoryPanel"), { ssr: false });
 const ClipboardHistoryPanelLazy = dynamic(() => import("@/components/ClipboardHistoryPanel"), { ssr: false });
 const RenderProfilerPanelLazy = dynamic(() => import("@/components/RenderProfilerPanel"), { ssr: false });
+const RunTimingsPanelLazy = dynamic(() => import("@/components/RunTimingsPanel"), { ssr: false });
 
 export default function Home() {
   const uiLang = useUiLang();
