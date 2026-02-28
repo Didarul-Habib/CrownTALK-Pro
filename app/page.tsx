@@ -98,10 +98,11 @@ export default function Home() {
   const [fastMode, setFastMode] = useState(false);
   const [qualityMode, setQualityMode] = useState<QualityMode>("balanced");
 
-  // Quality mode is the primary UX control; keep the legacy fast flag in sync for older backends.
+  // Temporary mapping: until the dedicated Quality selector UI is wired,
+  // derive qualityMode from the existing fastMode toggle.
   useEffect(() => {
-    setFastMode(qualityMode === "fast");
-  }, [qualityMode]);
+    setQualityMode(fastMode ? "fast" : "balanced");
+  }, [fastMode]);
   const [preset, setPreset] = useState<string>("auto");
   const [voice, setVoice] = useState<number>(1);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
@@ -1346,8 +1347,6 @@ setFailStreak((prev) => {
               setIncludeAlternates={setIncludeAlternates}
               fastMode={fastMode}
               setFastMode={setFastMode}
-              qualityMode={qualityMode}
-              setQualityMode={setQualityMode}
               preset={preset}
               setPreset={setPreset}
               voice={voice}
