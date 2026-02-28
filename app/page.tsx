@@ -319,7 +319,8 @@ export default function Home() {
 
 const genMutation = useMutation({
   mutationFn: async (vars: { requestUrls: string[]; signal?: AbortSignal }) => {
-    return await (await import("@/lib/api")).generateCommentsStream(
+    const api = await import("@/lib/api");
+    return api.generateComments(
       baseUrl,
       {
         urls: vars.requestUrls,
@@ -346,38 +347,11 @@ const genMutation = useMutation({
       },
       token,
       authToken,
-      vars.signal,
-(u) => {
-  if (u.type === "meta") {
-    if (u.run_id) setRunId(u.run_id);
-    // If backend reports batch size / dedupe info, reflect that.
-    if (typeof (u as any).total === "number" && (u as any).total > 0) {
-      setQueueTotal((u as any).total);
-    }
-  }
-  if (u.type === "status") {
-    const s = String((u as any).stage || "");
-    // Prefer explicit progress numbers from the stream when available.
-    if (typeof (u as any).total === "number" && (u as any).total >= 0) {
-      setQueueTotal((u as any).total);
-    }
-    if (typeof (u as any).done === "number" && (u as any).done >= 0) {
-      startTransition(() => setQueueDone((u as any).done));
-    }
-    if (s === "fetching" || s === "extracting") {
-      advanceStage("fetching");
-    } else if (s === "generating") {
-      advanceStage("generating");
-    } else if (s === "polishing") {
-      advanceStage("polishing");
-    } else if (s === "finalizing") {
-      advanceStage("finalizing");
-    }
-  }
-  if (u.type === "result") {
-    startTransition(() => {
-      setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
-    });
+      vars.signal
+    );
+  },
+  retry: 0,
+});
   }
 }
     );
