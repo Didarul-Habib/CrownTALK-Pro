@@ -59,26 +59,57 @@ export function getQualityInfo(text: string, opts?: { lang_native?: boolean | nu
 
   if (!t.trim()) return { badges };
 
-  // Fact-safe ≈ no risky / overconfident claim vocabulary.
-  let claimClean = true;
+  const hasNumber = /[0-9]/.test(t) || /\b(apr|apy|x)\b/.test(t);
+  const hasPercent = /%/.test(t) || /\bpercent\b/.test(t);
+  const hasMoney = /\$[0-9]/.test(t);
+
+  const HEDGE_WORDS = [
+    "might",
+    "could",
+    "seems",
+    "seems like",
+    "looks like",
+    "feels like",
+    "based on",
+    "depending on",
+    "if ",
+    "assuming",
+    "as long as",
+    "on track",
+    "trend",
+    "trends",
+  ];
+
+  let risky = false;
   for (const p of CLAIM_RISK_PHRASES) {
     if (t.includes(p)) {
-      claimClean = false;
+      risky = true;
       break;
     }
   }
-  if (/(nfa|dyor)/.test(t)) claimClean = false;
-  if (claimClean) badges.push("factSafe");
+  if (/\b(nfa|dyor)\b/.test(t)) risky = true;
 
-  // Low hype ≈ avoid moon/pump/ape etc.
-  let lowHype = true;
+  let hypey = false;
   for (const p of HYPE_PHRASES) {
     if (t.includes(p)) {
-      lowHype = false;
+      hypey = true;
       break;
     }
   }
-  if (lowHype) badges.push("lowHype");
+
+  // Only tag "Fact-safe" when the reply is actually making some kind of
+  // quantitative / factual statement but without obvious risky language.
+  if (!risky && (hasNumber || hasPercent || hasMoney)) {
+    badges.push("factSafe");
+  }
+
+  // Only tag "Low hype" when the reply clearly uses hedging / careful
+  // language and avoids hype words. This keeps badges from appearing
+  // identically on every single comment.
+  const hasHedge = HEDGE_WORDS.some((w) => t.includes(w));
+  if (!hypey && hasHedge) {
+    badges.push("lowHype");
+  }
 
   // Native tone is driven by the request toggles (lang_native)
   if (opts?.lang_native) {
