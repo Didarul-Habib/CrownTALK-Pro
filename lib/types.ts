@@ -42,9 +42,6 @@ export type CommentItem = {
   translation_en?: string;
   provider?: string;
   alternates?: string[];
-  // User-local editing/locking flags (frontend only; not required from backend).
-  is_user_edited?: boolean;
-  is_locked?: boolean;
 };
 
 export type ResultItem = {
@@ -74,14 +71,7 @@ export type ResultItem = {
   comments?: CommentItem[];
   // Optional backend flags (rate-limit, research usage, etc.)
   flags?: any;
-    // Per-URL pipeline + quality hints
-  fetch_mode?: "full" | "fallback" | "unknown";
-  quality_mode?: QualityMode;
-  // CT-native metadata
-  cashtags?: string[];
-  house_view_active?: boolean;
-  risk_level?: "low" | "balanced" | "high";
-// Whether this URL was part of the last active run
+  // Whether this URL was part of the last active run
   in_last_run?: boolean;
   // Native language hint from backend (for quality heuristics etc.)
   lang_native?: string | null;
