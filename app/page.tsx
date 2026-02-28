@@ -106,6 +106,7 @@ export default function Home() {
       "https://x.com/milesdeutscher/status/1756701714206280204",
     ];
     setRaw(demoUrls.join("\n"));
+    setIsDemoRun(true);
   };
 
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
@@ -565,6 +566,7 @@ const genMutation = useMutation({
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
   const [runId, setRunId] = useState<string>("");
+  const [isDemoRun, setIsDemoRun] = useState(false);
 
   const [signupOpen, setSignupOpen] = useState(false);
 
