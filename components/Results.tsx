@@ -131,6 +131,7 @@ const totalUrls = items.length;
 
 
 
+
   const [canAnimateCards, setCanAnimateCards] = useState(true);
   useEffect(() => {
     try {
