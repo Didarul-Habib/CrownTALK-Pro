@@ -3,15 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { loadPrefs, savePrefs, type UserPrefs, DEFAULT_PREFS } from "@/lib/prefs";
-import { LS, lsGet } from "@/lib/storage";
+import { LS, lsGet, lsSet } from "@/lib/storage";
 
 export default function SettingsPage() {
   const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_PREFS);
   const [saved, setSaved] = useState(false);
+  const [promptProtoEnabled, setPromptProtoEnabled] = useState(false);
 
   useEffect(() => {
     let live = true;
     loadPrefs().then((p) => live && setPrefs(p));
+    try {
+      const flag = lsGet(LS.promptProto, "0") === "1";
+      setPromptProtoEnabled(flag);
+    } catch {}
     return () => { live = false; };
   }, []);
 
@@ -140,6 +145,29 @@ export default function SettingsPage() {
             onChange={(e) => commit({ ...prefs, enableShareLinks: e.target.checked })}
           />
         </label>
+
+<div className="mt-4 space-y-2">
+  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-80">
+    Experiments (dev only)
+  </div>
+  <label className="flex items-center justify-between gap-4 text-sm">
+    <span>Use prompt prototype v1</span>
+    <input
+      type="checkbox"
+      checked={promptProtoEnabled}
+      onChange={(e) => {
+        const val = e.target.checked;
+        setPromptProtoEnabled(val);
+        try {
+          lsSet(LS.promptProto, val ? "1" : "0");
+        } catch {}
+      }}
+    />
+  </label>
+  <div className="text-[11px] opacity-70">
+    When enabled, CrownTALK will send an <code>experiment_id=&quot;prompt_v1&quot;</code> hint to the backend.
+  </div>
+</div>
 
         <div className="text-[11px] opacity-70">
           Effects mode is controlled from the main app (current: <span className="font-mono">{fxMode}</span>).
