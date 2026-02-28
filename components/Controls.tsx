@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import PremiumButton from "@/components/PremiumButton";
 import { Ban, ChevronDown, ChevronUp, Eraser, Lock, Wand2 } from "lucide-react";
 import type { Intent, Tone, QualityMode } from "@/lib/types";
-import type { SessionPreset } from "@/lib/sessionPresets";
 import { translate, useUiLang } from "@/lib/i18n";
 
 const NATIVE_LANGS = [
@@ -38,9 +37,6 @@ export default function Controls({
   setFastMode,
   qualityMode,
   setQualityMode,
-  sessionPresets,
-  onSavePreset,
-  onApplyPreset,
   preset,
   setPreset,
   voice,
@@ -68,9 +64,6 @@ export default function Controls({
   setFastMode: (v: boolean) => void;
   qualityMode: QualityMode;
   setQualityMode: (v: QualityMode) => void;
-  sessionPresets?: SessionPreset[];
-  onSavePreset?: () => void;
-  onApplyPreset?: (id: string) => void;
   preset: string;
   setPreset: (v: string) => void;
   voice: number;
@@ -441,34 +434,6 @@ export default function Controls({
   <div className="text-[11px] opacity-60">
     Presets tune tone/intent automatically and help replies feel more real.
   </div>
-  {sessionPresets && sessionPresets.length > 0 && onApplyPreset ? (
-    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-      <span className="opacity-60">Session presets:</span>
-      <div className="flex flex-wrap gap-1">
-        {sessionPresets.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onApplyPreset(p.id)}
-            className="ct-chip px-2 py-0.5 text-[11px] border-[color:var(--ct-border)] bg-white/5 hover:bg-white/10"
-          >
-            {p.name}
-          </button>
-        ))}
-      </div>
-    </div>
-  ) : null}
-  {onSavePreset ? (
-    <div className="mt-2">
-      <button
-        type="button"
-        className="ct-btn ct-btn-xs text-[11px]"
-        onClick={onSavePreset}
-      >
-        Save current as preset
-      </button>
-    </div>
-  ) : null}
 </div>
         </>
       )}

@@ -8,7 +8,7 @@ import UiLangSelect from "@/components/UiLangSelect";
 import { motion } from "framer-motion";
 import { applyFxMode, type FxMode, shouldReduceEffects } from "@/lib/motion";
 import { LS, lsGet, lsSet } from "@/lib/storage";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { UserProfile } from "@/lib/persist";
 import { translate, useUiLang } from "@/lib/i18n";
 

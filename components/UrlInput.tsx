@@ -32,7 +32,6 @@ function faviconFor(u: string) {
 }
 
 export default function UrlInput({
-  onLoadDemo,
   value,
   onChange,
   selected,
@@ -46,7 +45,6 @@ export default function UrlInput({
   canUndo,
   canRedo,
 }: {
-  onLoadDemo?: () => void;
   value: string;
   onChange: (v: string) => void;
   selected?: string[];

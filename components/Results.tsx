@@ -11,6 +11,7 @@ import { LS, lsGet } from "@/lib/storage";
 import { shouldReduceEffects, type FxMode } from "@/lib/motion";
 import { translate, useUiLang } from "@/lib/i18n";
 import ResultCard from "./ResultCard";
+import VirtualResultList from "./VirtualResultList";
 
 function copyText(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -29,7 +30,6 @@ function downloadTxt(filename: string, content: string) {
 }
 
 export default function Results({
-  isDemoRun,
   items,
   runId,
   onRerollUrl,
@@ -40,18 +40,8 @@ export default function Results({
   queueDone,
   onClear,
   onCopy,
-  onUpdateCommentMeta,
   loading,
-  runTotal,
-  runDone,
-  runOk,
-  runCancelled,
-  qualityMode,
-  langEn,
-  langNative,
-  nativeLang,
 }: {
-  isDemoRun?: boolean;
   items: ResultItem[];
   runId: string;
   onRerollUrl: (url: string) => void;
@@ -62,16 +52,7 @@ export default function Results({
   queueDone?: number;
   onClear?: () => void;
   onCopy?: (text: string, url?: string) => void;
-  onUpdateCommentMeta?: (url: string, index: number, patch: { text?: string; is_locked?: boolean }) => void;
   loading?: boolean;
-  runTotal?: number;
-  runDone?: number;
-  runOk?: number;
-  runCancelled?: boolean;
-  qualityMode?: "fast" | "balanced" | "pro";
-  langEn?: boolean;
-  langNative?: boolean;
-  nativeLang?: string;
 }) {
   const uiLang = useUiLang();
   const okCount = items.filter((i) => i.status === "ok").length;
@@ -82,34 +63,6 @@ export default function Results({
 
 const derivedFailedCount = failedItems.length;
 const totalUrls = items.length;
-
-  // Human-readable quality + language summary for this run (if provided).
-  let qualityLabel: string | null = null;
-  if (qualityMode === "fast") qualityLabel = "Fast mode";
-  else if (qualityMode === "pro") qualityLabel = "Pro mode";
-  else if (qualityMode === "balanced") qualityLabel = "Balanced mode";
-
-  let languageLabel: string | null = null;
-  if (langNative && nativeLang && !langEn) {
-    languageLabel = nativeLang;
-  } else if (langEn) {
-    languageLabel = "English";
-  }
-
-  // Prefer backend-reported run summary when available.
-  const effectiveTotal = typeof runTotal === "number" && runTotal > 0 ? runTotal : totalUrls;
-  const effectiveDone =
-    typeof runDone === "number" && runDone >= 0 ? Math.min(runDone, effectiveTotal) : totalUrls;
-  const effectiveOk =
-    typeof runOk === "number" && runOk >= 0 ? Math.min(runOk, effectiveDone) : okCount;
-  const effectiveFailed = Math.max(0, effectiveDone - effectiveOk);
-
-  const showStatusPill = !loading && effectiveTotal > 0;
-  let statusLabel: string | null = null;
-  if (showStatusPill) {
-    if (runCancelled) statusLabel = "Cancelled";
-    else if (effectiveDone >= effectiveTotal) statusLabel = "Completed";
-  }
 
   const primaryPairs = useMemo(() => {
     return items
@@ -173,6 +126,9 @@ const totalUrls = items.length;
     // Default: show only items that actually produced comments (clean UI on mobile).
     return base.filter((it) => it.status === "ok" && (it.comments?.length ?? 0) > 0);
   }, [displayItemsDedup, loading, showFailedCards]);
+
+  const useVirtualList = displayItems.length > 24;
+
 
 
   const [canAnimateCards, setCanAnimateCards] = useState(true);
@@ -247,24 +203,9 @@ const totalUrls = items.length;
       >
         <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
         <div className="mt-1 text-sm opacity-70">{translate("results.subtitle", uiLang)}</div>
-        {isDemoRun ? (
-          <div className="mt-1 text-[11px] opacity-75">Sample run (static example)</div>
-        ) : null}
         <div className="mt-4 ct-card-surface p-4 text-xs opacity-75">
           {translate("results.tip", uiLang)}
         </div>
-<div className="mt-4 grid gap-2 text-xs opacity-80">
-  <div className="ct-card-surface p-3 space-y-1.5">
-    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-75">
-      Ideas
-    </div>
-    <ul className="mt-1 space-y-1 list-disc list-inside">
-      <li>Scan 10 project updates in one go.</li>
-      <li>Use Pro mode for client-facing replies.</li>
-      <li>Save strong runs in History to reuse later.</li>
-    </ul>
-  </div>
-</div>
       </div>
     );
   }
@@ -285,28 +226,16 @@ const totalUrls = items.length;
   <div className="text-xs opacity-70">
     {translate("results.runLabel", uiLang)}{" "}
     {runId ? <span className="font-mono">{runId}</span> : "—"} •{" "}
-    {effectiveTotal} {translate("results.urls", uiLang)} •{" "}
-    {effectiveOk} {translate("results.ok", uiLang)} •{" "}
-    {effectiveFailed} {translate("results.failed", uiLang)}
+    {totalUrls} {translate("results.urls", uiLang)} •{" "}
+    {okCount} {translate("results.ok", uiLang)} •{" "}
+    {derivedFailedCount} {translate("results.failed", uiLang)}
     {loading && queueTotal ? (
       <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
         {translate("results.queue", uiLang)}{" "}
         {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
       </span>
     ) : null}
-    {!loading && statusLabel ? (
-      <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
-        {statusLabel}
-      </span>
-    ) : null}
   </div>
-  {(qualityLabel || languageLabel) && (
-    <div className="mt-0.5 text-[11px] opacity-70">
-      {qualityLabel ? qualityLabel : null}
-      {qualityLabel && languageLabel ? " • " : ""}
-      {languageLabel ? languageLabel : null}
-    </div>
-  )}
 </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -504,29 +433,32 @@ const totalUrls = items.length;
         </div>
       ) : null}
 
-      {displayItems.map((it, idx) => {
-        const sim = similarMap.get(it.url);
-        const spam = spamMap.get(it.url) || null;
-        const delay = idx * 0.03;
-        return (
-          <motion.div
-            key={it.url}
-            initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
-            animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
-            transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
-          >
-            <ResultCard
-              item={it}
-              onReroll={() => onRerollUrl(it.url)}
-              onCopy={onCopy}
-              onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
-              warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
-              warnSpam={spam}
-              onUpdateCommentMeta={onUpdateCommentMeta}
-            />
-          </motion.div>
-        );
-      })}
+      {useVirtualList ? (
+        <VirtualResultList items={displayItems} onRerollUrl={onRerollUrl} onCopy={onCopy} />
+      ) : (
+        displayItems.map((it, idx) => {
+          const sim = similarMap.get(it.url);
+          const spam = spamMap.get(it.url) || null;
+          const delay = idx * 0.03;
+          return (
+            <motion.div
+              key={it.url}
+              initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
+              animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
+              transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
+            >
+              <ResultCard
+                item={it}
+                onReroll={() => onRerollUrl(it.url)}
+                onCopy={onCopy}
+                onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
+                warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
+                warnSpam={spam}
+              />
+            </motion.div>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -538,7 +470,6 @@ function MenuItem({
   disabled,
   danger,
 }: {
-  isDemoRun?: boolean;
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
