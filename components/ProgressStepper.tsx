@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { translate, useUiLang } from "@/lib/i18n";
-
+import { LS, lsGet } from "@/lib/storage";
+import { useEffect, useMemo, useState } from "react";
 
 export type Stage = "idle" | "fetching" | "generating" | "polishing" | "finalizing" | "done";
 
@@ -24,33 +25,94 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
   const uiLang = useUiLang();
   const t = (key: string) => translate(key, uiLang);
 
-  const idx = stepIndex(stage);
-  const active = idx >= 0 && stage !== "done";
-
   const isLowMotion =
     typeof window !== "undefined" &&
     window.document?.documentElement?.dataset?.fx === "low";
 
-  // UI-only "feel" progress. We don't get real-time % from the backend,
-  // but this gives users a confident sense of forward motion.
-  let progress = 0;
-  if (stage === "idle") {
-    progress = 0;
-  } else if (stage === "done") {
-    progress = 100;
-  } else {
+  // Non-breaking: the page writes queue stats into window for this component.
+  const queueTotal = typeof window !== "undefined" ? Number((window as any).__ct_queueTotal || 0) : 0;
+  const queueDone = typeof window !== "undefined" ? Number((window as any).__ct_queueDone || 0) : 0;
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (isLowMotion) return;
+    if (stage === "idle" || stage === "done") return;
+    // Reset the animation clock whenever a new segment starts.
+    setTick(0);
+    const id = window.setInterval(() => setTick((x) => x + 1), 250);
+    return () => window.clearInterval(id);
+  }, [stage, isLowMotion, queueDone, queueTotal]);
+
+  const idx = stepIndex(stage);
+
+  // Animated "feel" progress.
+  // Goal: make the bar move in a time-realistic way (learned ms/url), so we can
+  // preview Polishing/Finalizing on single-link runs without hardcoded timers.
+  const progress = useMemo(() => {
+    if (stage === "idle") return 0;
+    if (stage === "done") return 100;
+
+    // If queue info is available, animate within the current URL segment.
+    if (queueTotal && queueTotal > 0) {
+      const done = Math.max(0, Math.min(queueTotal, queueDone));
+      const base = Math.floor((done / queueTotal) * 100);
+      const next = Math.floor((Math.min(done + 1, queueTotal) / queueTotal) * 100);
+
+      // Never exceed the next real milestone (keeps it honest).
+      const cap = Math.max(base, Math.min(99, next - 1));
+      const span = Math.max(0, cap - base);
+      if (span <= 0) return Math.min(99, base);
+
+      // Learned average (ms/url). Falls back to a sane default.
+      const learned = Number(lsGet(LS.avgMsPerUrl, ""));
+      const expectedMsPerItem = Number.isFinite(learned) ? learned : 14000;
+      const expected = Math.max(4000, Math.min(60000, expectedMsPerItem));
+
+      // Ease curve: reaches ~90% of the span around `expected`.
+      const elapsedMs = tick * 250;
+      const tau = expected * 0.45;
+      const k = Math.min(0.985, 1 - Math.exp(-elapsedMs / Math.max(1, tau)));
+
+      return Math.min(99, Math.round(base + span * k));
+    }
+
+    // Fallback: stage-only progress.
     const clampedIdx = Math.max(0, idx);
     const base = (clampedIdx / STEPS.length) * 100;
     const extra = stage === "finalizing" ? 8 : 0;
-    progress = Math.min(99, Math.round(base + extra));
-  }
+    return Math.min(99, Math.round(base + extra));
+  }, [stage, idx, queueTotal, queueDone, tick]);
+
+  // Display stage: allow a gentle "preview" of Polishing/Finalizing based on animated progress.
+  // This fixes the UX where 1-link runs look stuck in Generating then instantly complete.
+  const displayStage = useMemo<Stage>(() => {
+    if (stage === "idle" || stage === "done") return stage;
+
+    const p = Math.max(0, Math.min(99, progress));
+
+    // Progress bands (in %). Tuned so Polishing/Finalizing become visible *before* completion.
+    // Single-link runs get slightly earlier thresholds so the UI never feels stuck.
+    const single = !queueTotal || queueTotal <= 1;
+    const tFetch = single ? 18 : 22;
+    const tPolish = single ? 70 : 82;
+    const tFinal = single ? 88 : 94;
+    const simIdx = p < tFetch ? 0 : p < tPolish ? 1 : p < tFinal ? 2 : 3;
+    const realIdx = stepIndex(stage);
+    const di = Math.max(realIdx, simIdx);
+
+    const step = STEPS[Math.max(0, Math.min(STEPS.length - 1, di))];
+    return (step?.id as Stage) || stage;
+  }, [stage, progress, queueTotal]);
+
+  const displayIdx = stepIndex(displayStage);
+  const active = displayStage !== "idle" && displayStage !== "done";
 
   return (
     <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-3 backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">{t("pipeline.title")}</div>
         <div className={clsx("text-xs", active ? "opacity-80" : "opacity-60")}>
-          {stage === "idle" ? "Ready" : stage === "done" ? "Completed" : "Working…"}
+          {displayStage === "idle" ? "Ready" : displayStage === "done" ? "Completed" : "Working…"}
         </div>
       </div>
 
@@ -68,11 +130,11 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
         />
       </div>
 
-      {/* Use `lg` so "Desktop site" on mobile doesn't squeeze the pipeline grid */}
+      {/* Use `lg` so \"Desktop site\" on mobile doesn't squeeze the pipeline grid */}
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {STEPS.map((s, i) => {
-          const done = idx > i || stage === "done";
-          const current = idx === i && stage !== "done";
+          const done = displayIdx > i || displayStage === "done";
+          const current = displayIdx === i && displayStage !== "done";
           return (
             <div
               key={s.id}
@@ -105,8 +167,7 @@ export default function ProgressStepper({ stage }: { stage: Stage }) {
                 <motion.div
                   className="absolute inset-0 opacity-30"
                   style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(255,255,255,.20), transparent)",
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,.20), transparent)",
                   }}
                   initial={{ x: "-120%" }}
                   animate={{ x: "120%" }}
