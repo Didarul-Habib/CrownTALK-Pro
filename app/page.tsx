@@ -88,6 +88,8 @@ export default function Home() {
                 }
               }, []);
             
+  const [usePromptProto, setUsePromptProto] = useState(false);
+
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
