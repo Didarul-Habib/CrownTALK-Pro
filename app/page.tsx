@@ -31,10 +31,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { translate, useUiLang } from "@/lib/i18n";
 import { parseUrls } from "@/lib/validate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { ApiError, logout as apiLogout } from "@/lib/api";
+import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
-import type { GenerateResponse, Intent, ResultItem, Tone } from "@/lib/types";
+import type { GenerateResponse, Intent, ResultItem, Tone, QualityMode } from "@/lib/types";
 import type { TimelineStage } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
 import { nowId } from "@/lib/persist";
@@ -96,6 +96,12 @@ export default function Home() {
   const [intent, setIntent] = useState<Intent>("auto");
   const [includeAlternates, setIncludeAlternates] = useState(false);
   const [fastMode, setFastMode] = useState(false);
+  const [qualityMode, setQualityMode] = useState<QualityMode>("balanced");
+
+  // Quality mode is the primary UX control; keep the legacy fast flag in sync for older backends.
+  useEffect(() => {
+    setFastMode(qualityMode === "fast");
+  }, [qualityMode]);
   const [preset, setPreset] = useState<string>("auto");
   const [voice, setVoice] = useState<number>(1);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
@@ -312,21 +318,22 @@ export default function Home() {
 
 const genMutation = useMutation({
   mutationFn: async (vars: { requestUrls: string[]; signal?: AbortSignal }) => {
-    const qualityMode = fastMode ? "fast" : includeAlternates ? "pro" : "balanced";
-
     return await (await import("@/lib/api")).generateCommentsStream(
       baseUrl,
       {
         urls: vars.requestUrls,
         lang_en: langEn,
-        quality_mode: qualityMode,
         lang_native: langNative,
         native_lang: langNative ? nativeLang : undefined,
         tone: tone === "auto" ? undefined : tone,
         intent: intent === "auto" ? undefined : intent,
         voice,
         include_alternates: includeAlternates,
-        fast: fastMode,
+        // Preferred quality mode; backend falls back to "balanced" when omitted.
+        quality_mode: qualityMode,
+        // Legacy flags for backwards compatibility with older backends.
+        fast: qualityMode === "fast" || fastMode,
+        pro_mode: qualityMode === "pro",
         preset: preset !== "auto" ? preset : undefined,
         // Preferred output language for the primary generation pass.
         // When Native is on, let the backend auto-detect from the tweet unless user picked a specific code.
@@ -339,21 +346,39 @@ const genMutation = useMutation({
       token,
       authToken,
       vars.signal,
-      (u) => {
-        if (u.type === "meta" && u.run_id) setRunId(u.run_id);
-        if (u.type === "status" && (u as any).stage) {
-          const s = String((u as any).stage);
-          if (s === "fetching" || s === "extracting") advanceStage("fetching");
-          else if (s === "generating") advanceStage("generating");
-          else if (s === "polishing") advanceStage("polishing");
-          else if (s === "finalizing") advanceStage("finalizing");
-        }
-        if (u.type === "result") {
-          startTransition(() => {
-            setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
-          });
-        }
-      }
+(u) => {
+  if (u.type === "meta") {
+    if (u.run_id) setRunId(u.run_id);
+    // If backend reports batch size / dedupe info, reflect that.
+    if (typeof (u as any).total === "number" && (u as any).total > 0) {
+      setQueueTotal((u as any).total);
+    }
+  }
+  if (u.type === "status") {
+    const s = String((u as any).stage || "");
+    // Prefer explicit progress numbers from the stream when available.
+    if (typeof (u as any).total === "number" && (u as any).total >= 0) {
+      setQueueTotal((u as any).total);
+    }
+    if (typeof (u as any).done === "number" && (u as any).done >= 0) {
+      startTransition(() => setQueueDone((u as any).done));
+    }
+    if (s === "fetching" || s === "extracting") {
+      advanceStage("fetching");
+    } else if (s === "generating") {
+      advanceStage("generating");
+    } else if (s === "polishing") {
+      advanceStage("polishing");
+    } else if (s === "finalizing") {
+      advanceStage("finalizing");
+    }
+  }
+  if (u.type === "result") {
+    startTransition(() => {
+      setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
+    });
+  }
+}
     );
   },
   retry: 0,
@@ -373,8 +398,6 @@ const genMutation = useMutation({
               : nativeLang
             : "en",
           fast: fastMode,
-          // Keep quote previews aligned with main quality mode selection.
-          quality_mode: fastMode ? "fast" : includeAlternates ? "pro" : "balanced",
           quote_mode: true,
           lang_en: langEn,
           lang_native: langNative,
@@ -804,13 +827,12 @@ async function queueRunOffline(requestUrls: string[]) {
         if (!runIdLocal && rid) runIdLocal = rid;
         combined = mergeIncomingResults(combined, results as any);
         doneSoFar = Math.min(allUrls.length, doneSoFar + batch.length);
-        // Keep stage at "generating" during batches; final stage is set once all URLs are processed.
+        const stageGuess = stageFromProgress(doneSoFar, allUrls.length);
+        advanceStage(stageGuess);
         startTransition(() => setQueueDone(doneSoFar));
         // Mark received/failed
         for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
       }
-
-      advanceStage("finalizing");
 
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
@@ -857,24 +879,48 @@ async function queueRunOffline(requestUrls: string[]) {
         } catch {}
       }
 
-      } catch (e: any) {
-        if (e?.name === "AbortError") {
-          if (!suppressAbortRef.current) setError("Generation cancelled.");
-          suppressAbortRef.current = false;
-          setStage("idle");
-          return;
+      // Auto-scroll to results (mobile only, and only if results are off-screen).
+      window.requestAnimationFrame(() => {
+        const el = document.getElementById("ct-results");
+        if (!el) return;
+
+        const active = document.activeElement as HTMLElement | null;
+        // Don't scroll if the user is typing in any input/textarea (including the URL box).
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+        const inputRoot = document.getElementById("ct-url-input");
+        if (active && inputRoot && inputRoot.contains(active)) return;
+
+        // On larger screens keep the controls in view; avoid surprising jumps.
+        if (window.innerWidth >= 768) return;
+
+        const rect = el.getBoundingClientRect();
+        const viewportH = window.innerHeight || 0;
+        // Only nudge the view if the results panel is mostly below the fold.
+        if (rect.top > viewportH * 0.75) {
+          el.scrollIntoView({
+            behavior: prefersReducedMotion() ? "auto" : "smooth",
+            block: "start",
+          });
         }
-
-        const msg = e?.message || "Unknown error";
-        setError(msg);
+      });
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
+        if (!suppressAbortRef.current) setError("Generation cancelled.");
+        suppressAbortRef.current = false;
         setStage("idle");
+        return;
+      }
 
-        // Circuit breaker: if we keep failing, cool down briefly to avoid a bad loop.
-        setFailStreak((prev) => {
-          const next = prev + 1;
-          if (next >= 3) {
-            const until = Date.now() + 30_000;
-            setCooldownUntil((cur) => (cur > until ? cur : until));
+      const msg = e?.message || "Unknown error";
+      setError(msg);
+      setStage("idle");
+
+// Circuit breaker: if we keep failing, cool down briefly to avoid a bad loop.
+setFailStreak((prev) => {
+  const next = prev + 1;
+  if (next >= 3) {
+    const until = Date.now() + 30_000;
+    setCooldownUntil((cur) => (cur > until ? cur : until));
     try { toast.error("Backend busy. Cooling down for 30s."); } catch {}
     return 0;
   }
@@ -884,6 +930,14 @@ async function queueRunOffline(requestUrls: string[]) {
 
       const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
       const code = e?.body?.code;
+
+      // Run lock conflicts: surface a clear, non-fatal message.
+      if (status === 409 || code === "run_conflict") {
+        try {
+          toast.error("A run is already active. Cancel it first.");
+        } catch {}
+        return;
+      }
 
       if (
         status === 401 ||
@@ -929,27 +983,25 @@ async function queueRunOffline(requestUrls: string[]) {
     }
   }
 
-  async function cancelRun() {
+  function cancelRun() {
     suppressAbortRef.current = false;
     queueCancelRef.current = true;
     try { toast("Canceled"); } catch {}
     clearTimers();
     setStage("idle");
+    // Abort the local fetch stream.
     abortRef.current?.abort();
+    // Best-effort server-side cancellation so the backend stops work early.
+    try {
+      cancelActiveRun(baseUrl, runId || null, token, authToken);
+    } catch {
+      // Ignore cancellation errors; this is best-effort.
+    }
     setQueueTotal(0);
     setQueueDone(0);
-
-    // Best-effort backend cancellation so batch runs stop between URLs.
-    if (runId) {
-      try {
-        const api = await import("@/lib/api");
-        await api.cancelRun(baseUrl, runId, token, authToken);
-      } catch {
-        // ignore
-      }
-    }
   }
-function clearAll() {
+
+  function clearAll() {
     // In case something is still running, stop it.
     try { toast("Cleared"); } catch {}
     suppressAbortRef.current = true;
@@ -1294,6 +1346,8 @@ function clearAll() {
               setIncludeAlternates={setIncludeAlternates}
               fastMode={fastMode}
               setFastMode={setFastMode}
+              qualityMode={qualityMode}
+              setQualityMode={setQualityMode}
               preset={preset}
               setPreset={setPreset}
               voice={voice}
