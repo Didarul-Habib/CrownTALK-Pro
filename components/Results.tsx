@@ -29,6 +29,7 @@ function downloadTxt(filename: string, content: string) {
 }
 
 export default function Results({
+  isDemoRun,
   items,
   runId,
   onRerollUrl,
@@ -44,7 +45,12 @@ export default function Results({
   runDone,
   runOk,
   runCancelled,
+  qualityMode,
+  langEn,
+  langNative,
+  nativeLang,
 }: {
+  isDemoRun?: boolean;
   items: ResultItem[];
   runId: string;
   onRerollUrl: (url: string) => void;
@@ -60,6 +66,10 @@ export default function Results({
   runDone?: number;
   runOk?: number;
   runCancelled?: boolean;
+  qualityMode?: "fast" | "balanced" | "pro";
+  langEn?: boolean;
+  langNative?: boolean;
+  nativeLang?: string;
 }) {
   const uiLang = useUiLang();
   const okCount = items.filter((i) => i.status === "ok").length;
@@ -70,6 +80,19 @@ export default function Results({
 
 const derivedFailedCount = failedItems.length;
 const totalUrls = items.length;
+
+  // Human-readable quality + language summary for this run (if provided).
+  let qualityLabel: string | null = null;
+  if (qualityMode === "fast") qualityLabel = "Fast mode";
+  else if (qualityMode === "pro") qualityLabel = "Pro mode";
+  else if (qualityMode === "balanced") qualityLabel = "Balanced mode";
+
+  let languageLabel: string | null = null;
+  if (langNative && nativeLang && !langEn) {
+    languageLabel = nativeLang;
+  } else if (langEn) {
+    languageLabel = "English";
+  }
 
   // Prefer backend-reported run summary when available.
   const effectiveTotal = typeof runTotal === "number" && runTotal > 0 ? runTotal : totalUrls;
@@ -222,9 +245,24 @@ const totalUrls = items.length;
       >
         <div className="text-sm font-semibold tracking-tight">{translate("results.title", uiLang)}</div>
         <div className="mt-1 text-sm opacity-70">{translate("results.subtitle", uiLang)}</div>
+        {isDemoRun ? (
+          <div className="mt-1 text-[11px] opacity-75">Sample run (static example)</div>
+        ) : null}
         <div className="mt-4 ct-card-surface p-4 text-xs opacity-75">
           {translate("results.tip", uiLang)}
         </div>
+<div className="mt-4 grid gap-2 text-xs opacity-80">
+  <div className="ct-card-surface p-3 space-y-1.5">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-75">
+      Ideas
+    </div>
+    <ul className="mt-1 space-y-1 list-disc list-inside">
+      <li>Scan 10 project updates in one go.</li>
+      <li>Use Pro mode for client-facing replies.</li>
+      <li>Save strong runs in History to reuse later.</li>
+    </ul>
+  </div>
+</div>
       </div>
     );
   }
@@ -260,6 +298,13 @@ const totalUrls = items.length;
       </span>
     ) : null}
   </div>
+  {(qualityLabel || languageLabel) && (
+    <div className="mt-0.5 text-[11px] opacity-70">
+      {qualityLabel ? qualityLabel : null}
+      {qualityLabel && languageLabel ? " • " : ""}
+      {languageLabel ? languageLabel : null}
+    </div>
+  )}
 </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -475,6 +520,7 @@ const totalUrls = items.length;
               onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
               warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
               warnSpam={spam}
+              onUpdateCommentMeta={onUpdateCommentMeta}
             />
           </motion.div>
         );
@@ -490,6 +536,7 @@ function MenuItem({
   disabled,
   danger,
 }: {
+  isDemoRun?: boolean;
   icon: React.ReactNode;
   label: string;
   onClick: () => void;

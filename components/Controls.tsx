@@ -434,6 +434,34 @@ export default function Controls({
   <div className="text-[11px] opacity-60">
     Presets tune tone/intent automatically and help replies feel more real.
   </div>
+  {sessionPresets && sessionPresets.length > 0 && onApplyPreset ? (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+      <span className="opacity-60">Session presets:</span>
+      <div className="flex flex-wrap gap-1">
+        {sessionPresets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onApplyPreset(p.id)}
+            className="ct-chip px-2 py-0.5 text-[11px] border-[color:var(--ct-border)] bg-white/5 hover:bg-white/10"
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null}
+  {onSavePreset ? (
+    <div className="mt-2">
+      <button
+        type="button"
+        className="ct-btn ct-btn-xs text-[11px]"
+        onClick={onSavePreset}
+      >
+        Save current as preset
+      </button>
+    </div>
+  ) : null}
 </div>
         </>
       )}
