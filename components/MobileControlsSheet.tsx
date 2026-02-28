@@ -3,7 +3,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Controls from "@/components/Controls";
-import type { Intent, Tone } from "@/lib/types";
+import type { Intent, Tone, QualityMode } from "@/lib/types";
 import type { ThemeId } from "@/components/ThemeStudioBar";
 
 export default function MobileControlsSheet({
@@ -24,6 +24,8 @@ export default function MobileControlsSheet({
   setIncludeAlternates,
   fastMode,
   setFastMode,
+  qualityMode,
+  setQualityMode,
   preset,
   setPreset,
   voice,
@@ -55,6 +57,9 @@ export default function MobileControlsSheet({
 
   fastMode: boolean;
   setFastMode: (v: boolean) => void;
+
+  qualityMode: QualityMode;
+  setQualityMode: (v: QualityMode) => void;
 
   preset: string;
   setPreset: (v: string) => void;
@@ -96,6 +101,8 @@ export default function MobileControlsSheet({
             setIncludeAlternates={setIncludeAlternates}
             fastMode={fastMode}
             setFastMode={setFastMode}
+            qualityMode={qualityMode}
+            setQualityMode={setQualityMode}
             preset={preset}
             setPreset={setPreset}
             voice={voice}
