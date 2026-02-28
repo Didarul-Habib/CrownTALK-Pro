@@ -56,7 +56,6 @@ export default function ResultCard({
   onRetry,
   warnSimilar,
   warnSpam,
-  onUpdateCommentMeta,
 }: {
   item: ResultItem;
   onReroll: () => void;
@@ -64,7 +63,6 @@ export default function ResultCard({
   onRetry?: () => void;
   warnSimilar?: { score: number; withUrl?: string } | null;
   warnSpam?: string | null;
-  onUpdateCommentMeta?: (url: string, index: number, patch: { text?: string; is_locked?: boolean }) => void;
 }) {
   const [copiedKey, setCopiedKey] = useState<string>("");
 const [editingKey, setEditingKey] = useState<string>("");
@@ -72,9 +70,6 @@ const [actionsKey, setActionsKey] = useState<string>("");
 
 const [texts, setTexts] = useState<string[]>(() =>
   (item.comments || []).map((c: any) => String(c?.text ?? c ?? ""))
-);
-const [locked, setLocked] = useState<boolean[]>(() =>
-  (item.comments || []).map((c: any) => Boolean((c as any)?.is_locked))
 );
 
 const timerRef = useRef<number | null>(null);
@@ -91,7 +86,6 @@ const longPressTimerRef = useRef<number | null>(null);
   useEffect(() => {
     // Reset local editable text when the item changes (reroll/retry)
     setTexts((item.comments || []).map((c: any) => String(c?.text ?? c ?? "")));
-    setLocked((item.comments || []).map((c: any) => Boolean((c as any)?.is_locked)));
     setEditingKey("");
   }, [item.url, item.status]);
 
@@ -136,7 +130,7 @@ function cancelLongPress() {
 
 
   return (
-    <div className={clsx("ct-anim-soft rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_14px_40px_rgba(0,0,0,0.55)] backdrop-blur-md", showSkeleton && "min-h-[120px]")}>
+    <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_18px_80px_rgba(0,0,0,0.75)] backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
       <div className="flex items-start justify-between gap-3">
         <a
           href={getDisplayUrl(item) || item.url}
@@ -147,11 +141,6 @@ function cancelLongPress() {
           <ExternalLink className="h-4 w-4 opacity-70" />
           {getDisplayUrl(item) || item.url}
         </a>
-        {Array.isArray(item.comments) && item.comments.length > 1 && (
-          <span className="ml-2 inline-flex items-center rounded-full bg-black/30 px-2 py-0.5 text-[11px] opacity-75">
-            {item.comments.length} variants
-          </span>
-        )}
         <button
           type="button"
           className="ct-btn ct-btn-xs"
@@ -161,86 +150,6 @@ function cancelLongPress() {
           <RotateCcw className="h-4 w-4 opacity-80" />
           Reroll
         </button>
-      </div>
-
-      {/* CT-native tags: cashtags, house view, risk */}
-      {(item.cashtags && item.cashtags.length > 0) || item.house_view_active || item.risk_level ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-75">
-          {item.cashtags && item.cashtags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1">
-              {item.cashtags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center rounded-full bg-black/30 px-2 py-0.5 text-[11px]"
-                >
-                  <span className="opacity-70">$</span>
-                  <span className="ml-0.5">{tag.replace(/^\$/i, "")}</span>
-                </span>
-              ))}
-            </div>
-          )}
-          {item.house_view_active && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-200"
-              title="House view guardrails applied for this project"
-            >
-              <Shield className="h-3 w-3" />
-              <span>House view</span>
-            </span>
-          )}
-          {item.risk_level && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5">
-              <span className="opacity-70">
-                {item.risk_level === "high"
-                  ? "Risk: high hype"
-                  : item.risk_level === "balanced"
-                  ? "Risk: balanced"
-                  : "Risk: low"}
-              </span>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Per-URL micro state: pipeline + mode */}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] opacity-75">
-        <div className="inline-flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span>Fetch</span>
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-            <span>Generate</span>
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
-            <span>Polish</span>
-          </span>
-          {item.fetch_mode === "fallback" && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-200"
-              title="Fallback context used for this URL"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              <span>Fallback context</span>
-            </span>
-          )}
-        </div>
-
-        <div className="inline-flex items-center gap-1 rounded-full bg-black/30 px-2 py-0.5">
-          <span className="uppercase tracking-wide">
-            {(item.lang_native && item.lang_native !== "en") ? item.lang_native : "EN"}
-          </span>
-          <span>•</span>
-          <span>
-            {item.quality_mode === "fast"
-              ? "Fast"
-              : item.quality_mode === "pro"
-              ? "Pro"
-              : "Balanced"}
-          </span>
-        </div>
       </div>
 
       {(project || tweetPreview?.text) && item.status === "ok" ? (
@@ -420,44 +329,11 @@ function cancelLongPress() {
                         "ct-btn ct-btn-xs min-w-[72px] transition-transform hover:scale-[1.02] active:scale-95",
                         editing ? "ct-btn-primary" : ""
                       )}
-                      onClick={() => {
-                        setEditingKey((v) => {
-                          const nextKey = v === key ? "" : key;
-                          // When leaving edit mode, push edited text up.
-                          if (v === key && onUpdateCommentMeta) {
-                            onUpdateCommentMeta(item.url, idx, { text: currentText });
-                          }
-                          return nextKey;
-                        });
-                      }}
+                      onClick={() => setEditingKey((v) => (v === key ? "" : key))}
                       aria-label="Edit this comment"
                       title="Edit"
                     >
                       {editing ? "Done" : "Edit"}
-                    </button>
-
-                    <button
-                      type="button"
-                      className={clsx(
-                        "ct-btn ct-btn-xs min-w-[72px] transition-transform hover:scale-[1.02] active:scale-95",
-                        locked[idx] ? "ct-btn-primary" : ""
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLocked((prev) => {
-                          const next = [...prev];
-                          next[idx] = !next[idx];
-                          const newLocked = !prev[idx];
-                          if (onUpdateCommentMeta) {
-                            onUpdateCommentMeta(item.url, idx, { is_locked: newLocked });
-                          }
-                          return next;
-                        });
-                      }}
-                      aria-label={locked[idx] ? "Unlock this comment" : "Lock this comment"}
-                      title={locked[idx] ? "Unlock" : "Lock"}
-                    >
-                      <span className="text-xs">{locked[idx] ? "Locked" : "Lock"}</span>
                     </button>
 
                     <button
