@@ -34,15 +34,12 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
-import { logMetric } from "@/lib/metrics";
 import type { GenerateResponse, Intent, ResultItem, Tone, QualityMode } from "@/lib/types";
 import type { TimelineStage } from "@/lib/types";
 import type { ClipboardRecord, RunRecord, RunRequestSnapshot, UserProfile } from "@/lib/persist";
 import { nowId } from "@/lib/persist";
 import { idbGet, idbSet } from "@/lib/idb";
 import { loadPrefs, savePrefs, type UserPrefs } from "@/lib/prefs";
-import type { SessionPreset } from "@/lib/sessionPresets";
-import { loadSessionPresets, saveSessionPresets } from "@/lib/sessionPresets";
 import { useUndoStack } from "@/lib/useUndoStack";
 import { useOnline } from "@/lib/useOnline";
 import { broadcast, onBroadcast } from "@/lib/syncChannel";
@@ -55,7 +52,6 @@ const PerfPanel = dynamic(() => import("@/components/PerfPanel"), { ssr: false }
 const RunHistoryPanelLazy = dynamic(() => import("@/components/RunHistoryPanel"), { ssr: false });
 const ClipboardHistoryPanelLazy = dynamic(() => import("@/components/ClipboardHistoryPanel"), { ssr: false });
 const RenderProfilerPanelLazy = dynamic(() => import("@/components/RenderProfilerPanel"), { ssr: false });
-const RunTimingsPanelLazy = dynamic(() => import("@/components/RunTimingsPanel"), { ssr: false });
 
 export default function Home() {
   const uiLang = useUiLang();
@@ -81,34 +77,11 @@ export default function Home() {
     }
   }, []);
 
-              useEffect(() => {
-                if (typeof window === "undefined") return;
-                try {
-                  const flag = lsGet(LS.promptProto, "0") === "1";
-                  setUsePromptProto(flag);
-                } catch {
-                  // ignore
-                }
-              }, []);
-            
-  const [usePromptProto, setUsePromptProto] = useState(false);
-
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
   const debouncedRaw = useDebouncedValue(raw, 180);
   const urls = useMemo(() => parseUrls(debouncedRaw), [debouncedRaw]);
-  const loadDemoRun = () => {
-    // Demo run: pre-fill a few sample X links so new users can see output without thinking.
-    const demoUrls = [
-      "https://x.com/cz_binance/status/1725292931962040418",
-      "https://x.com/ThiccyAltcoin/status/1745869203539626062",
-      "https://x.com/milesdeutscher/status/1756701714206280204",
-    ];
-    setRaw(demoUrls.join("\n"));
-    setIsDemoRun(true);
-  };
-
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const [inputMode, setInputMode] = useState<"urls" | "source">("urls");
@@ -161,10 +134,6 @@ export default function Home() {
 
   useEffect(() => {
     applyVoice(voice);
-    // Load saved session presets on first mount (client-side only)
-    if (typeof window !== "undefined") {
-      setSessionPresets(loadSessionPresets());
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice]);
 
@@ -192,8 +161,6 @@ export default function Home() {
   }, [preset]);
 
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [sessionPresets, setSessionPresets] = useState<SessionPreset[]>([]);
-
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardRecord[]>([]);
   const [resumeCandidate, setResumeCandidate] = useState<RunRecord | null>(null);
@@ -203,10 +170,6 @@ export default function Home() {
   const [stage, setStage] = useState<Stage>("idle");
   const [queueTotal, setQueueTotal] = useState(0);
   const [queueDone, setQueueDone] = useState(0);
-  const [runTotal, setRunTotal] = useState(0);
-  const [runDone, setRunDone] = useState(0);
-  const [runOk, setRunOk] = useState(0);
-  const [runCancelled, setRunCancelled] = useState(false);
   const timers = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const suppressAbortRef = useRef(false);
@@ -269,30 +232,6 @@ export default function Home() {
   }
 
   function mergeIncomingResults(prev: ResultItem[], incoming: ResultItem[]) {
-  // Frontend-only helper: update comment text/lock state for a given URL+index.
-  function updateCommentMeta(url: string, index: number, patch: { text?: string; is_locked?: boolean }) {
-    setItems((prev) =>
-      prev.map((it) => {
-        const key = ((it as any).input_url || it.url) as string;
-        const targetKey = ((url as any) || "") as string;
-        if (!key || !targetKey) return it;
-        if (key !== targetKey && it.url !== url) return it;
-        if (!Array.isArray(it.comments)) return it;
-        if (index < 0 || index >= it.comments.length) return it;
-        const nextComments = it.comments.map((c, i) =>
-          i === index
-            ? ({
-                ...c,
-                ...(patch.text !== undefined ? { text: patch.text, is_user_edited: true } : {}),
-                ...(patch.is_locked !== undefined ? { is_locked: patch.is_locked } : {}),
-              } as any)
-            : c
-        );
-        return { ...it, comments: nextComments };
-      })
-    );
-  }
-
     const order = activeRunOrderRef.current || [];
     const orderSet = new Set(order);
     const byId = new Map<string, string>();
@@ -324,36 +263,6 @@ export default function Home() {
 
       const existing = map.get(key);
       const merged: any = { ...(existing || {}), ...(r || {}) };
-
-      // If there are user-locked comments on the existing item, never drop them.
-      if (
-        existing &&
-        Array.isArray(existing.comments) &&
-        existing.comments.some((c: any) => (c as any)?.is_locked)
-      ) {
-        const prevComments = existing.comments as any[];
-        const lockedComments = prevComments.filter((c: any) => (c as any)?.is_locked);
-        const newComments = Array.isArray((r as any)?.comments) ? ((r as any).comments as any[]) : [];
-        if (lockedComments.length) {
-          // Simple merge: keep all locked comments first, then append new ones.
-          const mergedComments: any[] = [...lockedComments];
-
-          for (const nc of newComments) {
-            const text = String((nc as any)?.text ?? "").trim().toLowerCase();
-            if (!text) {
-              mergedComments.push(nc);
-              continue;
-            }
-            const dup = mergedComments.some((c: any) => {
-              const t2 = String((c as any)?.text ?? "").trim().toLowerCase();
-              return t2 && t2 === text;
-            });
-            if (!dup) mergedComments.push(nc);
-          }
-
-          merged.comments = mergedComments;
-        }
-      }
 
       // Preserve timeline + versions (frontend-only) across updates.
       if (existing?.timeline) merged.timeline = existing.timeline;
@@ -438,42 +347,22 @@ const genMutation = useMutation({
       authToken,
       vars.signal,
 (u) => {
-  // StreamUpdate handler: keep queue and run summary in sync with backend events.
   if (u.type === "meta") {
     if (u.run_id) setRunId(u.run_id);
-    const total = (u as any).total;
-    if (typeof total === "number" && total > 0) {
-      // Initialize queue + run summary on first meta.
-      setQueueTotal(total);
-      setQueueDone(0);
-      setRunTotal(total);
-      setRunDone(0);
-      setRunOk(0);
-      setRunCancelled(false);
-      // Enter fetching stage as soon as we know there is work.
-      advanceStage("fetching");
+    // If backend reports batch size / dedupe info, reflect that.
+    if (typeof (u as any).total === "number" && (u as any).total > 0) {
+      setQueueTotal((u as any).total);
     }
-    return;
   }
-
   if (u.type === "status") {
     const s = String((u as any).stage || "");
-    const total = (u as any).total;
-    const done = (u as any).done;
-
     // Prefer explicit progress numbers from the stream when available.
-    if (typeof total === "number" && total >= 0) {
-      setQueueTotal(total);
-      setRunTotal(total);
+    if (typeof (u as any).total === "number" && (u as any).total >= 0) {
+      setQueueTotal((u as any).total);
     }
-    if (typeof done === "number" && done >= 0) {
-      startTransition(() => {
-        setQueueDone(done);
-        setRunDone(done);
-      });
+    if (typeof (u as any).done === "number" && (u as any).done >= 0) {
+      startTransition(() => setQueueDone((u as any).done));
     }
-
-    // Map backend stages to coarse UI stages.
     if (s === "fetching" || s === "extracting") {
       advanceStage("fetching");
     } else if (s === "generating") {
@@ -483,39 +372,11 @@ const genMutation = useMutation({
     } else if (s === "finalizing") {
       advanceStage("finalizing");
     }
-    return;
   }
-
   if (u.type === "result") {
-    // Merge each per-URL result into the list as it arrives.
     startTransition(() => {
       setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
     });
-    return;
-  }
-
-  if (u.type === "done") {
-    const total = (u as any).total;
-    const done = (u as any).done;
-    const ok = (u as any).ok_count;
-    const cancelled = Boolean((u as any).cancelled);
-
-    if (typeof total === "number" && total >= 0) {
-      setQueueTotal(total);
-      setRunTotal(total);
-    }
-    if (typeof done === "number" && done >= 0) {
-      setQueueDone(done);
-      setRunDone(done);
-    }
-    if (typeof ok === "number" && ok >= 0) {
-      setRunOk(ok);
-    }
-    setRunCancelled(cancelled);
-    // Let the batch runner flip us to "done"; here we just ensure
-    // the visual pipeline is in its final segment.
-    advanceStage("finalizing");
-    return;
   }
 }
     );
@@ -566,7 +427,6 @@ const genMutation = useMutation({
   const [error, setError] = useState<string>("");
   const [items, setItems] = useState<ResultItem[]>([]);
   const [runId, setRunId] = useState<string>("");
-  const [isDemoRun, setIsDemoRun] = useState(false);
 
   const [signupOpen, setSignupOpen] = useState(false);
 
@@ -912,16 +772,11 @@ async function queueRunOffline(requestUrls: string[]) {
 
     queueCancelRef.current = false;
     runStartedAtRef.current = Date.now();
-    logMetric("run_started", { url_count: allUrls.length });
     setError("");
     setLoading(true);
     setStage("fetching");
     setQueueTotal(allUrls.length);
     setQueueDone(0);
-    setRunTotal(allUrls.length);
-    setRunDone(0);
-    setRunOk(0);
-    setRunCancelled(false);
     activeRunOrderRef.current = allUrls;
     // Optimistic placeholders (skeleton cards) so the UI feels instant.
     setItems(
@@ -982,15 +837,7 @@ async function queueRunOffline(requestUrls: string[]) {
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
       const failedCount = combined.filter((i) => i.status === "error").length;
-      
-// Ensure run summary reflects the final state, even if the backend
-// did not emit a `done` event (e.g., non-streaming fallback).
-setRunTotal(allUrls.length);
-setRunDone(allUrls.length);
-setRunOk(okCount);
-setRunCancelled(false);
-
-const request: RunRequestSnapshot = {
+      const request: RunRequestSnapshot = {
         mode: "urls",
         urls: allUrls,
         langEn,
@@ -1022,8 +869,6 @@ const request: RunRequestSnapshot = {
       updateAvgMsPerUrl(Date.now() - (runStartedAtRef.current || Date.now()), allUrls.length);
       completedOk = true;
 
-  const elapsedMs = runStartedAtRef.current ? Date.now() - runStartedAtRef.current : undefined;
-        logMetric("run_completed", { url_count: allUrls.length, ok_count: okCount, failed_count: failedCount, duration_ms: elapsedMs });
       setStage("done");
       toast.success(`Generation finished (${okCount} ok${failedCount ? `, ${failedCount} failed` : ""})`);
 
@@ -1060,7 +905,6 @@ const request: RunRequestSnapshot = {
       });
     } catch (e: any) {
       if (e?.name === "AbortError") {
-        logMetric("run_cancelled", { reason: "abort_error" });
         if (!suppressAbortRef.current) setError("Generation cancelled.");
         suppressAbortRef.current = false;
         setStage("idle");
@@ -1140,7 +984,6 @@ setFailStreak((prev) => {
   }
 
   function cancelRun() {
-    logMetric("run_cancelled", { reason: "user_cancel" });
     suppressAbortRef.current = false;
     queueCancelRef.current = true;
     try { toast("Canceled"); } catch {}
@@ -1171,10 +1014,6 @@ setFailStreak((prev) => {
     setStage("idle");
     setQueueTotal(0);
     setQueueDone(0);
-    setRunTotal(0);
-    setRunDone(0);
-    setRunOk(0);
-    setRunCancelled(false);
   }
 
   async function onGenerate() {
@@ -1295,7 +1134,6 @@ setFailStreak((prev) => {
   }
 
   async function rerollUrl(url: string) {
-    logMetric("reroll_clicked", { url_present: Boolean(url) });
     addTimelineEvent(url, "rerolled");
     await runQueue([url]);
   }
@@ -1367,7 +1205,6 @@ setFailStreak((prev) => {
   }
 
   function onCopied(text: string, url?: string) {
-    logMetric("variant_copied", { has_url: Boolean(url) });
     if (url) addTimelineEvent(url, "copied");
     const rec: ClipboardRecord = {
       id: nowId("clip"),
@@ -1395,76 +1232,12 @@ setFailStreak((prev) => {
     setAuthToken("");
   }
 
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        if (!loading) {
-          onGenerate();
-        }
-      } else if (e.key === "Escape") {
-        if (loading) {
-          e.preventDefault();
-          cancelRun();
-        }
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [loading, onGenerate, cancelRun]);
-
-
-  function saveCurrentAsPreset() {
-    if (typeof window === "undefined") return;
-    const name = window.prompt("Preset name?");
-    if (!name) return;
-    const preset: SessionPreset = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: name.trim(),
-      createdAt: Date.now(),
-      config: {
-        langEn,
-        langNative,
-        nativeLang,
-        tone,
-        intent,
-        qualityMode,
-        includeAlternates,
-        fastMode,
-        voice,
-      },
-    };
-    setSessionPresets((prev) => {
-      const next = [preset, ...prev].slice(0, 20);
-      saveSessionPresets(next);
-      return next;
-    });
-  }
-
-  function applySessionPreset(id: string) {
-    const p = sessionPresets.find((sp) => sp.id === id);
-    if (!p) return;
-    const { config } = p;
-    setLangEn(config.langEn);
-    setLangNative(config.langNative);
-    setNativeLang(config.nativeLang);
-    setTone(config.tone as any);
-    setIntent(config.intent as any);
-    setQualityMode(config.qualityMode);
-    setIncludeAlternates(config.includeAlternates);
-    setFastMode(config.fastMode);
-    setVoice(config.voice);
-  }
-
   return (
     <div className="min-h-screen pb-28">
       <WelcomePopup />
       <OnboardingTour />
       <TopBar theme={theme} setTheme={setTheme} baseUrl={baseUrl} user={user} onLogout={logout} />
       <PerfPanel />
-      <RunTimingsPanelLazy items={items} />
       {showRenderProfiler ? <RenderProfilerPanelLazy /> : null}
 
       <SignupGate
@@ -1522,8 +1295,7 @@ setFailStreak((prev) => {
                 onSort={() => setRaw(sortUrlsInRaw(raw))}
                 onCleanInvalid={() => setRaw(cleanInvalidInRaw(raw))}
                 onShuffle={() => setRaw(shuffleUrlsInRaw(raw))}
-                      onLoadDemo={loadDemoRun}
-/>
+              />
             ) : (
               <Card>
                 <CardHeader>
@@ -1576,9 +1348,6 @@ setFailStreak((prev) => {
               setFastMode={setFastMode}
               qualityMode={qualityMode}
               setQualityMode={setQualityMode}
-              sessionPresets={sessionPresets}
-              onSavePreset={saveCurrentAsPreset}
-              onApplyPreset={applySessionPreset}
               preset={preset}
               setPreset={setPreset}
               voice={voice}
@@ -1598,7 +1367,6 @@ setFailStreak((prev) => {
 
         <Results
           items={items}
-          isDemoRun={isDemoRun}
           runId={runId}
           onRerollUrl={rerollUrl}
           onRetryUrl={(u) => runQueue([u])}
@@ -1613,14 +1381,6 @@ setFailStreak((prev) => {
           loading={loading}
           queueTotal={queueTotal}
           queueDone={queueDone}
-          runTotal={runTotal}
-          runDone={runDone}
-          runOk={runOk}
-          runCancelled={runCancelled}
-          qualityMode={qualityMode}
-          langEn={langEn}
-          langNative={langNative}
-          nativeLang={nativeLang}
         />
 
         
@@ -1680,12 +1440,6 @@ setFailStreak((prev) => {
               setItems(r.results);
               setRunId(r.id);
               setError("");
-              if (typeof window !== "undefined") {
-                window.scrollTo({
-                  top: 0,
-                  behavior: prefersReducedMotion() ? "auto" : "smooth",
-                });
-              }
             }}
             onRemove={(id) => setRuns((prev) => prev.filter((r) => r.id !== id))}
             onShare={prefs?.enableShareLinks ? (id) => {
@@ -1746,8 +1500,6 @@ setFailStreak((prev) => {
         setIncludeAlternates={setIncludeAlternates}
         fastMode={fastMode}
         setFastMode={setFastMode}
-        qualityMode={qualityMode}
-        setQualityMode={setQualityMode}
         preset={preset}
         setPreset={setPreset}
         voice={voice}
@@ -1787,5 +1539,4 @@ setFailStreak((prev) => {
       />
     </div>
   );
-
 }
