@@ -370,6 +370,8 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
     signal,
   });
 
+  const headerRunId = res.headers.get("X-Run-Id") || undefined;
+
   const body = await readBody(res);
   const data = unwrapEnvelope<any>(body);
 
@@ -396,11 +398,14 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
   // meta can live on the outer envelope.
   const meta = body && typeof body === "object" ? (body as any).meta : undefined;
 
-  return { results: [...ok, ...failed], meta: meta || undefined };
+  const mergedMeta = headerRunId ? { run_id: headerRunId } : meta || undefined;
+
+  return { results: [...ok, ...failed], meta: mergedMeta };
 }
 
 export type StreamUpdate =
   | { type: "meta"; run_id?: string }
+  | { type: "status"; stage: string }
   | { type: "result"; item: ResultItem }
   | { type: "done"; results: ResultItem[] };
 
@@ -440,6 +445,7 @@ export async function generateCommentsStream(
   }
 
   const ct = res.headers.get("content-type") || "";
+  const headerRunId = res.headers.get("X-Run-Id") || undefined;
   if (!res.ok) {
     const body = await readBody(res);
     throw new ApiError(res.status, `Backend error: ${errMessage(res, body)}`, body);
@@ -465,7 +471,8 @@ export async function generateCommentsStream(
     );
     const results = [...ok, ...failed];
     const meta = body && typeof body === "object" ? (body as any).meta : undefined;
-    return { results, meta: meta || undefined };
+    const mergedMeta = headerRunId ? { run_id: headerRunId } : meta || undefined;
+    return { results, meta: mergedMeta };
   }
 
   // Streaming reader
@@ -476,7 +483,8 @@ export async function generateCommentsStream(
   const decoder = new TextDecoder();
   let buf = "";
   const collected: ResultItem[] = [];
-  let runId: string | undefined;
+  let runId: string | undefined = headerRunId;
+  if (runId) onUpdate({ type: "meta", run_id: runId });
   const flushLine = (line: string) => {
     const t = line.trim();
     if (!t) return;
@@ -485,9 +493,13 @@ export async function generateCommentsStream(
     try {
       const obj = JSON.parse(raw);
       // Common patterns
-      if (obj?.meta?.run_id) {
-        runId = obj.meta.run_id;
-        onUpdate({ type: "meta", run_id: obj.meta.run_id });
+      const metaRunId = obj?.meta?.run_id || obj?.run_id || (obj?.type === "meta" ? obj?.run_id : undefined);
+      if (metaRunId) {
+        runId = metaRunId;
+        onUpdate({ type: "meta", run_id: metaRunId });
+      }
+      if (obj?.type === "status" && obj?.stage) {
+        onUpdate({ type: "status", stage: String(obj.stage) });
       }
       if (obj?.type === "result" && obj?.item) {
         const item = normalizeResultItem(obj.item, payload);
@@ -524,7 +536,7 @@ export async function generateCommentsStream(
   flushLine(buf);
   onUpdate({ type: "done", results: collected });
 
-  return { results: collected, meta: runId ? { run_id: runId } : {} };
+  return { results: collected, meta: runId ? { run_id: runId } : undefined };
 }
 
 export type SourcePreview = { title: string; excerpt: string; source_url: string };
@@ -608,4 +620,44 @@ export async function exportHistory(
     throw new ApiError(res.status, `Export failed: ${errMessage(res, body)}`, body);
   }
   return await res.blob();
+}
+
+
+
+export async function cancelRun(
+  baseUrl: string,
+  runId: string,
+  accessToken: string,
+  authToken: string
+): Promise<void> {
+  if (!runId) return;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const bodyStr = JSON.stringify({ run_id: runId });
+  await addRequestSignature(headers, bodyStr);
+
+  try {
+    await fetch(`${baseUrl.replace(/\/$/, "")}/run/cancel`, {
+      method: "POST",
+      headers,
+      body: bodyStr,
+    });
+  } catch {
+    // Best-effort fire-and-forget; cancellation is cooperative.
+  }
+}
+
+// ===== Batch Stream API =====
+
+export function streamBatchComments(urls, onMessage) {
+  const eventSource = new EventSource(
+    `${process.env.NEXT_PUBLIC_API_URL}/comment/batch_stream`,
+  );
+  eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    onMessage(data);
+  };
+  return eventSource;
 }
