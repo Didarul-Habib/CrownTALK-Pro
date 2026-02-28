@@ -1610,7 +1610,6 @@ setFailStreak((prev) => {
             setError("");
           }}
           onCopy={onCopied}
-          onUpdateCommentMeta={updateCommentMeta}
           loading={loading}
           queueTotal={queueTotal}
           queueDone={queueDone}
