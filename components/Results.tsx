@@ -40,6 +40,10 @@ export default function Results({
   onClear,
   onCopy,
   loading,
+  runTotal,
+  runDone,
+  runOk,
+  runCancelled,
 }: {
   items: ResultItem[];
   runId: string;
@@ -52,6 +56,10 @@ export default function Results({
   onClear?: () => void;
   onCopy?: (text: string, url?: string) => void;
   loading?: boolean;
+  runTotal?: number;
+  runDone?: number;
+  runOk?: number;
+  runCancelled?: boolean;
 }) {
   const uiLang = useUiLang();
   const okCount = items.filter((i) => i.status === "ok").length;
@@ -62,6 +70,21 @@ export default function Results({
 
 const derivedFailedCount = failedItems.length;
 const totalUrls = items.length;
+
+  // Prefer backend-reported run summary when available.
+  const effectiveTotal = typeof runTotal === "number" && runTotal > 0 ? runTotal : totalUrls;
+  const effectiveDone =
+    typeof runDone === "number" && runDone >= 0 ? Math.min(runDone, effectiveTotal) : totalUrls;
+  const effectiveOk =
+    typeof runOk === "number" && runOk >= 0 ? Math.min(runOk, effectiveDone) : okCount;
+  const effectiveFailed = Math.max(0, effectiveDone - effectiveOk);
+
+  const showStatusPill = !loading && effectiveTotal > 0;
+  let statusLabel: string | null = null;
+  if (showStatusPill) {
+    if (runCancelled) statusLabel = "Cancelled";
+    else if (effectiveDone >= effectiveTotal) statusLabel = "Completed";
+  }
 
   const primaryPairs = useMemo(() => {
     return items
@@ -222,13 +245,18 @@ const totalUrls = items.length;
   <div className="text-xs opacity-70">
     {translate("results.runLabel", uiLang)}{" "}
     {runId ? <span className="font-mono">{runId}</span> : "—"} •{" "}
-    {totalUrls} {translate("results.urls", uiLang)} •{" "}
-    {okCount} {translate("results.ok", uiLang)} •{" "}
-    {derivedFailedCount} {translate("results.failed", uiLang)}
+    {effectiveTotal} {translate("results.urls", uiLang)} •{" "}
+    {effectiveOk} {translate("results.ok", uiLang)} •{" "}
+    {effectiveFailed} {translate("results.failed", uiLang)}
     {loading && queueTotal ? (
       <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
         {translate("results.queue", uiLang)}{" "}
         {Math.min(queueDone ?? 0, queueTotal)}/{queueTotal}
+      </span>
+    ) : null}
+    {!loading && statusLabel ? (
+      <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px]">
+        {statusLabel}
       </span>
     ) : null}
   </div>
