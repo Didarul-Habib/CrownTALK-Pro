@@ -3,6 +3,9 @@
 export type Tone = "auto" | "professional" | "casual" | "bold" | "friendly";
 export type Intent = "auto" | "neutral" | "agree" | "question" | "soft_pushback";
 
+export type QualityMode = "fast" | "balanced" | "pro";
+
+
 export type GenerateRequest = {
   urls: string[];
   preset?: string;
@@ -10,8 +13,8 @@ export type GenerateRequest = {
   output_language?: string;
   // Fast mode: fewer tokens/variants where possible.
   fast?: boolean;
-  // Optional quality mode (fast/balanced/pro) – used to adjust backend strategy.
-  quality_mode?: "fast" | "balanced" | "pro";
+  // Preferred quality preset; backend defaults to "balanced" when omitted.
+  quality_mode?: QualityMode;
   lang_en: boolean;
   lang_native: boolean;
   native_lang?: string;

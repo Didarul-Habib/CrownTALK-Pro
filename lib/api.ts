@@ -262,6 +262,32 @@ export async function verifyAccess(baseUrl: string, code: string) {
   return data as { ok: boolean; token: string };
 }
 
+export async function cancelActiveRun(
+  baseUrl: string,
+  runId: string | null | undefined,
+  accessToken: string,
+  authToken: string
+): Promise<void> {
+  if (!runId) return;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+  const bodyStr = JSON.stringify({ run_id: runId });
+  await addRequestSignature(headers, bodyStr);
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/run/cancel`, {
+      method: "POST",
+      headers,
+      body: bodyStr,
+    });
+    // Drain body so the connection can be reused; ignore errors.
+    await readBody(res);
+  } catch {
+    // Best-effort; failures here should not break the UI.
+  }
+}
+
+
 export async function signup(
   baseUrl: string,
   payload: { name: string; x_link: string; password: string },
@@ -404,10 +430,10 @@ const res = await fetch(`${baseUrl.replace(/\/$/, "")}/comment`, {
 }
 
 export type StreamUpdate =
-  | { type: "meta"; run_id?: string }
-  | { type: "status"; stage: string }
+  | { type: "meta"; run_id?: string; total?: number; skipped_duplicates?: number; quality_mode?: string }
+  | { type: "status"; stage: string; index?: number; total?: number; done?: number; url?: string }
   | { type: "result"; item: ResultItem }
-  | { type: "done"; results: ResultItem[] };
+  | { type: "done"; results: ResultItem[]; run_id?: string; total?: number; done?: number; ok_count?: number; cancelled?: boolean };
 
 export async function generateCommentsStream(
   baseUrl: string,
@@ -488,19 +514,54 @@ export async function generateCommentsStream(
   const flushLine = (line: string) => {
     const t = line.trim();
     if (!t) return;
-    // SSE "data: ..."
+    // SSE "data: ..." (but accept plain JSON lines too)
     const raw = t.startsWith("data:") ? t.slice(5).trim() : t;
     try {
       const obj = JSON.parse(raw);
-      // Common patterns
-      const metaRunId = obj?.meta?.run_id || obj?.run_id || (obj?.type === "meta" ? obj?.run_id : undefined);
-      if (metaRunId) {
-        runId = metaRunId;
-        onUpdate({ type: "meta", run_id: metaRunId });
+
+      // META: run id + batch metadata
+      const metaRunId =
+        obj?.meta?.run_id ||
+        obj?.run_id ||
+        (obj?.type === "meta" ? obj?.run_id : undefined);
+      const metaTotal =
+        (obj?.meta && typeof obj.meta.total === "number" ? obj.meta.total : undefined) ||
+        (typeof obj.total === "number" ? obj.total : undefined);
+      const skipped =
+        (obj?.meta && typeof obj.meta.skipped_duplicates === "number" ? obj.meta.skipped_duplicates : undefined) ||
+        (typeof obj.skipped_duplicates === "number" ? obj.skipped_duplicates : undefined);
+      const qualityMode =
+        (obj?.meta && typeof obj.meta.quality_mode === "string" ? obj.meta.quality_mode : undefined) ||
+        (typeof obj.quality_mode === "string" ? obj.quality_mode : undefined);
+
+      if (metaRunId || metaTotal !== undefined || skipped !== undefined || qualityMode !== undefined) {
+        if (metaRunId) runId = metaRunId;
+        onUpdate({
+          type: "meta",
+          run_id: metaRunId || runId,
+          total: metaTotal,
+          skipped_duplicates: skipped,
+          quality_mode: qualityMode,
+        });
       }
+
+      // STATUS: stage + optional progress numbers
       if (obj?.type === "status" && obj?.stage) {
-        onUpdate({ type: "status", stage: String(obj.stage) });
+        const index = typeof obj.index === "number" ? obj.index : undefined;
+        const total = typeof obj.total === "number" ? obj.total : undefined;
+        const done = typeof obj.done === "number" ? obj.done : undefined;
+        const url = typeof obj.url === "string" ? obj.url : undefined;
+        onUpdate({
+          type: "status",
+          stage: String(obj.stage),
+          index,
+          total,
+          done,
+          url,
+        });
       }
+
+      // RESULT payloads (single or arrays)
       if (obj?.type === "result" && obj?.item) {
         const item = normalizeResultItem(obj.item, payload);
         collected.push(item);
@@ -515,13 +576,33 @@ export async function generateCommentsStream(
           collected.push(item);
           onUpdate({ type: "result", item });
         }
-      } else if (obj?.type === "done") {
-        onUpdate({ type: "done", results: collected });
+      }
+
+      // DONE marker (with optional batch summary)
+      if (obj?.type === "done" || obj?.ok === true) {
+        const doneTotal = typeof obj.total === "number" ? obj.total : undefined;
+        const doneCount = typeof obj.done === "number" ? obj.done : undefined;
+        const okCount = typeof obj.ok_count === "number" ? obj.ok_count : undefined;
+        const cancelled =
+          typeof obj.cancelled === "boolean" ? obj.cancelled : undefined;
+        const doneRunId =
+          typeof obj.run_id === "string" && obj.run_id
+            ? obj.run_id
+            : runId;
+        onUpdate({
+          type: "done",
+          results: collected,
+          run_id: doneRunId,
+          total: doneTotal,
+          done: doneCount,
+          ok_count: okCount,
+          cancelled,
+        });
       }
     } catch {
       // ignore non-json
     }
-  };
+  };;
 
   while (true) {
     const { value, done } = await reader.read();
@@ -620,44 +701,4 @@ export async function exportHistory(
     throw new ApiError(res.status, `Export failed: ${errMessage(res, body)}`, body);
   }
   return await res.blob();
-}
-
-
-
-export async function cancelRun(
-  baseUrl: string,
-  runId: string,
-  accessToken: string,
-  authToken: string
-): Promise<void> {
-  if (!runId) return;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (accessToken) headers[ACCESS_HEADER] = accessToken;
-  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-
-  const bodyStr = JSON.stringify({ run_id: runId });
-  await addRequestSignature(headers, bodyStr);
-
-  try {
-    await fetch(`${baseUrl.replace(/\/$/, "")}/run/cancel`, {
-      method: "POST",
-      headers,
-      body: bodyStr,
-    });
-  } catch {
-    // Best-effort fire-and-forget; cancellation is cooperative.
-  }
-}
-
-// ===== Batch Stream API =====
-
-export function streamBatchComments(urls, onMessage) {
-  const eventSource = new EventSource(
-    `${process.env.NEXT_PUBLIC_API_URL}/comment/batch_stream`,
-  );
-  eventSource.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    onMessage(data);
-  };
-  return eventSource;
 }
