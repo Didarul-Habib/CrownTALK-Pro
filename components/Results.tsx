@@ -40,6 +40,7 @@ export default function Results({
   queueDone,
   onClear,
   onCopy,
+  onUpdateCommentMeta,
   loading,
   runTotal,
   runDone,
@@ -61,6 +62,7 @@ export default function Results({
   queueDone?: number;
   onClear?: () => void;
   onCopy?: (text: string, url?: string) => void;
+  onUpdateCommentMeta?: (url: string, index: number, patch: { text?: string; is_locked?: boolean }) => void;
   loading?: boolean;
   runTotal?: number;
   runDone?: number;
