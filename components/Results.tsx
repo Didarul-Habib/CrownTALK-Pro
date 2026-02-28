@@ -127,10 +127,8 @@ const totalUrls = items.length;
     return base.filter((it) => it.status === "ok" && (it.comments?.length ?? 0) > 0);
   }, [displayItemsDedup, loading, showFailedCards]);
 
+
   const useVirtualList = displayItems.length > 24;
-
-
-
 
   const [canAnimateCards, setCanAnimateCards] = useState(true);
   useEffect(() => {
@@ -435,7 +433,11 @@ const totalUrls = items.length;
       ) : null}
 
       {useVirtualList ? (
-        <VirtualResultList items={displayItems} onRerollUrl={onRerollUrl} onCopy={onCopy} />
+        <VirtualResultList
+          items={displayItems}
+          onRerollUrl={onRerollUrl}
+          onCopy={onCopy}
+        />
       ) : (
         displayItems.map((it, idx) => {
           const sim = similarMap.get(it.url);
@@ -452,7 +454,11 @@ const totalUrls = items.length;
                 item={it}
                 onReroll={() => onRerollUrl(it.url)}
                 onCopy={onCopy}
-                onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
+                onRetry={
+                  it.status !== "ok" && it.status !== "pending"
+                    ? () => onRetryUrl(it.url)
+                    : undefined
+                }
                 warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
                 warnSpam={spam}
               />
