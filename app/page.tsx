@@ -352,12 +352,6 @@ const genMutation = useMutation({
   },
   retry: 0,
 });
-  }
-}
-    );
-  },
-  retry: 0,
-});
 
   const genFromUrlMutation = useMutation({
     mutationFn: async (vars: { source_url: string; signal?: AbortSignal }) => {
