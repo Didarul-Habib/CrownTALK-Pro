@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import PremiumButton from "@/components/PremiumButton";
 import { Ban, ChevronDown, ChevronUp, Eraser, Lock, Wand2 } from "lucide-react";
-import type { Intent, Tone, QualityMode } from "@/lib/types";
+import type { Intent, Tone } from "@/lib/types";
 import { translate, useUiLang } from "@/lib/i18n";
 
 const NATIVE_LANGS = [
@@ -35,8 +35,6 @@ export default function Controls({
   setIncludeAlternates,
   fastMode,
   setFastMode,
-  qualityMode,
-  setQualityMode,
   preset,
   setPreset,
   voice,
@@ -62,8 +60,6 @@ export default function Controls({
   setIncludeAlternates: (v: boolean) => void;
   fastMode: boolean;
   setFastMode: (v: boolean) => void;
-  qualityMode: QualityMode;
-  setQualityMode: (v: QualityMode) => void;
   preset: string;
   setPreset: (v: string) => void;
   voice: number;
@@ -272,59 +268,7 @@ export default function Controls({
   <label htmlFor="fast" className="text-sm opacity-85">
     Fast mode <span className="text-xs opacity-60">(lower latency)</span>
   </label>
-
 </div>
-
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs opacity-70">Quality</div>
-              <div className="text-[11px] opacity-70">
-                {qualityMode === "fast"
-                  ? "Fast (lower latency)"
-                  : qualityMode === "pro"
-                  ? "Pro (max polish)"
-                  : "Balanced"}
-              </div>
-            </div>
-            <div className="inline-flex rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-1 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setQualityMode("fast")}
-                className={clsx(
-                  "px-3 py-1 rounded-2xl transition",
-                  qualityMode === "fast"
-                    ? "bg-white/10 border border-[color:var(--ct-accent)]"
-                    : "border border-transparent opacity-70 hover:opacity-100"
-                )}
-              >
-                Fast
-              </button>
-              <button
-                type="button"
-                onClick={() => setQualityMode("balanced")}
-                className={clsx(
-                  "px-3 py-1 rounded-2xl transition",
-                  qualityMode === "balanced"
-                    ? "bg-white/10 border border-[color:var(--ct-accent)]"
-                    : "border border-transparent opacity-70 hover:opacity-100"
-                )}
-              >
-                Balanced
-              </button>
-              <button
-                type="button"
-                onClick={() => setQualityMode("pro")}
-                className={clsx(
-                  "px-3 py-1 rounded-2xl transition",
-                  qualityMode === "pro"
-                    ? "bg-white/10 border border-[color:var(--ct-accent)]"
-                    : "border border-transparent opacity-70 hover:opacity-100"
-                )}
-              >
-                Pro
-              </button>
-            </div>
-          </div>
 
 <div className="mt-5 space-y-2">
   <div className="flex items-center justify-between gap-3">
@@ -349,59 +293,7 @@ export default function Controls({
     <span>Builder</span>
     <span>Analyst</span>
   </div>
-
 </div>
-
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs opacity-70">Quality</div>
-              <div className="text-[11px] opacity-70">
-                {qualityMode === "fast"
-                  ? "Fast (lower latency)"
-                  : qualityMode === "pro"
-                  ? "Pro (max polish)"
-                  : "Balanced"}
-              </div>
-            </div>
-            <div className="inline-flex rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-surface)] p-1 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setQualityMode("fast")}
-                className={clsx(
-                  "px-3 py-1 rounded-2xl transition",
-                  qualityMode === "fast"
-                    ? "bg-white/10 border border-[color:var(--ct-accent)]"
-                    : "border border-transparent opacity-70 hover:opacity-100"
-                )}
-              >
-                Fast
-              </button>
-              <button
-                type="button"
-                onClick={() => setQualityMode("balanced")}
-                className={clsx(
-                  "px-3 py-1 rounded-2xl transition",
-                  qualityMode === "balanced"
-                    ? "bg-white/10 border border-[color:var(--ct-accent)]"
-                    : "border border-transparent opacity-70 hover:opacity-100"
-                )}
-              >
-                Balanced
-              </button>
-              <button
-                type="button"
-                onClick={() => setQualityMode("pro")}
-                className={clsx(
-                  "px-3 py-1 rounded-2xl transition",
-                  qualityMode === "pro"
-                    ? "bg-white/10 border border-[color:var(--ct-accent)]"
-                    : "border border-transparent opacity-70 hover:opacity-100"
-                )}
-              >
-                Pro
-              </button>
-            </div>
-          </div>
 
 <div className="mt-5 space-y-2">
   <div className="text-xs opacity-70">Presets</div>

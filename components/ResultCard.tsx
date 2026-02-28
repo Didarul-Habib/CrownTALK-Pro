@@ -65,15 +65,12 @@ export default function ResultCard({
   warnSpam?: string | null;
 }) {
   const [copiedKey, setCopiedKey] = useState<string>("");
-const [editingKey, setEditingKey] = useState<string>("");
-const [actionsKey, setActionsKey] = useState<string>("");
+  const [editingKey, setEditingKey] = useState<string>("");
+  const [texts, setTexts] = useState<string[]>(() =>
+    (item.comments || []).map((c: any) => String(c?.text ?? c ?? ""))
+  );
+  const timerRef = useRef<number | null>(null);
 
-const [texts, setTexts] = useState<string[]>(() =>
-  (item.comments || []).map((c: any) => String(c?.text ?? c ?? ""))
-);
-
-const timerRef = useRef<number | null>(null);
-const longPressTimerRef = useRef<number | null>(null);
   const hasComments = (item.comments || []).some((c: any) => {
     const t = String(c?.text ?? c ?? "");
     return t.trim().length > 0;
@@ -92,42 +89,15 @@ const longPressTimerRef = useRef<number | null>(null);
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
-      if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
     };
   }, []);
 
   function markCopied(key: string) {
-  // Persistent until another copy happens (unmistakable)
-  setCopiedKey(key);
-  if (timerRef.current) window.clearTimeout(timerRef.current);
-  timerRef.current = window.setTimeout(() => {
-    setCopiedKey("");
-  }, 1800);
-}
-
-function handleCardClick(key: string, currentText: string) {
-  if (editingKey === key) return;
-  if (!currentText.trim()) return;
-  if (actionsKey === key) return;
-  copyText(currentText);
-  markCopied(key);
-  onCopy?.(currentText, item.url);
-}
-
-function startLongPress(key: string) {
-  if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
-  longPressTimerRef.current = window.setTimeout(() => {
-    setActionsKey(key);
-  }, 450);
-}
-
-function cancelLongPress() {
-  if (longPressTimerRef.current) {
-    window.clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = null;
+    // Persistent until another copy happens (unmistakable)
+    setCopiedKey(key);
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
   }
-}
-
 
   return (
     <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_18px_80px_rgba(0,0,0,0.75)] backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
@@ -249,16 +219,6 @@ function cancelLongPress() {
                     ? "border-[color:var(--ct-accent)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--ct-accent)_35%,transparent)]"
                     : ""
                 )}
-                onClick={() => handleCardClick(key, currentText)}
-                onTouchStart={() => {
-                  if (!editing) startLongPress(key);
-                }}
-                onTouchEnd={cancelLongPress}
-                onTouchMove={cancelLongPress}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setActionsKey(key);
-                }}
               >
                 <div className="text-sm leading-6 whitespace-pre-wrap break-words">{currentText}</div>
 
@@ -356,81 +316,8 @@ function cancelLongPress() {
                     </button>
                   </div>
                 </div>
-  </div>
-
-  {actionsKey === key && (
-    <div
-      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40"
-      onClick={() => setActionsKey("")}
-    >
-      <div
-        className="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-[color:var(--ct-surface)] border border-[color:var(--ct-border)] p-4 space-y-2 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-xs font-semibold opacity-80 mb-2">Actions</div>
-
-        <button
-          type="button"
-          className="ct-btn ct-btn-sm w-full justify-start"
-          onClick={() => {
-            handleCardClick(key, currentText);
-            setActionsKey("");
-          }}
-        >
-          <Copy className="h-4 w-4 opacity-80" />
-          <span className="ml-2">Copy</span>
-        </button>
-
-        <button
-          type="button"
-          className="ct-btn ct-btn-sm w-full justify-start"
-          onClick={() => {
-            const u = (item as any).display_url || item.url;
-            if (u) window.open(u, "_blank", "noopener,noreferrer");
-            setActionsKey("");
-          }}
-        >
-          <ExternalLink className="h-4 w-4 opacity-80" />
-          <span className="ml-2">Open on X</span>
-        </button>
-
-        <button
-          type="button"
-          className="ct-btn ct-btn-sm w-full justify-start"
-          onClick={() => {
-            setActionsKey("");
-            onReroll();
-          }}
-        >
-          <RotateCcw className="h-4 w-4 opacity-80" />
-          <span className="ml-2">Reroll</span>
-        </button>
-
-        {onRetry && (
-          <button
-            type="button"
-            className="ct-btn ct-btn-sm w-full justify-start"
-            onClick={() => {
-              setActionsKey("");
-              onRetry();
-            }}
-          >
-            <RotateCcw className="h-4 w-4 opacity-80" />
-            <span className="ml-2">Retry</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          className="ct-btn ct-btn-ghost w-full justify-center text-xs opacity-80"
-          onClick={() => setActionsKey("")}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  )}
-);
+              </div>
+            );
           })}
         </>
       )}

@@ -208,7 +208,7 @@ const totalUrls = items.length;
 
 
   return (
-    <div id="ct-results" className="space-y-4 pb-24 md:pb-12">
+    <div id="ct-results" className="space-y-4">
       <div
         className={clsx(
           "relative z-30 overflow-visible",
