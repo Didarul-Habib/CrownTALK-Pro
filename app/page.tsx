@@ -1413,6 +1413,49 @@ setFailStreak((prev) => {
     return () => window.removeEventListener("keydown", handler);
   }, [loading, onGenerate, cancelRun]);
 
+
+  function saveCurrentAsPreset() {
+    if (typeof window === "undefined") return;
+    const name = window.prompt("Preset name?");
+    if (!name) return;
+    const preset: SessionPreset = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim(),
+      createdAt: Date.now(),
+      config: {
+        langEn,
+        langNative,
+        nativeLang,
+        tone,
+        intent,
+        qualityMode,
+        includeAlternates,
+        fastMode,
+        voice,
+      },
+    };
+    setSessionPresets((prev) => {
+      const next = [preset, ...prev].slice(0, 20);
+      saveSessionPresets(next);
+      return next;
+    });
+  }
+
+  function applySessionPreset(id: string) {
+    const p = sessionPresets.find((sp) => sp.id === id);
+    if (!p) return;
+    const { config } = p;
+    setLangEn(config.langEn);
+    setLangNative(config.langNative);
+    setNativeLang(config.nativeLang);
+    setTone(config.tone as any);
+    setIntent(config.intent as any);
+    setQualityMode(config.qualityMode);
+    setIncludeAlternates(config.includeAlternates);
+    setFastMode(config.fastMode);
+    setVoice(config.voice);
+  }
+
   return (
     <div className="min-h-screen pb-28">
       <WelcomePopup />
@@ -1743,49 +1786,3 @@ setFailStreak((prev) => {
       />
     </div>
   );
-const saveCurrentAsPreset = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const name = window.prompt("Preset name?");
-    if (!name) return;
-    const preset: SessionPreset = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: name.trim(),
-      createdAt: Date.now(),
-      config: {
-        langEn,
-        langNative,
-        nativeLang,
-        tone,
-        intent,
-        qualityMode,
-        includeAlternates,
-        fastMode,
-        voice,
-      },
-    };
-    setSessionPresets((prev) => {
-      const next = [preset, ...prev].slice(0, 20);
-      saveSessionPresets(next);
-      return next;
-    });
-  }, [langEn, langNative, nativeLang, tone, intent, qualityMode, includeAlternates, fastMode, voice]);
-
-  const applySessionPreset = useCallback(
-    (id: string) => {
-      const p = sessionPresets.find((sp) => sp.id === id);
-      if (!p) return;
-      const { config } = p;
-      setLangEn(config.langEn);
-      setLangNative(config.langNative);
-      setNativeLang(config.nativeLang);
-      setTone(config.tone as any);
-      setIntent(config.intent as any);
-      setQualityMode(config.qualityMode);
-      setIncludeAlternates(config.includeAlternates);
-      setFastMode(config.fastMode);
-      setVoice(config.voice);
-    },
-    [sessionPresets]
-  );
-
-}
