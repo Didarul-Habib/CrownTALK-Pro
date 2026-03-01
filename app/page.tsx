@@ -761,7 +761,7 @@ async function queueRunOffline(requestUrls: string[]) {
     );
     setRunId("");
 
-    const BATCH_SIZE = 6;
+    const BATCH_SIZE = allUrls.length <= 8 ? 1 : 6;
     const batches: string[][] = [];
     for (let i = 0; i < allUrls.length; i += BATCH_SIZE) {
       batches.push(allUrls.slice(i, i + BATCH_SIZE));
