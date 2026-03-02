@@ -1,56 +1,103 @@
-# CrownTALK (CrownTALK 2) — X Comment Generator
+# CrownTALK 👑 — Professional X Comment Generator
 
-This repo contains:
-- **frontend/**: Next.js UI
-- **backend/**: Flask API (Gunicorn-ready)
+CrownTALK is a production-grade web app that generates **professional, human-style replies** for X (Twitter) posts, with a particular focus on crypto / Web3 content and GM-style replies.
 
-## Quick start (local)
+This repo contains both the **frontend** (Next.js) and the **backend** (Flask + Gunicorn):
 
-### 1) Backend
+- `Frontend/` — Next.js 14 + React 18 UI (TypeScript)
+- `backend/` — Flask API server, deployed behind Gunicorn (Render-ready)
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # optional
-export $(cat .env | xargs)  # optional (or use direnv)
-python main.py
-```
+---
 
-Backend defaults to `PORT=10000`.
+## Features
 
-### 2) Frontend
+- **Multi-URL batch generation**
+  - Paste multiple X links at once and get structured replies per URL.
+  - Deduplication and per-URL error handling.
 
-```bash
-cd frontend
-npm i
-cp .env.local.example .env.local
-npm run dev
-```
+- **Professional CT-style replies**
+  - Short, clear, low-hype comments.
+  - Optional crypto-project grounding via research files.
 
-Open `http://localhost:3000`.
+- **GM / greeting awareness**
+  - GM / “good morning” posts get **two specialized comments**:
+    - Comment #1: short, pure greeting (no question).
+    - Comment #2: short GM line with exactly **one** roadmap/alpha/updates question.
+  - Greets the author with a trimmed name: e.g. `Waleswoosh` → `Wale` → `GM Wale, ...`.
 
-## Docker compose (optional)
+- **Tone / intent controls**
+  - Tone presets (e.g., neutral, optimistic, skeptical).
+  - Intent modes (e.g., quote, question reply, metrics reply, greeting, etc.).
+  - Optional “native language” mode with English vs native output logic.
 
-```bash
-docker compose up --build
-```
+- **Quality modes**
+  - `fast`, `balanced`, `pro` quality tiers control model choice, max tokens, and temperature.
 
-## Environment variables
+- **Pipeline UI**
+  - Live pipeline stages: *Fetching → Generating → Polishing → Finalizing*.
+  - Per-run queue counts (e.g., `Queue 1/4`).
 
-### Frontend
-- `NEXT_PUBLIC_BACKEND_URL` (required)
-- `NEXT_PUBLIC_CT_HMAC_SECRET` (optional) — if set, the UI signs requests.
+- **Run history & export**
+  - Local run history in the UI.
+  - Server-side history export to JSON / TXT / CSV (for power users).
 
-### Backend
-- `PORT` (default `10000`)
-- `GROQ_API_KEY` (required if using Groq providers)
-- `OPENAI_API_KEY` / `OPENROUTER_API_KEY` (optional, depending on your provider order)
-- `CROWNTALK_HMAC_SECRET` (optional) — **must match** `NEXT_PUBLIC_CT_HMAC_SECRET` if you enable signing.
-- `CROWNTALK_HMAC_ENFORCE` (default `false`) — set `true` to reject unsigned requests.
-- `CROWNTALK_API_VERSION` (optional) — returned in the API envelope.
+- **Clipboard history & quick actions**
+  - One-click copy per comment.
+  - Edit in place, reroll per URL.
+  - Clipboard history with export options.
 
-## Notes
-- The API supports both legacy JSON errors (`{error, code}`) and the newer envelope (`{success, requestId, apiVersion, data, error}`), and the UI handles both.
-- Bulk URL processing is conservatively parallel (max 2 workers by default) to reduce provider rate-limit errors.
+- **Access gating & HMAC signing**
+  - Optional access code gate.
+  - Optional HMAC request signing between frontend and backend.
+
+---
+
+## Tech Stack
+
+**Frontend**
+
+- Next.js 14.2
+- React 18
+- TypeScript
+- Tailwind CSS
+- Framer Motion
+- Lucide React
+- Ladle (for component stories)
+- Playwright (E2E tests)
+
+**Backend**
+
+- Flask 3.x
+- Gunicorn (gthread workers)
+- Pydantic (request schemas)
+- Requests (HTTP client)
+- Psycopg2 (Postgres via Supabase on Render)
+- Groq / OpenAI / other LLM provider SDKs
+- BeautifulSoup4 (HTML parsing for article mode)
+
+---
+
+## Project Structure
+
+```text
+CrownTALK 👑/
+  CrownTALK 👑/
+    Frontend/
+      app/                # Next.js app routes (main UI)
+      components/         # UI components (Controls, Results, Pipeline, etc.)
+      lib/                # API client, types, quality heuristics, storage helpers
+      public/             # Static assets
+      netlify.toml        # Netlify deploy config
+      package.json
+      tsconfig.json
+      tailwind.config.ts
+
+    backend/
+      main.py             # Flask application entrypoint
+      api.py              # Provider + generation wrapper logic
+      schemas.py          # Pydantic models for requests / responses
+      utils.py            # Helpers (logging, research loading, etc.)
+      gunicorn_config.py  # Gunicorn settings (Render)
+      Dockerfile
+      Procfile
+      requirements.txt
