@@ -81,10 +81,11 @@ This repo contains both the **frontend** (Next.js) and the **backend** (Flask + 
 
 ```text
 CrownTALK 👑/
-  CrownTALK 👑/
     Frontend/
       app/                # Next.js app routes (main UI)
-      components/         # UI components (Controls, Results, Pipeline, etc.)
+      components/         # UI components (Controls, Results, Pipeline, etc.
+      docs/
+      USER_MANUAL.md      #User guidelines about how to use CrownTALK site
       lib/                # API client, types, quality heuristics, storage helpers
       public/             # Static assets
       netlify.toml        # Netlify deploy config
