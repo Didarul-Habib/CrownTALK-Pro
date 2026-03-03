@@ -73,6 +73,8 @@ export default function ProjectLabPage() {
   const [resultLoading, setResultLoading] = useState(false);
   const [resultError, setResultError] = useState<string | null>(null);
 
+  const [labMode, setLabMode] = useState<"project" | "market" | "offtopic">("project");
+
   // Market Lab state
   const [marketAsset, setMarketAsset] = useState<string>("BTC");
   const [marketMode, setMarketMode] = useState<MarketPostMode>("short_casual");
@@ -335,7 +337,54 @@ export default function ProjectLabPage() {
           </span>
         </div>
 
-        <motion.div
+
+        {/* Lab selector */}
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+            Lab mode
+          </p>
+          <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-0.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setLabMode("project")}
+              className={clsx(
+                "rounded-full px-3 py-1",
+                labMode === "project"
+                  ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                  : "text-[color:var(--ct-foreground-muted)]"
+              )}
+            >
+              Project posts
+            </button>
+            <button
+              type="button"
+              onClick={() => setLabMode("market")}
+              className={clsx(
+                "rounded-full px-3 py-1",
+                labMode === "market"
+                  ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                  : "text-[color:var(--ct-foreground-muted)]"
+              )}
+            >
+              Market posts
+            </button>
+            <button
+              type="button"
+              onClick={() => setLabMode("offtopic")}
+              className={clsx(
+                "rounded-full px-3 py-1",
+                labMode === "offtopic"
+                  ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                  : "text-[color:var(--ct-foreground-muted)]"
+              )}
+            >
+              Off-topic posts
+            </button>
+          </div>
+        </div>
+
+        {labMode === "project" && (
+          <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
@@ -786,12 +835,13 @@ export default function ProjectLabPage() {
               )}
             </div>
           </section>
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Market + Off-topic labs */}
-        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        {labMode === "market" && (
           {/* Market Post Lab */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+          <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                 Market posts
@@ -1060,9 +1110,11 @@ export default function ProjectLabPage() {
               </div>
             </div>
           </section>
+        )}
 
+        {labMode === "offtopic" && (
           {/* Off-topic / GM Lab */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+          <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                 Off-topic &amp; time-of-day
@@ -1087,6 +1139,7 @@ export default function ProjectLabPage() {
                       { key: "noon", label: "Noon" },
                       { key: "afternoon", label: "Afternoon" },
                       { key: "evening", label: "Evening" },
+                      { key: "gn_night", label: "GN (night)" },
                       { key: "random", label: "Random thought" },
                     ].map((opt) => (
                       <button
@@ -1266,7 +1319,7 @@ export default function ProjectLabPage() {
               </div>
             </div>
           </section>
-        </section>
+        )}
 
       </main>
     </>
