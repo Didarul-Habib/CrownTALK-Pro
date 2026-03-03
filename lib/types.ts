@@ -155,3 +155,67 @@ export type ProjectPostResponseThread = {
 
 export type ProjectPostResponse = ProjectPostResponseSingle | ProjectPostResponseThread;
 
+
+
+export type MarketPostMode = "short_casual" | "medium_analysis" | "thread_4_6";
+
+export type MarketPostRequestPayload = {
+  asset_id?: string | null;
+  post_mode: MarketPostMode;
+  tone?: "casual" | "professional" | "";
+  language?: string;
+  quality_mode?: QualityMode;
+};
+
+export type MarketPostResponseSingle = {
+  asset_id: string;
+  post_mode: MarketPostMode;
+  language: string;
+  text: string;
+  meta?: {
+    quality_mode?: QualityMode;
+    tokens_used?: number | null;
+  };
+};
+
+export type MarketPostResponseThread = {
+  asset_id: string;
+  post_mode: "thread_4_6";
+  language: string;
+  tweets: string[];
+  meta?: {
+    quality_mode?: QualityMode;
+    tokens_used?: number | null;
+  };
+};
+
+export type MarketPostResponse =
+  | MarketPostResponseSingle
+  | MarketPostResponseThread;
+
+export type OfftopicKind =
+  | "random"
+  | "gm_morning"
+  | "noon"
+  | "afternoon"
+  | "evening";
+
+export type OfftopicPostRequestPayload = {
+  kind: OfftopicKind;
+  post_mode: "short" | "semi_mid";
+  tone?: "casual" | "professional" | "";
+  language?: string;
+  quality_mode?: QualityMode;
+};
+
+export type OfftopicPostResponse = {
+  kind: OfftopicKind;
+  post_mode: "short" | "semi_mid";
+  language: string;
+  text: string;
+  meta?: {
+    quality_mode?: QualityMode;
+    tokens_used?: number | null;
+  };
+};
+

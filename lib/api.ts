@@ -170,6 +170,7 @@ export async function commentFromUrlStream(
   return { item: lastItem };
 }
 import type { GenerateRequest, GenerateResponse, ResultItem, QualityMode, ProjectCatalogItem, ProjectPostMode, ProjectPostResponse } from "./types";
+import { MarketPostRequestPayload, MarketPostResponse, OfftopicPostRequestPayload, OfftopicPostResponse } from "./types";
 
 const ACCESS_HEADER = "X-Crowntalk-Token";
 
@@ -761,6 +762,72 @@ export async function generateProjectPost(
 
   if (!res.ok) {
     throw new ApiError(res.status, `Project post failed: ${errMessage(res, body)}`, body);
+  }
+
+  return data;
+}
+
+export type MarketPostPayload = MarketPostRequestPayload;
+
+export async function generateMarketPost(
+  baseUrl: string,
+  payload: MarketPostPayload,
+  accessToken: string,
+  authToken: string
+): Promise<MarketPostResponse> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/market_post`, {
+    method: "POST",
+    headers,
+    body: bodyStr,
+  });
+
+  const body = await readBody(res);
+  const data = unwrapEnvelope<MarketPostResponse>(body);
+
+  if (!res.ok) {
+    throw new ApiError(res.status, `Market post failed: ${errMessage(res, body)}`, body);
+  }
+
+  return data;
+}
+
+export type OfftopicPostPayload = OfftopicPostRequestPayload;
+
+export async function generateOfftopicPost(
+  baseUrl: string,
+  payload: OfftopicPostPayload,
+  accessToken: string,
+  authToken: string
+): Promise<OfftopicPostResponse> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/offtopic_post`, {
+    method: "POST",
+    headers,
+    body: bodyStr,
+  });
+
+  const body = await readBody(res);
+  const data = unwrapEnvelope<OfftopicPostResponse>(body);
+
+  if (!res.ok) {
+    throw new ApiError(res.status, `Offtopic post failed: ${errMessage(res, body)}`, body);
   }
 
   return data;
