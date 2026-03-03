@@ -198,8 +198,7 @@ export type OfftopicKind =
   | "gm_morning"
   | "noon"
   | "afternoon"
-  | "evening"
-  | "gn_night";
+  | "evening";
 
 export type OfftopicPostRequestPayload = {
   kind: OfftopicKind;
