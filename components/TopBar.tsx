@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import StatusPill from "@/components/StatusPill";
 import ThemeStudioBar, { ThemeId } from "@/components/ThemeStudioBar";
 import UserMenu from "@/components/UserMenu";
@@ -115,7 +116,14 @@ export default function TopBar({
           {showTheme ? <ThemeStudioBar value={theme} onChange={setTheme} /> : null}
 
           <div className="flex items-center flex-wrap gap-3 lg:justify-end">
+            <Link
+              href="/projects"
+              className="ct-btn ct-btn-xs rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 py-1 text-xs font-medium text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-accent)] hover:text-[color:var(--ct-accent)]"
+            >
+              Project Lab
+            </Link>
             <StatusPill baseUrl={baseUrl} />
+
             {user ? <UserMenu user={user} onLogout={onLogout} /> : null}
           </div>
         </div>
