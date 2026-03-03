@@ -17,6 +17,10 @@ import type {
   ProjectPostMode,
   ProjectPostResponse,
   QualityMode,
+  MarketPostMode,
+  MarketPostResponse,
+  OfftopicKind,
+  OfftopicPostResponse,
 } from "@/lib/types";
 
 type UiPostKind = "short" | "medium" | "long" | "thread";
@@ -68,6 +72,25 @@ export default function ProjectLabPage() {
   const [result, setResult] = useState<ProjectPostResponse | null>(null);
   const [resultLoading, setResultLoading] = useState(false);
   const [resultError, setResultError] = useState<string | null>(null);
+
+  // Market Lab state
+  const [marketAsset, setMarketAsset] = useState<string>("BTC");
+  const [marketMode, setMarketMode] = useState<MarketPostMode>("short_casual");
+  const [marketTone, setMarketTone] = useState<"casual" | "professional">("casual");
+  const [marketQuality, setMarketQuality] = useState<QualityMode>("balanced");
+  const [marketResult, setMarketResult] = useState<MarketPostResponse | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [marketError, setMarketError] = useState<string | null>(null);
+
+  // Off-topic Lab state
+  const [offtopicKind, setOfftopicKind] = useState<OfftopicKind>("random");
+  const [offtopicMode, setOfftopicMode] = useState<"short" | "semi_mid">("short");
+  const [offtopicTone, setOfftopicTone] = useState<"casual" | "professional">("casual");
+  const [offtopicQuality, setOfftopicQuality] = useState<QualityMode>("balanced");
+  const [offtopicResult, setOfftopicResult] = useState<OfftopicPostResponse | null>(null);
+  const [offtopicLoading, setOfftopicLoading] = useState(false);
+  const [offtopicError, setOfftopicError] = useState<string | null>(null);
+
 
   // Rehydrate auth from localStorage
   useEffect(() => {
@@ -217,7 +240,73 @@ export default function ProjectLabPage() {
     }
   }
 
+
+  async function handleGenerateMarket(kind: "normal" | "reroll" = "normal") {
+    setMarketError(null);
+    if (!ensureAuth()) return;
+
+    const payload = {
+      asset_id: !marketAsset || marketAsset === "RANDOM" ? undefined : marketAsset,
+      post_mode: marketMode,
+      tone: marketTone,
+      language,
+      quality_mode: marketQuality,
+    } as const;
+
+    setMarketLoading(true);
+    try {
+      const api = await import("@/lib/api");
+      const resp = await api.generateMarketPost(baseUrl, payload, accessToken, authToken);
+      setMarketResult(resp);
+      if (kind === "reroll") {
+        toast.success("New market variant generated");
+      } else {
+        toast.success("Market post generated");
+      }
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.message || "Market post failed";
+      setMarketError(msg);
+      toast.error(msg);
+    } finally {
+      setMarketLoading(false);
+    }
+  }
+
+  async function handleGenerateOfftopic(kind: "normal" | "reroll" = "normal") {
+    setOfftopicError(null);
+    if (!ensureAuth()) return;
+
+    const payload = {
+      kind: offtopicKind,
+      post_mode: offtopicMode,
+      tone: offtopicTone,
+      language,
+      quality_mode: offtopicQuality,
+    } as const;
+
+    setOfftopicLoading(true);
+    try {
+      const api = await import("@/lib/api");
+      const resp = await api.generateOfftopicPost(baseUrl, payload, accessToken, authToken);
+      setOfftopicResult(resp);
+      if (kind === "reroll") {
+        toast.success("New off-topic variant generated");
+      } else {
+        toast.success("Off-topic post generated");
+      }
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.message || "Off-topic post failed";
+      setOfftopicError(msg);
+      toast.error(msg);
+    } finally {
+      setOfftopicLoading(false);
+    }
+  }
   const isThread = result && "tweets" in result;
+  const marketIsThread = marketResult && "tweets" in marketResult;
+  const hasOfftopic = !!offtopicResult;
 
   return (
     <>
@@ -698,6 +787,487 @@ export default function ProjectLabPage() {
             </div>
           </section>
         </motion.div>
+
+        {/* Market + Off-topic labs */}
+        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+          {/* Market Post Lab */}
+          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                Market posts
+              </p>
+              <h2 className="text-sm font-semibold tracking-tight text-[color:var(--ct-foreground-strong)]">
+                Market Post Lab
+              </h2>
+              <p className="text-xs leading-relaxed text-[color:var(--ct-foreground-muted)]">
+                Pick a token, then generate grounded market takes with live CoinGecko data.
+              </p>
+            </div>
+
+            <div className="mt-2 grid gap-3 text-xs sm:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    Asset
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["BTC", "ETH", "SOL", "BNB"] as string[]).map((sym) => (
+                      <button
+                        key={sym}
+                        type="button"
+                        onClick={() => setMarketAsset(sym)}
+                        className={clsx(
+                          "rounded-full border px-3 py-1 text-[11px]",
+                          marketAsset === sym
+                            ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
+                        )}
+                      >
+                        {sym}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setMarketAsset("RANDOM")}
+                      className={clsx(
+                        "rounded-full border px-3 py-1 text-[11px]",
+                        marketAsset === "RANDOM"
+                          ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
+                      )}
+                    >
+                      Random
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    Post type
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMarketMode("short_casual")}
+                      className={clsx(
+                        "rounded-xl border px-3 py-2 text-left",
+                        marketMode === "short_casual"
+                          ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
+                      )}
+                    >
+                      <div className="font-medium">Short, casual</div>
+                      <p className="mt-0.5 text-[11px]">One quick 20–35 word take.</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMarketMode("medium_analysis")}
+                      className={clsx(
+                        "rounded-xl border px-3 py-2 text-left",
+                        marketMode === "medium_analysis"
+                          ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
+                      )}
+                    >
+                      <div className="font-medium">Medium analysis</div>
+                      <p className="mt-0.5 text-[11px]">40–80 words with short market context.</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMarketMode("thread_4_6")}
+                      className={clsx(
+                        "rounded-xl border px-3 py-2 text-left",
+                        marketMode === "thread_4_6"
+                          ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
+                      )}
+                    >
+                      <div className="font-medium">Thread (4–6)</div>
+                      <p className="mt-0.5 text-[11px]">Structured market breakdown thread.</p>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                      Tone
+                    </p>
+                    <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setMarketTone("casual")}
+                        className={clsx(
+                          "rounded-full px-3 py-1",
+                          marketTone === "casual"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        Casual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMarketTone("professional")}
+                        className={clsx(
+                          "rounded-full px-3 py-1",
+                          marketTone === "professional"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        Professional
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                      Quality mode
+                    </p>
+                    <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
+                      {(["fast", "balanced", "pro"] as QualityMode[]).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setMarketQuality(mode)}
+                          className={clsx(
+                            "rounded-full px-3 py-1 capitalize",
+                            marketQuality === mode
+                              ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                              : "text-[color:var(--ct-foreground-muted)]"
+                          )}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[11px] text-[color:var(--ct-foreground-muted)]">
+                    Output language:{" "}
+                    <span className="font-medium text-[color:var(--ct-foreground-strong)]">English</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      disabled={marketLoading || !marketResult}
+                      onClick={() => handleGenerateMarket("reroll")}
+                      className="h-7 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-[11px]"
+                    >
+                      Reroll
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      type="button"
+                      disabled={marketLoading}
+                      onClick={() => handleGenerateMarket("normal")}
+                      className="h-7 rounded-full bg-[color:var(--ct-accent)] px-3 text-[11px] font-medium text-black hover:bg-[color:var(--ct-accent-strong)]"
+                    >
+                      {marketMode === "thread_4_6" ? "Generate thread" : "Generate post"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                      Result
+                    </p>
+                    {marketError ? (
+                      <span className="text-[10px] text-red-400">{marketError}</span>
+                    ) : null}
+                  </div>
+                  {!marketResult && !marketLoading && (
+                    <p className="text-xs text-[color:var(--ct-foreground-muted)]">
+                      When you generate, a live market take for the selected asset will appear here.
+                    </p>
+                  )}
+                  {marketLoading && (
+                    <div className="flex h-32 items-center justify-center text-xs text-[color:var(--ct-foreground-muted)]">
+                      Generating…
+                    </div>
+                  )}
+                  {!marketLoading && marketResult && !marketIsThread && (
+                    <div className="flex flex-col gap-2">
+                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                        {marketResult.text}
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          type="button"
+                          className="h-7 rounded-full border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-[11px]"
+                          onClick={() => copyText(marketResult.text)}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {!marketLoading && marketResult && marketIsThread && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between gap-2">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                          Thread {(marketResult as any).tweets ? `(${(marketResult as any).tweets.length} tweets)` : ""}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          type="button"
+                          className="h-7 rounded-full border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-[11px]"
+                          onClick={() =>
+                            copyText(
+                              (marketResult as any).tweets
+                                .map((t: string) => t.trim())
+                                .join("\n\n")
+                            )
+                          }
+                        >
+                          Copy full thread
+                        </Button>
+                      </div>
+                      <div className="flex max-h-[260px] flex-col gap-2 overflow-y-auto pr-1">
+                        {(marketResult as any).tweets?.map((tweet: string, idx: number) => (
+                          <div
+                            key={idx}
+                            className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]"
+                          >
+                            <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
+                              <span className="font-medium">Tweet {idx + 1}</span>
+                              <button
+                                type="button"
+                                className="text-[10px] text-[color:var(--ct-foreground-muted)] hover:text-[color:var(--ct-accent)]"
+                                onClick={() => copyText(tweet)}
+                              >
+                                Copy
+                              </button>
+                            </div>
+                            <p>{tweet}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Off-topic / GM Lab */}
+          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                Off-topic &amp; time-of-day
+              </p>
+              <h2 className="text-sm font-semibold tracking-tight text-[color:var(--ct-foreground-strong)]">
+                Off-topic Post Lab
+              </h2>
+              <p className="text-xs leading-relaxed text-[color:var(--ct-foreground-muted)]">
+                Generate GM, afternoon, evening, or random CT thoughts that match CrownTALK tone.
+              </p>
+            </div>
+
+            <div className="mt-2 grid gap-3 text-xs sm:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    Mood / time of day
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: "gm_morning", label: "GM (morning)" },
+                      { key: "noon", label: "Noon" },
+                      { key: "afternoon", label: "Afternoon" },
+                      { key: "evening", label: "Evening" },
+                      { key: "random", label: "Random thought" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setOfftopicKind(opt.key as OfftopicKind)}
+                        className={clsx(
+                          "rounded-full border px-3 py-1 text-[11px]",
+                          offtopicKind === (opt.key as OfftopicKind)
+                            ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                      Length
+                    </p>
+                    <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setOfftopicMode("short")}
+                        className={clsx(
+                          "rounded-full px-3 py-1",
+                          offtopicMode === "short"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        Short
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOfftopicMode("semi_mid")}
+                        className={clsx(
+                          "rounded-full px-3 py-1",
+                          offtopicMode === "semi_mid"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        Semi-mid
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                      Tone
+                    </p>
+                    <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setOfftopicTone("casual")}
+                        className={clsx(
+                          "rounded-full px-3 py-1",
+                          offtopicTone === "casual"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        Casual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOfftopicTone("professional")}
+                        className={clsx(
+                          "rounded-full px-3 py-1",
+                          offtopicTone === "professional"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        Professional
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    Quality mode
+                  </p>
+                  <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
+                    {(["fast", "balanced", "pro"] as QualityMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setOfftopicQuality(mode)}
+                        className={clsx(
+                          "rounded-full px-3 py-1 capitalize",
+                          offtopicQuality === mode
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            : "text-[color:var(--ct-foreground-muted)]"
+                        )}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[11px] text-[color:var(--ct-foreground-muted)]">
+                    Output language:{" "}
+                    <span className="font-medium text-[color:var(--ct-foreground-strong)]">English</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      disabled={offtopicLoading || !hasOfftopic}
+                      onClick={() => handleGenerateOfftopic("reroll")}
+                      className="h-7 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-[11px]"
+                    >
+                      Reroll
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      type="button"
+                      disabled={offtopicLoading}
+                      onClick={() => handleGenerateOfftopic("normal")}
+                      className="h-7 rounded-full bg-[color:var(--ct-accent)] px-3 text-[11px] font-medium text-black hover:bg-[color:var(--ct-accent-strong)]"
+                    >
+                      Generate post
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                      Result
+                    </p>
+                    {offtopicError ? (
+                      <span className="text-[10px] text-red-400">{offtopicError}</span>
+                    ) : null}
+                  </div>
+                  {!hasOfftopic && !offtopicLoading && (
+                    <p className="text-xs text-[color:var(--ct-foreground-muted)]">
+                      When you generate, a time-of-day or random thought post will appear here.
+                    </p>
+                  )}
+                  {offtopicLoading && (
+                    <div className="flex h-32 items-center justify-center text-xs text-[color:var(--ct-foreground-muted)]">
+                      Generating…
+                    </div>
+                  )}
+                  {!offtopicLoading && hasOfftopic && offtopicResult && (
+                    <div className="flex flex-col gap-2">
+                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                        {offtopicResult.text}
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          type="button"
+                          className="h-7 rounded-full border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-[11px]"
+                          onClick={() => copyText(offtopicResult.text)}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
       </main>
     </>
   );
