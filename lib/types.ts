@@ -111,3 +111,47 @@ export type GenerateResponse = {
   results: ResultItem[];
   meta?: { run_id?: string };
 };
+
+export type ProjectPostMode =
+  | "short_casual"
+  | "medium_casual"
+  | "medium_professional"
+  | "long_detailed"
+  | "thread_4_6";
+
+export type ProjectCatalogItem = {
+  id: string;
+  slug: string;
+  name: string;
+  ticker: string;
+  primary_chain: string;
+  category: string;
+  stage: string;
+  one_line_pitch: string;
+  has_post_card: boolean;
+};
+
+export type ProjectPostResponseSingle = {
+  project_id: string;
+  post_mode: ProjectPostMode;
+  language: string;
+  text: string;
+  meta?: {
+    quality_mode?: QualityMode;
+    tokens_used?: number | null;
+  };
+};
+
+export type ProjectPostResponseThread = {
+  project_id: string;
+  post_mode: "thread_4_6";
+  language: string;
+  tweets: string[];
+  meta?: {
+    quality_mode?: QualityMode;
+    tokens_used?: number | null;
+  };
+};
+
+export type ProjectPostResponse = ProjectPostResponseSingle | ProjectPostResponseThread;
+

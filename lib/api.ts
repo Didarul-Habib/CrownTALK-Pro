@@ -169,7 +169,7 @@ export async function commentFromUrlStream(
   }
   return { item: lastItem };
 }
-import type { GenerateRequest, GenerateResponse, ResultItem } from "./types";
+import type { GenerateRequest, GenerateResponse, ResultItem, QualityMode, ProjectCatalogItem, ProjectPostMode, ProjectPostResponse } from "./types";
 
 const ACCESS_HEADER = "X-Crowntalk-Token";
 
@@ -702,3 +702,67 @@ export async function exportHistory(
   }
   return await res.blob();
 }
+
+export async function listProjects(
+  baseUrl: string,
+  accessToken: string,
+  authToken: string
+): Promise<ProjectCatalogItem[]> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/projects`, {
+    method: "GET",
+    headers,
+  });
+
+  const body = await readBody(res);
+  const data = unwrapEnvelope<ProjectCatalogItem[]>(body);
+
+  if (!res.ok) {
+    throw new ApiError(res.status, `Projects fetch failed: ${errMessage(res, body)}`, body);
+  }
+
+  return data || [];
+}
+
+export type ProjectPostPayload = {
+  project_id: string;
+  post_mode: ProjectPostMode;
+  tone?: "casual" | "professional";
+  language?: string;
+  quality_mode?: QualityMode;
+};
+
+export async function generateProjectPost(
+  baseUrl: string,
+  payload: ProjectPostPayload,
+  accessToken: string,
+  authToken: string
+): Promise<ProjectPostResponse> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) headers[ACCESS_HEADER] = accessToken;
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const bodyStr = JSON.stringify(payload);
+  await addRequestSignature(headers, bodyStr);
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/project_post`, {
+    method: "POST",
+    headers,
+    body: bodyStr,
+  });
+
+  const body = await readBody(res);
+  const data = unwrapEnvelope<ProjectPostResponse>(body);
+
+  if (!res.ok) {
+    throw new ApiError(res.status, `Project post failed: ${errMessage(res, body)}`, body);
+  }
+
+  return data;
+}
+
