@@ -10,8 +10,9 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SignupGate from "@/components/SignupGate";
+import StatusPill from "@/components/StatusPill";
 import type { UserProfile } from "@/lib/persist";
-import { LS, lsGet, lsGetJson } from "@/lib/storage";
+import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type {
   ProjectCatalogItem,
   ProjectPostMode,
@@ -22,8 +23,25 @@ import type {
   OfftopicKind,
   OfftopicPostResponse,
 } from "@/lib/types";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { UI_LANGS } from "@/lib/uiLanguage";
 
 type UiPostKind = "short" | "medium" | "long" | "thread";
+
+type ProjectHistoryEntry = {
+  id: string;
+  projectId: string;
+  createdAt: number;
+  postMode: ProjectPostMode;
+  uiPostKind: UiPostKind;
+  tone?: "casual" | "professional";
+  qualityMode: QualityMode;
+  language: string;
+  response: ProjectPostResponse;
+};
+
+type ProjectHistoryMap = Record<string, ProjectHistoryEntry[]>;
+
 
 function copyText(text: string) {
   if (!text) return;
@@ -67,9 +85,11 @@ export default function ProjectLabPage() {
   const [uiPostKind, setUiPostKind] = useState<UiPostKind>("short");
   const [mediumTone, setMediumTone] = useState<"casual" | "professional">("professional");
   const [qualityMode, setQualityMode] = useState<QualityMode>("balanced");
-  const [language] = useState<"en">("en");
+  const [language, setLanguage] = useState<string>("en");
 
   const [result, setResult] = useState<ProjectPostResponse | null>(null);
+  const [projectHistory, setProjectHistory] = useState<ProjectHistoryMap>({});
+  const [activeLab, setActiveLab] = useState<"project" | "market" | "offtopic">("project");
   const [resultLoading, setResultLoading] = useState(false);
   const [resultError, setResultError] = useState<string | null>(null);
 
@@ -106,6 +126,29 @@ export default function ProjectLabPage() {
       setSignupOpen(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const savedLang = lsGet(LS.projectLabLang, "en");
+      if (savedLang) {
+        setLanguage(savedLang);
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const savedHistory = lsGetJson<ProjectHistoryMap | null>(LS.projectLabHistory, null);
+      if (savedHistory && typeof savedHistory === "object") {
+        setProjectHistory(savedHistory);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
 
   function ensureAuth(): boolean {
     if (!accessToken || !authToken || !user) {
@@ -204,6 +247,29 @@ export default function ProjectLabPage() {
     }
   }, [uiPostKind, mediumTone]);
 
+  const configSummary = useMemo(() => {
+    const postLabel =
+      uiPostKind === "short"
+        ? "Short, casual"
+        : uiPostKind === "medium"
+        ? "Medium length"
+        : uiPostKind === "long"
+        ? "Long detailed"
+        : "Thread (4–6)";
+
+    const toneLabel =
+      uiPostKind === "medium" ? (mediumTone === "professional" ? "Professional tone" : "Casual tone") : null;
+
+    const qualityLabel =
+      qualityMode === "fast" ? "Fast" : qualityMode === "pro" ? "Pro" : "Balanced";
+
+    const langLabel =
+      UI_LANGS.find((l) => l.id === language)?.label || language?.toUpperCase?.() || "English";
+
+    return [postLabel, toneLabel, qualityLabel, langLabel].filter(Boolean).join(" · ");
+  }, [uiPostKind, mediumTone, qualityMode, language]);
+
+
   async function handleGenerate(kind: "normal" | "reroll" = "normal") {
     setResultError(null);
     if (!ensureAuth()) return;
@@ -225,6 +291,35 @@ export default function ProjectLabPage() {
       const api = await import("@/lib/api");
       const resp = await api.generateProjectPost(baseUrl, payload, accessToken, authToken);
       setResult(resp);
+
+      const entry: ProjectHistoryEntry = {
+        id: `${selectedProjectId}-${Date.now()}`,
+        projectId: selectedProjectId,
+        createdAt: Date.now(),
+        postMode: resp.post_mode as ProjectPostMode,
+        uiPostKind,
+        tone: uiPostKind === "medium" ? mediumTone : undefined,
+        qualityMode,
+        language,
+        response: resp,
+      };
+
+      setProjectHistory((prev) => {
+        const next: ProjectHistoryMap = { ...prev };
+        const existing = next[selectedProjectId] ? [...next[selectedProjectId]] : [];
+        existing.unshift(entry);
+        if (existing.length > 5) {
+          existing.length = 5;
+        }
+        next[selectedProjectId] = existing;
+        try {
+          lsSetJson(LS.projectLabHistory, next);
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
       if (kind === "reroll") {
         toast.success("New variant generated");
       } else {
@@ -321,21 +416,64 @@ export default function ProjectLabPage() {
         }}
       />
 
-      <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 pb-12 pt-6 lg:pb-16 lg:pt-10">
+            <TooltipProvider>
+        <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 px-4 pb-12 pt-6 lg:gap-6 lg:pb-16 lg:pt-10">
+        
         <div className="mb-2 flex items-center justify-between gap-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-xs font-medium text-[color:var(--ct-foreground-muted)] hover:text-[color:var(--ct-accent)]"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[color:var(--ct-foreground-muted)] hover:text-[color:var(--ct-accent)]"
           >
             <span aria-hidden="true">←</span>
             <span>Back to Comment Generator</span>
           </Link>
-          <span className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--ct-foreground-muted)]">
-            Project Post Lab v1
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-[10px] uppercase tracking-[0.16em] text-[color:var(--ct-foreground-muted)] sm:inline">
+              Project Labs v1
+            </span>
+            <StatusPill baseUrl={baseUrl} />
+          </div>
         </div>
 
-        <motion.div
+        <div className="mb-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 py-2.5 sm:px-4 sm:py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                Project post labs
+              </p>
+              <p className="text-xs leading-relaxed text-[color:var(--ct-foreground-muted)]">
+                Pick a lab, then generate ready-to-post tweets and threads from your research cards.
+              </p>
+            </div>
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <div className="inline-flex self-start rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-0.5 text-[10px]">
+                {[
+                  { id: "project", label: "Project posts" },
+                  { id: "market", label: "Market posts" },
+                  { id: "offtopic", label: "Off-topic" },
+                ].map((lab) => (
+                  <button
+                    key={lab.id}
+                    type="button"
+                    onClick={() => setActiveLab(lab.id as "project" | "market" | "offtopic")}
+                    className={clsx(
+                      "rounded-full px-3 py-1 text-[10px] font-medium transition-colors",
+                      activeLab === lab.id
+                        ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                        : "text-[color:var(--ct-foreground-muted)] hover:text-[color:var(--ct-foreground-soft)]"
+                    )}
+                  >
+                    {lab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+                {activeLab === "project" && (
+          <motion.div
+<motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
@@ -552,9 +690,39 @@ export default function ProjectLabPage() {
             </div>
 
             <div className="mt-3 space-y-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
-                Post type
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                  Post type
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[color:var(--ct-border-subtle)] text-[10px] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)] hover:text-[color:var(--ct-foreground-strong)]"
+                      aria-label="Post type presets"
+                    >
+                      ?
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs">
+                    <p className="mb-1 text-xs font-medium">Post type presets</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>
+                        <span className="font-semibold">Short, casual</span> – 20–35 word quick reaction, ideal for replies.
+                      </li>
+                      <li>
+                        <span className="font-semibold">Medium length</span> – 40–80 words with context + a clear angle.
+                      </li>
+                      <li>
+                        <span className="font-semibold">Long detailed</span> – 120–200 word mini-explainer or deep dive.
+                      </li>
+                      <li>
+                        <span className="font-semibold">Thread (4–6)</span> – structured multi-tweet breakdown with a hook and closing take.
+                      </li>
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <button
                   type="button"
@@ -652,10 +820,53 @@ export default function ProjectLabPage() {
                 </div>
               )}
 
+
+              {uiPostKind === "thread" && (
+                <div className="mt-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3 text-[11px] text-[color:var(--ct-foreground-muted)]">
+                  <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    Thread structure preview
+                  </p>
+                  <ol className="list-decimal space-y-0.5 pl-4">
+                    <li>Hook: 1–2 lines with a sharp takeaway or question.</li>
+                    <li>Context: what the project is building and why it matters.</li>
+                    <li>Evidence: 1–2 concrete details or metrics from the research card.</li>
+                    <li>Risk / nuance: one honest caveat or trade-off.</li>
+                    <li>Close: grounded, realistic takeaway with no hype.</li>
+                  </ol>
+                </div>
+              )}
+
               <div className="mt-2 space-y-1">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
-                  Quality mode
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    Quality mode
+                  </p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[color:var(--ct-border-subtle)] text-[10px] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)] hover:text-[color:var(--ct-foreground-strong)]"
+                        aria-label="Quality mode details"
+                      >
+                        ?
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="max-w-xs">
+                      <p className="mb-1 text-xs font-medium">Quality / speed trade-offs</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>
+                          <span className="font-semibold">Fast</span> – lowest latency, lighter reasoning, good for quick scans.
+                        </li>
+                        <li>
+                          <span className="font-semibold">Balanced</span> – default for most runs; mixes speed and depth.
+                        </li>
+                        <li>
+                          <span className="font-semibold">Pro</span> – slower and more token-heavy, better for nuanced posts and threads.
+                        </li>
+                      </ul>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <div className="inline-flex rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
                   {(["fast", "balanced", "pro"] as QualityMode[]).map((mode) => (
                     <button
@@ -677,8 +888,27 @@ export default function ProjectLabPage() {
             </div>
 
             <div className="mt-2 flex items-center justify-between gap-2">
-              <div className="text-[11px] text-[color:var(--ct-foreground-muted)]">
-                Output language: <span className="font-medium text-[color:var(--ct-foreground-strong)]">English</span>
+              <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
+                <span>Output language:</span>
+                <select
+                  value={language}
+                  onChange={(e) => {
+                    const next = e.target.value || "en";
+                    setLanguage(next);
+                    try {
+                      lsSet(LS.projectLabLang, next);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="h-7 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 text-[11px] text-[color:var(--ct-foreground-strong)]"
+                >
+                  {UI_LANGS.map((langOpt) => (
+                    <option key={langOpt.id} value={langOpt.id}>
+                      {langOpt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -708,10 +938,42 @@ export default function ProjectLabPage() {
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                   Result
                 </p>
-                {resultError ? (
-                  <span className="text-[10px] text-red-400">{resultError}</span>
-                ) : null}
+                <div className="flex items-center gap-2 text-[10px]">
+                  <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 py-0.5">
+                    <span
+                      className={clsx(
+                        "h-1.5 w-1.5 rounded-full",
+                        resultLoading
+                          ? "animate-pulse bg-[color:var(--ct-accent)]"
+                          : resultError
+                          ? "bg-red-400"
+                          : result
+                          ? "bg-[color:var(--ct-ok)]"
+                          : "bg-[color:var(--ct-border-subtle)]"
+                      )}
+                    />
+                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                      {resultLoading
+                        ? "Generating…"
+                        : resultError
+                        ? "Error"
+                        : result
+                        ? "Ready"
+                        : "Idle"}
+                    </span>
+                  </div>
+                </div>
               </div>
+              {configSummary && (
+                <div className="mt-1 flex justify-between gap-2">
+                  <span className="inline-flex items-center rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 py-0.5 text-[10px] text-[color:var(--ct-foreground-muted)]">
+                    {configSummary}
+                  </span>
+                  {resultError ? (
+                    <span className="text-[10px] text-red-400">{resultError}</span>
+                  ) : null}
+                </div>
+              )}
               {!result && !resultLoading && (
                 <p className="text-xs text-[color:var(--ct-foreground-muted)]">
                   When you generate, the post or thread will appear here using your project&apos;s PROJECT_POST_CARD_V1 as context.
@@ -788,7 +1050,77 @@ export default function ProjectLabPage() {
           </section>
         </motion.div>
 
+        {selectedProjectId && projectHistory[selectedProjectId]?.length ? (
+          <section className="mt-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                Recent for this project (local)
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedProjectId) return;
+                  setProjectHistory((prev) => {
+                    const next: ProjectHistoryMap = { ...prev };
+                    delete next[selectedProjectId];
+                    try {
+                      lsSetJson(LS.projectLabHistory, next);
+                    } catch {
+                      // ignore
+                    }
+                    return next;
+                  });
+                }}
+                className="text-[10px] text-[color:var(--ct-foreground-muted)] hover:text-[color:var(--ct-foreground-soft)]"
+              >
+                Clear history
+              </button>
+            </div>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+              {projectHistory[selectedProjectId]?.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setResult(entry.response)}
+                  className="flex flex-col items-start gap-1 rounded-xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2.5 py-2 text-left hover:border-[color:var(--ct-border-strong)]"
+                >
+                  <div className="flex w-full items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-[color:var(--ct-foreground-strong)]">
+                      {entry.postMode === "thread_4_6" ? "Thread (4–6)" : "Single post"}
+                    </span>
+                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                      {new Date(entry.createdAt).toLocaleTimeString(undefined, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[color:var(--ct-foreground-muted)]">
+                    <span className="rounded-full bg-[color:var(--ct-panel)] px-2 py-0.5">
+                      {entry.language?.toUpperCase?.() || "EN"}
+                    </span>
+                    <span className="rounded-full bg-[color:var(--ct-panel)] px-2 py-0.5">
+                      {entry.qualityMode === "fast"
+                        ? "Fast"
+                        : entry.qualityMode === "pro"
+                        ? "Pro"
+                        : "Balanced"}
+                    </span>
+                    {entry.uiPostKind === "medium" && entry.tone ? (
+                      <span className="rounded-full bg-[color:var(--ct-panel)] px-2 py-0.5">
+                        {entry.tone === "professional" ? "Professional" : "Casual"}
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        )}
+
         {/* Market + Off-topic labs */}
+
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
           {/* Market Post Lab */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
@@ -947,9 +1279,27 @@ export default function ProjectLabPage() {
 
               <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-[11px] text-[color:var(--ct-foreground-muted)]">
-                    Output language:{" "}
-                    <span className="font-medium text-[color:var(--ct-foreground-strong)]">English</span>
+                  <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
+                    <span>Output language:</span>
+                    <select
+                      value={language}
+                      onChange={(e) => {
+                        const next = e.target.value || "en";
+                        setLanguage(next);
+                        try {
+                          lsSet(LS.projectLabLang, next);
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                      className="h-7 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 text-[11px] text-[color:var(--ct-foreground-strong)]"
+                    >
+                      {UI_LANGS.map((langOpt) => (
+                        <option key={langOpt.id} value={langOpt.id}>
+                          {langOpt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -980,10 +1330,35 @@ export default function ProjectLabPage() {
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                       Result
                     </p>
-                    {marketError ? (
-                      <span className="text-[10px] text-red-400">{marketError}</span>
-                    ) : null}
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 py-0.5">
+                        <span
+                          className={clsx(
+                            "h-1.5 w-1.5 rounded-full",
+                            marketLoading
+                              ? "animate-pulse bg-[color:var(--ct-accent)]"
+                              : marketError
+                              ? "bg-red-400"
+                              : marketResult
+                              ? "bg-[color:var(--ct-ok)]"
+                              : "bg-[color:var(--ct-border-subtle)]"
+                          )}
+                        />
+                        <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                          {marketLoading
+                            ? "Generating…"
+                            : marketError
+                            ? "Error"
+                            : marketResult
+                            ? "Ready"
+                            : "Idle"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                  {marketError ? (
+                    <p className="mt-1 text-[10px] text-red-400">{marketError}</p>
+                  ) : null}
                   {!marketResult && !marketLoading && (
                     <p className="text-xs text-[color:var(--ct-foreground-muted)]">
                       When you generate, a live market take for the selected asset will appear here.
@@ -1087,6 +1462,7 @@ export default function ProjectLabPage() {
                       { key: "noon", label: "Noon" },
                       { key: "afternoon", label: "Afternoon" },
                       { key: "evening", label: "Evening" },
+                      { key: "gn_night", label: "GN (night)" },
                       { key: "random", label: "Random thought" },
                     ].map((opt) => (
                       <button
@@ -1197,9 +1573,27 @@ export default function ProjectLabPage() {
 
               <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-[11px] text-[color:var(--ct-foreground-muted)]">
-                    Output language:{" "}
-                    <span className="font-medium text-[color:var(--ct-foreground-strong)]">English</span>
+                  <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
+                    <span>Output language:</span>
+                    <select
+                      value={language}
+                      onChange={(e) => {
+                        const next = e.target.value || "en";
+                        setLanguage(next);
+                        try {
+                          lsSet(LS.projectLabLang, next);
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                      className="h-7 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 text-[11px] text-[color:var(--ct-foreground-strong)]"
+                    >
+                      {UI_LANGS.map((langOpt) => (
+                        <option key={langOpt.id} value={langOpt.id}>
+                          {langOpt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1230,10 +1624,35 @@ export default function ProjectLabPage() {
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                       Result
                     </p>
-                    {offtopicError ? (
-                      <span className="text-[10px] text-red-400">{offtopicError}</span>
-                    ) : null}
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-2 py-0.5">
+                        <span
+                          className={clsx(
+                            "h-1.5 w-1.5 rounded-full",
+                            offtopicLoading
+                              ? "animate-pulse bg-[color:var(--ct-accent)]"
+                              : offtopicError
+                              ? "bg-red-400"
+                              : offtopicResult
+                              ? "bg-[color:var(--ct-ok)]"
+                              : "bg-[color:var(--ct-border-subtle)]"
+                          )}
+                        />
+                        <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                          {offtopicLoading
+                            ? "Generating…"
+                            : offtopicError
+                            ? "Error"
+                            : offtopicResult
+                            ? "Ready"
+                            : "Idle"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                  {offtopicError ? (
+                    <p className="mt-1 text-[10px] text-red-400">{offtopicError}</p>
+                  ) : null}
                   {!hasOfftopic && !offtopicLoading && (
                     <p className="text-xs text-[color:var(--ct-foreground-muted)]">
                       When you generate, a time-of-day or random thought post will appear here.
@@ -1269,6 +1688,7 @@ export default function ProjectLabPage() {
         </section>
 
       </main>
+      </TooltipProvider>
     </>
   );
 }
