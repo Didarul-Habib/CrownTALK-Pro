@@ -8,7 +8,6 @@ import { Search } from "lucide-react";
 import clsx from "clsx";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import SignupGate from "@/components/SignupGate";
 import type { UserProfile } from "@/lib/persist";
@@ -225,13 +224,12 @@ export default function ProjectLabPage() {
       <SignupGate
         open={signupOpen}
         baseUrl={baseUrl}
-        onAuthed={(info) => {
-          setUser(info.user);
-          setAccessToken(info.token);
-          setAuthToken(info.authToken);
-          setSignupOpen(false);
-        }}
         onClose={() => setSignupOpen(false)}
+        onAuthed={(profile, accessToken, sessionToken) => {
+          setUser(profile);
+          setAccessToken(accessToken);
+          setAuthToken(sessionToken);
+        }}
       />
 
       <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 pb-12 pt-6 lg:pb-16 lg:pt-10">
