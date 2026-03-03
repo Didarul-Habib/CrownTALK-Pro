@@ -18,6 +18,8 @@ export const LS = {
   // Exponential moving average for a single URL generation duration (ms/url).
   // Used to make the pipeline feel accurate on slow/fast devices without hardcoded timers.
   avgMsPerUrl: "ct_avg_ms_per_url_v1",
+  projectLabHistory: "ct_project_lab_history_v1",
+  projectLabLang: "ct_project_lab_lang_v1",
 };
 
 export function lsGet(key: string, fallback = ""): string {
