@@ -594,7 +594,7 @@ export default function ProjectLabPage() {
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="default"
                   type="button"
                   disabled={resultLoading || !result}
                   onClick={() => handleGenerate("reroll")}
@@ -641,7 +641,7 @@ export default function ProjectLabPage() {
                   <div className="flex justify-end gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="default"
                       type="button"
                       className="h-8 rounded-full border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-xs"
                       onClick={() => copyText(result.text)}
@@ -659,7 +659,7 @@ export default function ProjectLabPage() {
                     </p>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="default"
                       type="button"
                       className="h-7 rounded-full border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 text-[11px]"
                       onClick={() =>
