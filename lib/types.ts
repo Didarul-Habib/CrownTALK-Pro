@@ -117,7 +117,16 @@ export type ProjectPostMode =
   | "medium_casual"
   | "medium_professional"
   | "long_detailed"
-  | "thread_4_6";
+  | "thread_4_6"
+  | "score_update";
+
+export type ProjectPostAngle =
+  | "balanced"
+  | "how_to_use"
+  | "narrative"
+  | "risk"
+  | "builder";
+
 
 export type ProjectCatalogItem = {
   id: string;
