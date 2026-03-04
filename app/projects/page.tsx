@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SignupGate from "@/components/SignupGate";
+import PremiumButton from "@/components/PremiumButton";
 import StatusPill from "@/components/StatusPill";
 import type { UserProfile } from "@/lib/persist";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
@@ -28,6 +29,13 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { UI_LANGS } from "@/lib/uiLanguage";
 
 type UiPostKind = "short" | "medium" | "long" | "thread";
+
+type CommandItem = {
+  id: string;
+  label: string;
+  hint?: string;
+  onRun: () => void;
+};
 
 type ProjectHistoryEntry = {
   id: string;
@@ -58,6 +66,14 @@ function copyText(text: string) {
   } catch (err) {
     console.error("copy failed", err);
     toast.error("Copy failed");
+  }
+}
+
+function fmtTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
   }
 }
 
@@ -116,6 +132,16 @@ export default function ProjectLabPage() {
   const [offtopicResult, setOfftopicResult] = useState<OfftopicPostResponse | null>(null);
   const [offtopicLoading, setOfftopicLoading] = useState(false);
   const [offtopicError, setOfftopicError] = useState<string | null>(null);
+  const [resultUpdatedAt, setResultUpdatedAt] = useState<number | null>(null);
+  const [marketUpdatedAt, setMarketUpdatedAt] = useState<number | null>(null);
+  const [offtopicUpdatedAt, setOfftopicUpdatedAt] = useState<number | null>(null);
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const [logOpen, setLogOpen] = useState<null | "project" | "market" | "offtopic">(null);
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
 
 
   // Rehydrate auth from localStorage
@@ -333,6 +359,7 @@ export default function ProjectLabPage() {
       const api = await import("@/lib/api");
       const resp = await api.generateProjectPost(baseUrl, payload, accessToken, authToken);
       setResult(resp);
+      setResultUpdatedAt(Date.now());
 
       const entry: ProjectHistoryEntry = {
         id: `${selectedProjectId}-${Date.now()}`,
@@ -396,6 +423,7 @@ export default function ProjectLabPage() {
       const api = await import("@/lib/api");
       const resp = await api.generateMarketPost(baseUrl, payload, accessToken, authToken);
       setMarketResult(resp);
+      setMarketUpdatedAt(Date.now());
       if (kind === "reroll") {
         toast.success("New market variant generated");
       } else {
@@ -428,6 +456,7 @@ export default function ProjectLabPage() {
       const api = await import("@/lib/api");
       const resp = await api.generateOfftopicPost(baseUrl, payload, accessToken, authToken);
       setOfftopicResult(resp);
+      setOfftopicUpdatedAt(Date.now());
       if (kind === "reroll") {
         toast.success("New off-topic variant generated");
       } else {
@@ -446,6 +475,141 @@ export default function ProjectLabPage() {
   const marketIsThread = marketResult && "tweets" in marketResult;
   const hasOfftopic = !!offtopicResult;
 
+  const filteredCommands: CommandItem[] = useMemo(() => {
+    const q = paletteQuery.trim().toLowerCase();
+    const items: CommandItem[] = [
+      {
+        id: "lab-project",
+        label: "Switch to Project Lab",
+        onRun: () => setActiveLab("project"),
+      },
+      {
+        id: "lab-market",
+        label: "Switch to Market Lab",
+        onRun: () => setActiveLab("market"),
+      },
+      {
+        id: "lab-offtopic",
+        label: "Switch to Off-topic Lab",
+        onRun: () => setActiveLab("offtopic"),
+      },
+      {
+        id: "lang-en",
+        label: "Language: English (EN)",
+        hint: language === "en" ? "Current" : undefined,
+        onRun: () => {
+          setLanguage("en");
+          try {
+            lsSet(LS.projectLabLang, "en");
+          } catch {
+            // ignore
+          }
+        },
+      },
+      {
+        id: "lang-bn",
+        label: "Language: Bengali (BN)",
+        hint: language === "bn" ? "Current" : undefined,
+        onRun: () => {
+          setLanguage("bn");
+          try {
+            lsSet(LS.projectLabLang, "bn");
+          } catch {
+            // ignore
+          }
+        },
+      },
+    ];
+
+    if (!q) return items;
+    return items.filter((item) => item.label.toLowerCase().includes(q));
+  }, [paletteQuery, language]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isTyping =
+        tag === "input" ||
+        tag === "textarea" ||
+        (target && (target as HTMLElement).isContentEditable);
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+        return;
+      }
+
+      if (isTyping) {
+        if (e.key === "Escape" && paletteOpen) {
+          setPaletteOpen(false);
+        }
+        return;
+      }
+
+      if (e.key === "/") {
+        if (activeLab === "project") {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+        }
+        return;
+      }
+
+      if (e.key === "1") {
+        setActiveLab("project");
+        return;
+      }
+      if (e.key === "2") {
+        setActiveLab("market");
+        return;
+      }
+      if (e.key === "3") {
+        setActiveLab("offtopic");
+        return;
+      }
+
+      if (e.key.toLowerCase() === "g") {
+        if (activeLab === "project" && !resultLoading) {
+          void handleGenerate("normal");
+        } else if (activeLab === "market" && !marketLoading) {
+          void handleGenerateMarket("normal");
+        } else if (activeLab === "offtopic" && !offtopicLoading) {
+          void handleGenerateOfftopic("normal");
+        }
+        return;
+      }
+
+      if (e.key.toLowerCase() === "r") {
+        if (activeLab === "project" && result) {
+          void handleGenerate("reroll");
+        } else if (activeLab === "market" && marketResult) {
+          void handleGenerateMarket("reroll");
+        } else if (activeLab === "offtopic" && offtopicResult) {
+          void handleGenerateOfftopic("reroll");
+        }
+        return;
+      }
+
+      if (e.key === "Escape") {
+        if (paletteOpen) setPaletteOpen(false);
+        if (logOpen) setLogOpen(null);
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    activeLab,
+    resultLoading,
+    marketLoading,
+    offtopicLoading,
+    result,
+    marketResult,
+    offtopicResult,
+    paletteOpen,
+    logOpen,
+  ]);
+
   return (
     <>
       <SignupGate
@@ -460,7 +624,7 @@ export default function ProjectLabPage() {
       />
 
             <TooltipProvider>
-        <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 px-4 pb-12 pt-6 lg:gap-6 lg:pb-16 lg:pt-10">
+        <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 px-4 pb-24 pt-6 lg:gap-6 lg:pb-20 lg:pt-10 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         
         <div className="mb-2 flex items-center justify-between gap-2">
           <Link
@@ -489,7 +653,7 @@ export default function ProjectLabPage() {
               </p>
             </div>
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-              <div className="inline-flex self-start rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-0.5 text-[10px]">
+              <div className="inline-flex self-start rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-0.5 text-[10px]" role="tablist" aria-label="Labs">
                 {[
                   { id: "project", label: "Project posts" },
                   { id: "market", label: "Market posts" },
@@ -498,11 +662,15 @@ export default function ProjectLabPage() {
                   <button
                     key={lab.id}
                     type="button"
+                    role="tab"
+                    id={`lab-tab-${lab.id}`}
+                    aria-selected={activeLab === lab.id}
+                    aria-controls={`lab-panel-${lab.id}`}
                     onClick={() => setActiveLab(lab.id as "project" | "market" | "offtopic")}
                     className={clsx(
-                      "rounded-full px-3 py-1 text-[10px] font-medium transition-colors",
+                      "rounded-full px-3 py-1 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ct-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--ct-bg)]",
                       activeLab === lab.id
-                        ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                        ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                         : "text-[color:var(--ct-foreground-muted)] hover:text-[color:var(--ct-foreground-soft)]"
                     )}
                   >
@@ -520,6 +688,9 @@ export default function ProjectLabPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
+          role="tabpanel"
+          id="lab-panel-project"
+          aria-labelledby="lab-tab-project"
           className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,0.45fr)]"
         >
           {/* Left: Project catalog */}
@@ -537,6 +708,7 @@ export default function ProjectLabPage() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--ct-foreground-muted)]" />
                 <Input
+                  ref={searchInputRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by name or ticker..."
@@ -841,7 +1013,7 @@ export default function ProjectLabPage() {
                       className={clsx(
                         "rounded-full px-3 py-1",
                         mediumTone === "casual"
-                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                           : "text-[color:var(--ct-foreground-muted)]"
                       )}
                     >
@@ -853,7 +1025,7 @@ export default function ProjectLabPage() {
                       className={clsx(
                         "rounded-full px-3 py-1",
                         mediumTone === "professional"
-                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                           : "text-[color:var(--ct-foreground-muted)]"
                       )}
                     >
@@ -898,7 +1070,7 @@ export default function ProjectLabPage() {
                       className={clsx(
                         "rounded-full px-3 py-1",
                         projectAngle === opt.id
-                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                           : "text-[color:var(--ct-foreground-muted)]"
                       )}
                     >
@@ -948,7 +1120,7 @@ export default function ProjectLabPage() {
                       className={clsx(
                         "rounded-full px-3 py-1 capitalize",
                         qualityMode === mode
-                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                           : "text-[color:var(--ct-foreground-muted)]"
                       )}
                     >
@@ -1057,7 +1229,13 @@ export default function ProjectLabPage() {
               </div>
             </div>
 
+            {/* Project Result */}
             <div className="mt-4 flex-1 space-y-2 border-t border-[color:var(--ct-border-subtle)] pt-3" aria-live="polite" aria-atomic="false">
+              <div className="h-0.5 w-full rounded-full bg-[color:var(--ct-border-subtle)]/60 overflow-hidden" aria-hidden="true">
+                {resultLoading && (
+                  <div className="h-full w-1/2 animate-pulse bg-[color:var(--ct-accent-soft)]" />
+                )}
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                   Result
@@ -1184,6 +1362,14 @@ export default function ProjectLabPage() {
                 type="button"
                 onClick={() => {
                   if (!selectedProjectId) return;
+                  try {
+                    if (typeof window !== "undefined") {
+                      const ok = window.confirm("Clear history for this project?");
+                      if (!ok) return;
+                    }
+                  } catch {
+                    // ignore confirm
+                  }
                   setProjectHistory((prev) => {
                     const next: ProjectHistoryMap = { ...prev };
                     delete next[selectedProjectId];
@@ -1252,6 +1438,9 @@ export default function ProjectLabPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
+            role="tabpanel"
+            id="lab-panel-market"
+            aria-labelledby="lab-tab-market"
             className="mt-4"
           >
           {/* Market Post Lab */}
@@ -1364,7 +1553,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1",
                           marketTone === "casual"
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1376,7 +1565,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1",
                           marketTone === "professional"
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1397,7 +1586,7 @@ export default function ProjectLabPage() {
                           className={clsx(
                             "rounded-full px-3 py-1 capitalize",
                             marketQuality === mode
-                              ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                              ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                               : "text-[color:var(--ct-foreground-muted)]"
                           )}
                         >
@@ -1459,7 +1648,13 @@ export default function ProjectLabPage() {
 
                 <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3" aria-live="polite" aria-atomic="false">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    {/* Market Result */}
+                  <div className="mb-1 h-0.5 w-full rounded-full bg-[color:var(--ct-border-subtle)]/60 overflow-hidden" aria-hidden="true">
+                    {marketLoading && (
+                      <div className="h-full w-1/2 animate-pulse bg-[color:var(--ct-accent-soft)]" />
+                    )}
+                  </div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                       Result
                     </p>
                     <div className="flex items-center gap-2 text-[10px]">
@@ -1488,6 +1683,11 @@ export default function ProjectLabPage() {
                       </div>
                     </div>
                   </div>
+                  {marketUpdatedAt && (
+                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                      Last updated: {fmtTime(marketUpdatedAt)} · {marketQuality.toUpperCase?.() || marketQuality} · {language?.toUpperCase?.() || language}
+                    </span>
+                  )}
                   {marketError ? (
                     <p className="mt-1 text-[10px] text-red-400">{marketError}</p>
                   ) : null}
@@ -1576,6 +1776,9 @@ export default function ProjectLabPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
+            role="tabpanel"
+            id="lab-panel-offtopic"
+            aria-labelledby="lab-tab-offtopic"
             className="mt-4"
           >
           {/* Off-topic / GM Lab */}
@@ -1636,7 +1839,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1",
                           offtopicMode === "short"
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1648,7 +1851,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1",
                           offtopicMode === "semi_mid"
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1667,7 +1870,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1",
                           offtopicTone === "casual"
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1679,7 +1882,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1",
                           offtopicTone === "professional"
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1702,7 +1905,7 @@ export default function ProjectLabPage() {
                         className={clsx(
                           "rounded-full px-3 py-1 capitalize",
                           offtopicQuality === mode
-                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                            ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
                             : "text-[color:var(--ct-foreground-muted)]"
                         )}
                       >
@@ -1763,7 +1966,13 @@ export default function ProjectLabPage() {
 
                 <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3" aria-live="polite" aria-atomic="false">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                    {/* Market Result */}
+                  <div className="mb-1 h-0.5 w-full rounded-full bg-[color:var(--ct-border-subtle)]/60 overflow-hidden" aria-hidden="true">
+                    {marketLoading && (
+                      <div className="h-full w-1/2 animate-pulse bg-[color:var(--ct-accent-soft)]" />
+                    )}
+                  </div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                       Result
                     </p>
                     <div className="flex items-center gap-2 text-[10px]">
@@ -1792,6 +2001,11 @@ export default function ProjectLabPage() {
                       </div>
                     </div>
                   </div>
+                  {offtopicUpdatedAt && (
+                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                      Last updated: {fmtTime(offtopicUpdatedAt)} · {offtopicQuality.toUpperCase?.() || offtopicQuality} · {language?.toUpperCase?.() || language}
+                    </span>
+                  )}
                   {offtopicError ? (
                     <p className="mt-1 text-[10px] text-red-400">{offtopicError}</p>
                   ) : null}
@@ -1829,6 +2043,93 @@ export default function ProjectLabPage() {
           </section>
           </motion.section>
         )}
+
+        {/* Command Palette */}
+        {paletteOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-24"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="w-full max-w-md rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] shadow-[0_18px_60px_rgba(0,0,0,0.65)]">
+              <div className="flex items-center justify-between gap-2 border-b border-[color:var(--ct-border-subtle)] px-3 py-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                  Command Palette
+                </p>
+                <p className="text-[10px] text-[color:var(--ct-foreground-muted)]">Ctrl / Cmd + K</p>
+              </div>
+              <div className="p-3">
+                <input
+                  autoFocus
+                  className="h-8 w-full rounded-xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-3 text-xs outline-none"
+                  placeholder="Type a command..."
+                  value={paletteQuery}
+                  onChange={(e) => setPaletteQuery(e.target.value)}
+                />
+                <div className="mt-2 max-h-64 overflow-y-auto">
+                  {filteredCommands.length === 0 ? (
+                    <p className="py-4 text-center text-[11px] text-[color:var(--ct-foreground-muted)]">No commands found.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1">
+                      {filteredCommands.map((cmd) => (
+                        <li key={cmd.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              cmd.onRun();
+                              setPaletteOpen(false);
+                              setPaletteQuery("");
+                            }}
+                            className="flex w-full items-center justify-between rounded-xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] px-3 py-1.5 text-left text-[11px] hover:border-[color:var(--ct-accent)]"
+                          >
+                            <span>{cmd.label}</span>
+                            {cmd.hint ? (
+                              <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">{cmd.hint}</span>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile bottom action bar for Labs */}
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 sm:hidden">
+          <div className="pointer-events-auto border-t border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-bg)]/90 backdrop-blur-sm px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2">
+            <PremiumButton
+              type="button"
+              disabled={
+                (activeLab === "project" && (resultLoading || !selectedProject)) ||
+                (activeLab === "market" && marketLoading) ||
+                (activeLab === "offtopic" && offtopicLoading)
+              }
+              onClick={() => {
+                if (activeLab === "project") {
+                  void handleGenerate("normal");
+                } else if (activeLab === "market") {
+                  void handleGenerateMarket("normal");
+                } else if (activeLab === "offtopic") {
+                  void handleGenerateOfftopic("normal");
+                }
+              }}
+              className="ct-btn-primary h-10 w-full justify-center"
+            >
+              <span className="text-[11px] font-semibold">
+                {activeLab === "project"
+                  ? uiPostKind === "thread"
+                    ? "Generate project thread"
+                    : "Generate project post"
+                  : activeLab === "market"
+                  ? "Generate market take"
+                  : "Generate off-topic post"}
+              </span>
+            </PremiumButton>
+          </div>
+        </div>
 
       </main>
       </TooltipProvider>
