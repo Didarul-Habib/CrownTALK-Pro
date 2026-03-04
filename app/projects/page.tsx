@@ -202,6 +202,14 @@ export default function ProjectLabPage() {
     [projects, selectedProjectId]
   );
 
+  const isWallchainSelected = Boolean(
+    selectedProject &&
+    ((selectedProject.name || "").toLowerCase().includes("wallchain") ||
+      (selectedProject.slug || "").toLowerCase().includes("wallchain") ||
+      (selectedProject.id || "").toLowerCase().includes("wallchain"))
+  );
+
+
   const chains = useMemo(
     () =>
       Array.from(
@@ -239,10 +247,15 @@ export default function ProjectLabPage() {
   }, [projects, search, chainFilter, categoryFilter]);
 
   const effectivePostMode: ProjectPostMode = useMemo(() => {
-    const hasScoreUpdate = scoreUpdateFrom.trim().length > 0 && scoreUpdateTo.trim().length > 0;
+    const hasScoreUpdate =
+      isWallchainSelected &&
+      scoreUpdateFrom.trim().length > 0 &&
+      scoreUpdateTo.trim().length > 0;
+
     if (hasScoreUpdate) {
       return "score_update";
     }
+
     switch (uiPostKind) {
       case "short":
         return "short_casual";
@@ -255,7 +268,7 @@ export default function ProjectLabPage() {
       default:
         return "short_casual";
     }
-  }, [uiPostKind, mediumTone, scoreUpdateFrom, scoreUpdateTo]);
+  }, [uiPostKind, mediumTone, scoreUpdateFrom, scoreUpdateTo, isWallchainSelected]);
 
   const configSummary = useMemo(() => {
     const postLabel =
@@ -946,6 +959,7 @@ export default function ProjectLabPage() {
               </div>
             </div>
 
+            {isWallchainSelected && (
             <div className="mt-3 space-y-1 rounded-2xl border border-dashed border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-softer)] p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
@@ -996,6 +1010,7 @@ export default function ProjectLabPage() {
               </p>
             </div>
 
+            )}
             <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
                 <span>Output language:</span>
