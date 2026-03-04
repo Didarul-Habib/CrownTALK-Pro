@@ -435,7 +435,7 @@ export default function ProjectLabPage() {
           </div>
         </div>
 
-        <div className="sticky top-0 z-20 mb-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 py-2.5 sm:px-4 sm:py-3 backdrop-blur-sm">
+        <div className="sticky top-0 z-20 mb-3 ct-card px-3 py-2.5 sm:px-4 sm:py-3 border border-[color:var(--ct-border-subtle)] backdrop-blur-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
@@ -480,7 +480,7 @@ export default function ProjectLabPage() {
           className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,0.45fr)]"
         >
           {/* Left: Project catalog */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+          <section className="ct-card flex flex-col gap-3 p-4 lg:p-5">
             <div className="space-y-1.5">
               <h1 className="text-base font-semibold tracking-tight text-[color:var(--ct-foreground-strong)]">
                 Project Post Lab
@@ -509,7 +509,7 @@ export default function ProjectLabPage() {
                   type="button"
                   onClick={() => setChainFilter("all")}
                   className={clsx(
-                    "rounded-full border px-2 py-0.5",
+                    "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors duration-150",
                     chainFilter === "all"
                       ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                       : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -523,7 +523,7 @@ export default function ProjectLabPage() {
                     type="button"
                     onClick={() => setChainFilter(chain)}
                     className={clsx(
-                      "rounded-full border px-2 py-0.5",
+                      "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors duration-150",
                       chainFilter === chain
                         ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                         : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -542,7 +542,7 @@ export default function ProjectLabPage() {
                   type="button"
                   onClick={() => setCategoryFilter("all")}
                   className={clsx(
-                    "rounded-full border px-2 py-0.5",
+                    "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors duration-150",
                     categoryFilter === "all"
                       ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                       : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -556,7 +556,7 @@ export default function ProjectLabPage() {
                     type="button"
                     onClick={() => setCategoryFilter(cat)}
                     className={clsx(
-                      "rounded-full border px-2 py-0.5",
+                      "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors duration-150",
                       categoryFilter === cat
                         ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                         : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -642,7 +642,7 @@ export default function ProjectLabPage() {
           </section>
 
           {/* Right: Composer + Result */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+          <section className="ct-card flex flex-col gap-3 p-4 lg:p-5">
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                 Selected project
@@ -933,7 +933,7 @@ export default function ProjectLabPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex-1 space-y-2 border-t border-[color:var(--ct-border-subtle)] pt-3">
+            <div className="mt-4 flex-1 space-y-2 border-t border-[color:var(--ct-border-subtle)] pt-3" aria-live="polite" aria-atomic="false">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                   Result
@@ -1131,7 +1131,7 @@ export default function ProjectLabPage() {
             className="mt-4"
           >
           {/* Market Post Lab */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+          <section className="ct-card flex flex-col gap-3 p-4 lg:p-5">
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-ok)]">
                 Market posts
@@ -1157,7 +1157,7 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setMarketAsset(sym)}
                         className={clsx(
-                          "rounded-full border px-3 py-1 text-[11px]",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors duration-150",
                           marketAsset === sym
                             ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                             : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -1170,7 +1170,7 @@ export default function ProjectLabPage() {
                       type="button"
                       onClick={() => setMarketAsset("RANDOM")}
                       className={clsx(
-                        "rounded-full border px-3 py-1 text-[11px]",
+                        "rounded-full border px-3 py-1 text-[11px] transition-colors duration-150",
                         marketAsset === "RANDOM"
                           ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                           : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -1333,7 +1333,7 @@ export default function ProjectLabPage() {
                   </div>
                 </div>
 
-                <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+                <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3" aria-live="polite" aria-atomic="false">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                       Result
@@ -1455,7 +1455,7 @@ export default function ProjectLabPage() {
             className="mt-4"
           >
           {/* Off-topic / GM Lab */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
+          <section className="ct-card flex flex-col gap-3 p-4 lg:p-5">
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-accent)]">
                 Off-topic &amp; time-of-day
@@ -1488,7 +1488,7 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setOfftopicKind(opt.kind as OfftopicKind)}
                         className={clsx(
-                          "rounded-full border px-3 py-1 text-[11px]",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors duration-150",
                           offtopicKind === (opt.kind as OfftopicKind)
                             ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                             : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -1637,7 +1637,7 @@ export default function ProjectLabPage() {
                   </div>
                 </div>
 
-                <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+                <div className="mt-1 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3" aria-live="polite" aria-atomic="false">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                       Result
