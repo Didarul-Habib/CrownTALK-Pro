@@ -435,14 +435,14 @@ export default function ProjectLabPage() {
           </div>
         </div>
 
-        <div className="mb-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 py-2.5 sm:px-4 sm:py-3">
+        <div className="sticky top-0 z-20 mb-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] px-3 py-2.5 sm:px-4 sm:py-3 backdrop-blur-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                 Project post labs
               </p>
               <p className="text-xs leading-relaxed text-[color:var(--ct-foreground-muted)]">
-                Pick a lab, then generate ready-to-post tweets and threads from your research cards.
+                Pick a lab, then generate ready-to-post tweets and threads grounded in your own research cards.
               </p>
             </div>
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
@@ -689,7 +689,7 @@ export default function ProjectLabPage() {
               )}
             </div>
 
-            <div className="mt-3 space-y-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+            <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                   Post type
@@ -887,7 +887,7 @@ export default function ProjectLabPage() {
               </div>
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
                 <span>Output language:</span>
                 <select
@@ -926,14 +926,14 @@ export default function ProjectLabPage() {
                   type="button"
                   disabled={resultLoading || !selectedProject}
                   onClick={() => handleGenerate("normal")}
-                  className="h-8 rounded-full bg-[color:var(--ct-accent)] px-4 text-xs font-medium text-black hover:bg-[color:var(--ct-accent-strong)]"
+                  className="h-9 w-full rounded-full bg-[color:var(--ct-accent)] px-4 text-xs font-medium text-black hover:bg-[color:var(--ct-accent-strong)] sm:h-8 sm:w-auto"
                 >
                   {uiPostKind === "thread" ? "Generate thread" : "Generate post"}
                 </Button>
               </div>
             </div>
 
-            <div className="mt-3 flex-1 space-y-2 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
+            <div className="mt-4 flex-1 space-y-2 border-t border-[color:var(--ct-border-subtle)] pt-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
                   Result
@@ -952,7 +952,7 @@ export default function ProjectLabPage() {
                           : "bg-[color:var(--ct-border-subtle)]"
                       )}
                     />
-                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]" aria-live="polite">
                       {resultLoading
                         ? "Generating…"
                         : resultError
@@ -986,7 +986,7 @@ export default function ProjectLabPage() {
               )}
               {!resultLoading && result && !isThread && (
                 <div className="flex flex-col gap-2">
-                  <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                  <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed text-[color:var(--ct-foreground-strong)]">
                     {result.text}
                   </div>
                   <div className="flex justify-end gap-2">
@@ -1088,7 +1088,7 @@ export default function ProjectLabPage() {
                     <span className="text-[11px] font-medium text-[color:var(--ct-foreground-strong)]">
                       {entry.postMode === "thread_4_6" ? "Thread (4–6)" : "Single post"}
                     </span>
-                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                    <span className="text-[10px] text-[color:var(--ct-foreground-muted)]" aria-live="polite">
                       {new Date(entry.createdAt).toLocaleTimeString(undefined, {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -1124,18 +1124,23 @@ export default function ProjectLabPage() {
         {/* Market + Off-topic labs */}
 
         {activeLab === "market" && (
-          <section className="mt-4">
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="mt-4"
+          >
           {/* Market Post Lab */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
             <div className="space-y-1.5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-ok)]">
                 Market posts
               </p>
               <h2 className="text-sm font-semibold tracking-tight text-[color:var(--ct-foreground-strong)]">
                 Market Post Lab
               </h2>
               <p className="text-xs leading-relaxed text-[color:var(--ct-foreground-muted)]">
-                Pick a token, then generate grounded market takes with live CoinGecko data.
+                Pick a token, then generate grounded market takes with live CoinGecko data in CrownTALK tone.
               </p>
             </div>
 
@@ -1281,7 +1286,7 @@ export default function ProjectLabPage() {
               </div>
 
               <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
                     <span>Output language:</span>
                     <select
@@ -1321,7 +1326,7 @@ export default function ProjectLabPage() {
                       type="button"
                       disabled={marketLoading}
                       onClick={() => handleGenerateMarket("normal")}
-                      className="h-7 rounded-full bg-[color:var(--ct-accent)] px-3 text-[11px] font-medium text-black hover:bg-[color:var(--ct-accent-strong)]"
+                      className="h-9 w-full rounded-full bg-[color:var(--ct-accent)] px-4 text-[11px] font-medium text-black hover:bg-[color:var(--ct-accent-strong)] sm:h-7 sm:w-auto"
                     >
                       {marketMode === "thread_4_6" ? "Generate thread" : "Generate post"}
                     </Button>
@@ -1347,7 +1352,7 @@ export default function ProjectLabPage() {
                               : "bg-[color:var(--ct-border-subtle)]"
                           )}
                         />
-                        <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                        <span className="text-[10px] text-[color:var(--ct-foreground-muted)]" aria-live="polite">
                           {marketLoading
                             ? "Generating…"
                             : marketError
@@ -1374,7 +1379,7 @@ export default function ProjectLabPage() {
                   )}
                   {!marketLoading && marketResult && !marketIsThread && (
                     <div className="flex flex-col gap-2">
-                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed text-[color:var(--ct-foreground-strong)]">
                         {marketResult.text}
                       </div>
                       <div className="flex justify-end gap-2">
@@ -1439,22 +1444,27 @@ export default function ProjectLabPage() {
             </div>
           </section>
 
-          </section>
+          </motion.section>
         )}
 
         {activeLab === "offtopic" && (
-          <section className="mt-4">
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="mt-4"
+          >
           {/* Off-topic / GM Lab */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
             <div className="space-y-1.5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-accent)]">
                 Off-topic &amp; time-of-day
               </p>
               <h2 className="text-sm font-semibold tracking-tight text-[color:var(--ct-foreground-strong)]">
                 Off-topic Post Lab
               </h2>
               <p className="text-xs leading-relaxed text-[color:var(--ct-foreground-muted)]">
-                Generate GM, afternoon, evening, or random CT thoughts that match CrownTALK tone.
+                Generate GM, GN, and in-between CT thoughts that match CrownTALK tone.
               </p>
             </div>
 
@@ -1580,7 +1590,7 @@ export default function ProjectLabPage() {
               </div>
 
               <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-muted)] p-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
                     <span>Output language:</span>
                     <select
@@ -1620,7 +1630,7 @@ export default function ProjectLabPage() {
                       type="button"
                       disabled={offtopicLoading}
                       onClick={() => handleGenerateOfftopic("normal")}
-                      className="h-7 rounded-full bg-[color:var(--ct-accent)] px-3 text-[11px] font-medium text-black hover:bg-[color:var(--ct-accent-strong)]"
+                      className="h-9 w-full rounded-full bg-[color:var(--ct-accent)] px-4 text-[11px] font-medium text-black hover:bg-[color:var(--ct-accent-strong)] sm:h-7 sm:w-auto"
                     >
                       Generate post
                     </Button>
@@ -1646,7 +1656,7 @@ export default function ProjectLabPage() {
                               : "bg-[color:var(--ct-border-subtle)]"
                           )}
                         />
-                        <span className="text-[10px] text-[color:var(--ct-foreground-muted)]">
+                        <span className="text-[10px] text-[color:var(--ct-foreground-muted)]" aria-live="polite">
                           {offtopicLoading
                             ? "Generating…"
                             : offtopicError
@@ -1673,7 +1683,7 @@ export default function ProjectLabPage() {
                   )}
                   {!offtopicLoading && hasOfftopic && offtopicResult && (
                     <div className="flex flex-col gap-2">
-                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed text-[color:var(--ct-foreground-strong)]">
                         {offtopicResult.text}
                       </div>
                       <div className="flex justify-end gap-2">
@@ -1693,7 +1703,7 @@ export default function ProjectLabPage() {
               </div>
             </div>
           </section>
-          </section>
+          </motion.section>
         )}
 
       </main>
