@@ -820,7 +820,7 @@ export default function ProjectLabPage() {
                           <div className="flex flex-col gap-0.5">
                             <div className="text-xs font-medium text-[color:var(--ct-foreground-strong)]">
                               {p.name}
-                              {p.ticker ? <span className="text-[color:var(--ct-foreground-muted)]"> ({p.ticker})</span> : null}
+                              {p.ticker ? <span className="border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"> ({p.ticker})</span> : null}
                             </div>
                             {p.one_line_pitch ? (
                               <p className="line-clamp-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
@@ -1011,10 +1011,10 @@ export default function ProjectLabPage() {
                       type="button"
                       onClick={() => setMediumTone("casual")}
                       className={clsx(
-                        "rounded-full px-3 py-1",
+                        "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                         mediumTone === "casual"
                           ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                          : "text-[color:var(--ct-foreground-muted)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                       )}
                     >
                       Casual
@@ -1023,10 +1023,10 @@ export default function ProjectLabPage() {
                       type="button"
                       onClick={() => setMediumTone("professional")}
                       className={clsx(
-                        "rounded-full px-3 py-1",
+                        "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                         mediumTone === "professional"
                           ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                          : "text-[color:var(--ct-foreground-muted)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                       )}
                     >
                       Professional
@@ -1068,10 +1068,10 @@ export default function ProjectLabPage() {
                       type="button"
                       onClick={() => setProjectAngle(opt.id as ProjectPostAngle)}
                       className={clsx(
-                        "rounded-full px-3 py-1",
+                        "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                         projectAngle === opt.id
                           ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                          : "text-[color:var(--ct-foreground-muted)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                       )}
                     >
                       {opt.label}
@@ -1121,7 +1121,7 @@ export default function ProjectLabPage() {
                         "rounded-full px-3 py-1 capitalize",
                         qualityMode === mode
                           ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                          : "text-[color:var(--ct-foreground-muted)]"
+                          : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                       )}
                     >
                       {mode}
@@ -1470,7 +1470,7 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setMarketAsset(sym)}
                         className={clsx(
-                          "rounded-full border px-3 py-1 text-[11px] transition-colors duration-150",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           marketAsset === sym
                             ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                             : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -1483,7 +1483,7 @@ export default function ProjectLabPage() {
                       type="button"
                       onClick={() => setMarketAsset("RANDOM")}
                       className={clsx(
-                        "rounded-full border px-3 py-1 text-[11px] transition-colors duration-150",
+                        "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                         marketAsset === "RANDOM"
                           ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                           : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -1551,10 +1551,10 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setMarketTone("casual")}
                         className={clsx(
-                          "rounded-full px-3 py-1",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           marketTone === "casual"
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         Casual
@@ -1563,10 +1563,10 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setMarketTone("professional")}
                         className={clsx(
-                          "rounded-full px-3 py-1",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           marketTone === "professional"
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         Professional
@@ -1587,7 +1587,7 @@ export default function ProjectLabPage() {
                             "rounded-full px-3 py-1 capitalize",
                             marketQuality === mode
                               ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                              : "text-[color:var(--ct-foreground-muted)]"
+                              : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                           )}
                         >
                           {mode}
@@ -1815,7 +1815,7 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setOfftopicKind(opt.kind as OfftopicKind)}
                         className={clsx(
-                          "rounded-full border px-3 py-1 text-[11px] transition-colors duration-150",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           offtopicKind === (opt.kind as OfftopicKind)
                             ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                             : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
@@ -1837,10 +1837,10 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setOfftopicMode("short")}
                         className={clsx(
-                          "rounded-full px-3 py-1",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           offtopicMode === "short"
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         Short
@@ -1849,10 +1849,10 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setOfftopicMode("semi_mid")}
                         className={clsx(
-                          "rounded-full px-3 py-1",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           offtopicMode === "semi_mid"
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         Semi-mid
@@ -1868,10 +1868,10 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setOfftopicTone("casual")}
                         className={clsx(
-                          "rounded-full px-3 py-1",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           offtopicTone === "casual"
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         Casual
@@ -1880,10 +1880,10 @@ export default function ProjectLabPage() {
                         type="button"
                         onClick={() => setOfftopicTone("professional")}
                         className={clsx(
-                          "rounded-full px-3 py-1",
+                          "rounded-full border px-3 py-1 text-[11px] transition-colors transition-transform duration-150 active:scale-95",
                           offtopicTone === "professional"
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         Professional
@@ -1906,7 +1906,7 @@ export default function ProjectLabPage() {
                           "rounded-full px-3 py-1 capitalize",
                           offtopicQuality === mode
                             ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent-text)] border-[color:var(--ct-accent)]"
-                            : "text-[color:var(--ct-foreground-muted)]"
+                            : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
                       >
                         {mode}
