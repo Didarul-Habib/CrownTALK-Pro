@@ -16,6 +16,7 @@ import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
 import type {
   ProjectCatalogItem,
   ProjectPostMode,
+  ProjectPostAngle,
   ProjectPostResponse,
   QualityMode,
   MarketPostMode,
@@ -34,6 +35,7 @@ type ProjectHistoryEntry = {
   createdAt: number;
   postMode: ProjectPostMode;
   uiPostKind: UiPostKind;
+  angle?: ProjectPostAngle;
   tone?: "casual" | "professional";
   qualityMode: QualityMode;
   language: string;
@@ -84,6 +86,10 @@ export default function ProjectLabPage() {
 
   const [uiPostKind, setUiPostKind] = useState<UiPostKind>("short");
   const [mediumTone, setMediumTone] = useState<"casual" | "professional">("professional");
+  const [projectAngle, setProjectAngle] = useState<ProjectPostAngle>("balanced");
+  const [scoreUpdateFrom, setScoreUpdateFrom] = useState<string>("");
+  const [scoreUpdateTo, setScoreUpdateTo] = useState<string>("");
+  const [scoreUpdatePeriod, setScoreUpdatePeriod] = useState<string>("");
   const [qualityMode, setQualityMode] = useState<QualityMode>("balanced");
   const [language, setLanguage] = useState<string>("en");
 
@@ -233,6 +239,10 @@ export default function ProjectLabPage() {
   }, [projects, search, chainFilter, categoryFilter]);
 
   const effectivePostMode: ProjectPostMode = useMemo(() => {
+    const hasScoreUpdate = scoreUpdateFrom.trim().length > 0 && scoreUpdateTo.trim().length > 0;
+    if (hasScoreUpdate) {
+      return "score_update";
+    }
     switch (uiPostKind) {
       case "short":
         return "short_casual";
@@ -245,7 +255,7 @@ export default function ProjectLabPage() {
       default:
         return "short_casual";
     }
-  }, [uiPostKind, mediumTone]);
+  }, [uiPostKind, mediumTone, scoreUpdateFrom, scoreUpdateTo]);
 
   const configSummary = useMemo(() => {
     const postLabel =
@@ -278,12 +288,31 @@ export default function ProjectLabPage() {
       return;
     }
 
+    if (effectivePostMode === "score_update") {
+      const fromVal = Number(scoreUpdateFrom);
+      const toVal = Number(scoreUpdateTo);
+      if (!Number.isFinite(fromVal) || !Number.isFinite(toVal)) {
+        toast.error("Set valid numeric X Score values before generating a score update.");
+        return;
+      }
+    }
+
     const payload = {
       project_id: selectedProjectId,
       post_mode: effectivePostMode,
       tone: uiPostKind === "medium" ? mediumTone : undefined,
       language,
       quality_mode: qualityMode,
+      angle: projectAngle,
+      score_update:
+        effectivePostMode === "score_update"
+          ? {
+              metric: "x_score",
+              from_value: Number(scoreUpdateFrom || 0),
+              to_value: Number(scoreUpdateTo || 0),
+              period_label: scoreUpdatePeriod || undefined,
+            }
+          : undefined,
     } as const;
 
     setResultLoading(true);
@@ -298,6 +327,7 @@ export default function ProjectLabPage() {
         createdAt: Date.now(),
         postMode: resp.post_mode as ProjectPostMode,
         uiPostKind,
+        angle: projectAngle,
         tone: uiPostKind === "medium" ? mediumTone : undefined,
         qualityMode,
         language,
@@ -836,6 +866,35 @@ export default function ProjectLabPage() {
                 </div>
               )}
 
+              <div className="mt-3 space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                  Angle
+                </p>
+                <div className="inline-flex flex-wrap gap-1 rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-0.5 text-[11px]">
+                  {[ 
+                    { id: "balanced", label: "Balanced" },
+                    { id: "how_to_use", label: "How to use" },
+                    { id: "narrative", label: "Narrative" },
+                    { id: "risk", label: "Risk" },
+                    { id: "builder", label: "Builder / shipping" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setProjectAngle(opt.id as ProjectPostAngle)}
+                      className={clsx(
+                        "rounded-full px-3 py-1",
+                        projectAngle === opt.id
+                          ? "bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
+                          : "text-[color:var(--ct-foreground-muted)]"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-2 space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
@@ -885,6 +944,56 @@ export default function ProjectLabPage() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div className="mt-3 space-y-1 rounded-2xl border border-dashed border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel-softer)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
+                  Score update (optional)
+                </p>
+                <p className="max-w-[220px] text-right text-[10px] text-[color:var(--ct-foreground-muted)]">
+                  Fill both X Score values to switch this run into a scoreboard-style score update.
+                </p>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-[color:var(--ct-foreground-muted)]">From</p>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={scoreUpdateFrom}
+                    onChange={(e) => setScoreUpdateFrom(e.target.value)}
+                    className="h-8 w-full rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-input)] px-3 text-[11px] outline-none"
+                    placeholder="e.g. 72"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-[color:var(--ct-foreground-muted)]">To</p>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={scoreUpdateTo}
+                    onChange={(e) => setScoreUpdateTo(e.target.value)}
+                    className="h-8 w-full rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-input)] px-3 text-[11px] outline-none"
+                    placeholder="e.g. 79"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-[color:var(--ct-foreground-muted)]">Period</p>
+                  <input
+                    type="text"
+                    value={scoreUpdatePeriod}
+                    onChange={(e) => setScoreUpdatePeriod(e.target.value)}
+                    className="h-8 w-full rounded-full border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-input)] px-3 text-[11px] outline-none"
+                    placeholder="this month"
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-[10px] text-[color:var(--ct-foreground-muted)]">
+                X Score is treated as a scoreboard for traction and execution, not as a price call.
+              </p>
             </div>
 
             <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -986,7 +1095,7 @@ export default function ProjectLabPage() {
               )}
               {!resultLoading && result && !isThread && (
                 <div className="flex flex-col gap-2">
-                  <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                  <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed whitespace-pre-wrap text-[color:var(--ct-foreground-strong)]">
                     {result.text}
                   </div>
                   <div className="flex justify-end gap-2">
@@ -1028,7 +1137,7 @@ export default function ProjectLabPage() {
                     {(result as any).tweets.map((tweet: string, idx: number) => (
                       <div
                         key={idx}
-                        className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]"
+                        className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed whitespace-pre-wrap text-[color:var(--ct-foreground-strong)]"
                       >
                         <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
                           <span className="font-medium">Tweet {idx + 1}</span>
@@ -1379,7 +1488,7 @@ export default function ProjectLabPage() {
                   )}
                   {!marketLoading && marketResult && !marketIsThread && (
                     <div className="flex flex-col gap-2">
-                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed whitespace-pre-wrap text-[color:var(--ct-foreground-strong)]">
                         {marketResult.text}
                       </div>
                       <div className="flex justify-end gap-2">
@@ -1421,7 +1530,7 @@ export default function ProjectLabPage() {
                         {(marketResult as any).tweets?.map((tweet: string, idx: number) => (
                           <div
                             key={idx}
-                            className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed text-[color:var(--ct-foreground-strong)]"
+                            className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-xs leading-relaxed whitespace-pre-wrap text-[color:var(--ct-foreground-strong)]"
                           >
                             <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-[color:var(--ct-foreground-muted)]">
                               <span className="font-medium">Tweet {idx + 1}</span>
@@ -1683,7 +1792,7 @@ export default function ProjectLabPage() {
                   )}
                   {!offtopicLoading && hasOfftopic && offtopicResult && (
                     <div className="flex flex-col gap-2">
-                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed text-[color:var(--ct-foreground-strong)]">
+                      <div className="rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 text-sm leading-relaxed whitespace-pre-wrap text-[color:var(--ct-foreground-strong)]">
                         {offtopicResult.text}
                       </div>
                       <div className="flex justify-end gap-2">
