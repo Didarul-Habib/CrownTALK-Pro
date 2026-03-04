@@ -20,6 +20,7 @@ export const LS = {
   avgMsPerUrl: "ct_avg_ms_per_url_v1",
   projectLabHistory: "ct_project_lab_history_v1",
   projectLabLang: "ct_project_lab_lang_v1",
+  projectLabCompact: "ct_project_lab_compact_v1",
 };
 
 export function lsGet(key: string, fallback = ""): string {
