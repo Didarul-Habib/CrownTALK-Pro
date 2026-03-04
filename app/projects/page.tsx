@@ -471,9 +471,9 @@ export default function ProjectLabPage() {
           </div>
         </div>
 
-                {activeLab === "project" && (
-          <motion.div
-<motion.div
+        {activeLab === "project" && (
+          <>
+            <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
@@ -1050,7 +1050,7 @@ export default function ProjectLabPage() {
           </section>
         </motion.div>
 
-        {selectedProjectId && projectHistory[selectedProjectId]?.length ? (
+            {selectedProjectId && projectHistory[selectedProjectId]?.length ? (
           <section className="mt-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-3 sm:p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--ct-foreground-soft)]">
@@ -1116,12 +1116,15 @@ export default function ProjectLabPage() {
               ))}
             </div>
           </section>
-        ) : null}
+            ) : null}
+          </>
         )}
+
 
         {/* Market + Off-topic labs */}
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        {activeLab === "market" && (
+          <section className="mt-4">
           {/* Market Post Lab */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
             <div className="space-y-1.5">
@@ -1436,6 +1439,11 @@ export default function ProjectLabPage() {
             </div>
           </section>
 
+          </section>
+        )}
+
+        {activeLab === "offtopic" && (
+          <section className="mt-4">
           {/* Off-topic / GM Lab */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--ct-border-subtle)] bg-[color:var(--ct-panel)] p-4 lg:p-5">
             <div className="space-y-1.5">
@@ -1458,20 +1466,20 @@ export default function ProjectLabPage() {
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { key: "gm_morning", label: "GM (morning)" },
-                      { key: "noon", label: "Noon" },
-                      { key: "afternoon", label: "Afternoon" },
-                      { key: "evening", label: "Evening" },
-                      { key: "gn_night", label: "GN (night)" },
-                      { key: "random", label: "Random thought" },
+                      { key: "gm_morning", kind: "gm_morning", label: "GM (morning)" },
+                      { key: "noon", kind: "noon", label: "Noon" },
+                      { key: "afternoon", kind: "afternoon", label: "Afternoon" },
+                      { key: "evening", kind: "evening", label: "Evening" },
+                      { key: "gn_night", kind: "evening", label: "GN (night)" },
+                      { key: "random", kind: "random", label: "Random thought" },
                     ].map((opt) => (
                       <button
                         key={opt.key}
                         type="button"
-                        onClick={() => setOfftopicKind(opt.key as OfftopicKind)}
+                        onClick={() => setOfftopicKind(opt.kind as OfftopicKind)}
                         className={clsx(
                           "rounded-full border px-3 py-1 text-[11px]",
-                          offtopicKind === (opt.key as OfftopicKind)
+                          offtopicKind === (opt.kind as OfftopicKind)
                             ? "border-[color:var(--ct-accent)] bg-[color:var(--ct-accent-soft)] text-[color:var(--ct-accent)]"
                             : "border-[color:var(--ct-border-subtle)] text-[color:var(--ct-foreground-muted)] hover:border-[color:var(--ct-border-strong)]"
                         )}
@@ -1685,7 +1693,8 @@ export default function ProjectLabPage() {
               </div>
             </div>
           </section>
-        </section>
+          </section>
+        )}
 
       </main>
       </TooltipProvider>
