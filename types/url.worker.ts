@@ -9,42 +9,46 @@ type WorkerMessageOut = {
   invalid: string[];
 };
 
-const X_URL_RE = /(https?:\/\/)?(www\.)?(x\.com|twitter\.com)\/(?:[\\w]+)\/(status|statuses)\/(\\d+)/i;
+const X_STATUS_RE = /(https?:\/\/(?:www\.)?(?:x\.com|twitter\.com|mobile\.twitter\.com|m\.twitter\.com)\/[A-Za-z0-9_]+\/status\/\d+[^\s]*)|(https?:\/\/(?:www\.)?(?:x\.com|twitter\.com|mobile\.twitter\.com|m\.twitter\.com)\/i\/(?:web\/)?status\/\d+[^\s]*)/gi;
 
-function normalizeUrl(u: string) {
-  let url = u.trim();
-  if (!url) return "";
-  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-  url = url.replace(/\)+$/, "").replace(/\s+/g, "");
-  // Normalize twitter.com -> x.com
-  url = url.replace(/https?:\/\/(www\.)?twitter\.com\//i, "https://x.com/");
-  url = url.replace(/https?:\/\/(www\.)?x\.com\//i, "https://x.com/");
-  url = url.replace(/[?#].*$/, "");
-  return url;
+function normalizeXUrl(u: string) {
+  let s = String(u || "").trim();
+  s = s.replace(/^[\s\("'\[]+/, "").replace(/[\s\)\]">'.,!]+$/, "");
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  s = s.replace(/[?#].*$/, "");
+  s = s.replace(/^https?:\/\/(?:www\.)?twitter\.com\//i, "https://x.com/");
+  s = s.replace(/^https?:\/\/(?:www\.)?mobile\.twitter\.com\//i, "https://x.com/");
+  s = s.replace(/^https?:\/\/(?:www\.)?m\.twitter\.com\//i, "https://x.com/");
+  s = s.replace(/\/i\/web\/status\//i, "/i/status/");
+  return s;
+}
+
+function extractUrls(raw: string): string[] {
+  const found: string[] = [];
+  let m: RegExpExecArray | null;
+  const re = new RegExp(X_STATUS_RE);
+  while ((m = re.exec(String(raw || ""))) !== null) {
+    const u = (m[1] || m[2] || "").trim();
+    if (u) found.push(normalizeXUrl(u));
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of found) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+  }
+  return out;
 }
 
 function parseRaw(raw: string) {
-  const seen = new Set<string>();
-  const urls: string[] = [];
+  const urls = extractUrls(raw);
   const invalid: string[] = [];
-
-  for (const line of raw.split(/\r?\n/)) {
+  for (const line of String(raw || "").split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-
-    // Extract URLs in the line (space-separated input)
-    const parts = trimmed.split(/\s+/);
-    for (const part of parts) {
-      const norm = normalizeUrl(part);
-      if (!norm) continue;
-      if (seen.has(norm)) continue;
-      seen.add(norm);
-
-      if (X_URL_RE.test(norm)) urls.push(norm);
-      else invalid.push(norm);
-    }
+    if (!extractUrls(trimmed).length) invalid.push(trimmed);
   }
-
   return { urls, invalid };
 }
 
