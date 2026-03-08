@@ -7,7 +7,7 @@
  *
  * Rate: not auth-gated (client has no session yet for signup/verify requests),
  * but body must be non-empty JSON and ts must be within ±120 s of server time
- * to prevent replay abuse.
+ * to prevent replay abuse
  */
 import { NextRequest, NextResponse } from "next/server";
 
