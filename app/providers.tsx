@@ -41,7 +41,21 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     try {
-      const mode = (localStorage.getItem(LS.fxMode) as FxMode) || "auto";
+      const saved = localStorage.getItem(LS.fxMode) as FxMode | null;
+      let mode: FxMode = saved || "auto";
+      // Auto-detect: if running on a mobile/tablet device and no explicit user override,
+      // default to "lite" to avoid backdrop-blur and heavy compositing layers that
+      // cause scroll jank on most Android/iOS devices.
+      if (!saved || saved === "auto") {
+        const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
+        const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+        const prefersLow = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (isMobile || isSmallScreen || prefersLow) {
+          mode = "lite";
+        }
+      }
       applyFxMode(mode);
     } catch {
       // no-op

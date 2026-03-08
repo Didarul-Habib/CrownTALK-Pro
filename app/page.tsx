@@ -165,6 +165,7 @@ export default function Home() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardRecord[]>([]);
   const [resumeCandidate, setResumeCandidate] = useState<RunRecord | null>(null);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [dismissDiffId, setDismissDiffId] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
@@ -744,6 +745,7 @@ async function queueRunOffline(requestUrls: string[]) {
     setError("");
     setLoading(true);
     setStage("fetching");
+    startPipeline(); // start timer-based stage progression so all 4 stages are shown
     setQueueTotal(allUrls.length);
     setQueueDone(0);
     activeRunOrderRef.current = allUrls;
@@ -803,6 +805,20 @@ async function queueRunOffline(requestUrls: string[]) {
         for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
       }
 
+      // Synchronize display state with authoritative combined — resolves any
+      // React batching races where setItems(functional) inside generateOneBatch
+      // might have seen stale prev. This is the single source of truth for the UI.
+      setItems(combined);
+
+      // Show polishing → finalizing completion sequence so all 4 pipeline stages
+      // are always visible (timers in startPipeline may have already advanced past
+      // these but advanceStage only moves forward, never backward).
+      clearTimers();
+      advanceStage("polishing");
+      await new Promise<void>((r) => { timers.current.push(window.setTimeout(r, 600)); });
+      advanceStage("finalizing");
+      await new Promise<void>((r) => { timers.current.push(window.setTimeout(r, 400)); });
+
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
       const failedCount = combined.filter((i) => i.status === "error").length;
@@ -826,10 +842,13 @@ async function queueRunOffline(requestUrls: string[]) {
         failedCount,
       };
 
-      // Persist run immediately so it survives refresh and participates in Resume banner.
+      // Persist run immediately — also write directly to IDB so a same-tick
+      // page refresh doesn't lose the run before the useEffect fires.
       setRuns((prev) => {
         const limit = prefs?.historyRetention ?? 20;
         const next = [record, ...prev.filter((r) => r.id !== record.id)].slice(0, limit);
+        idbSet("ct:runs", next).catch(() => {});
+        lsSetJson(LS.runs, next);
         return next;
       });
       lsSet(LS.lastRunResult, record.id);
@@ -1121,7 +1140,8 @@ setFailStreak((prev) => {
     await runQueue(failedUrls);
   }
 
-  // Resume banner selection
+  // Resume banner / restore modal on page load
+  const didShowRestoreRef = useRef(false);
   useEffect(() => {
     const lastId = lsGet(LS.lastRunResult, "");
     const dismissed = lsGet(LS.dismissResume, "");
@@ -1135,7 +1155,12 @@ setFailStreak((prev) => {
     }
     const found = runs.find((r) => r.id === lastId) || null;
     setResumeCandidate(found);
-  }, [runs]);
+    // Show restore modal on first load only (not during/after active generation)
+    if (found && !loading && !didShowRestoreRef.current) {
+      didShowRestoreRef.current = true;
+      setShowRestoreModal(true);
+    }
+  }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const latestRun = runs[0] || null;
   const showSessionDiff = useMemo(() => {
@@ -1164,6 +1189,7 @@ setFailStreak((prev) => {
     setRunId(r.id);
     setError("");
     setResumeCandidate(null);
+    setShowRestoreModal(false);
     lsSet(LS.dismissResume, r.id);
   }
 
@@ -1171,6 +1197,7 @@ setFailStreak((prev) => {
     if (!resumeCandidate) return;
     lsSet(LS.dismissResume, resumeCandidate.id);
     setResumeCandidate(null);
+    setShowRestoreModal(false);
   }
 
   function onCopied(text: string, url?: string) {
@@ -1232,8 +1259,56 @@ setFailStreak((prev) => {
           />
         ) : null}
 
-        {resumeCandidate && !items.length ? (
+        {resumeCandidate && !items.length && !showRestoreModal ? (
           <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
+        ) : null}
+
+        {/* Restore session modal — shown on page load/refresh when a previous run exists */}
+        {showRestoreModal && resumeCandidate && !loading ? (
+          <div
+            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) dismissResume(); }}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-5 shadow-2xl"
+              style={{ boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06) inset" }}
+            >
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ct-accent)]/15">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[color:var(--ct-accent)]"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold tracking-tight">Restore previous session?</div>
+                  <div className="mt-1 text-[11px] opacity-70 truncate">
+                    {resumeCandidate.label || resumeCandidate.request.urls?.[0] || "Previous run"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] opacity-60">
+                    {new Date(resumeCandidate.at).toLocaleString(undefined, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {" • "}{resumeCandidate.results.length} URL{resumeCandidate.results.length === 1 ? "" : "s"}
+                    {" • "}{resumeCandidate.okCount} ok
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="ct-btn ct-btn-sm"
+                  onClick={dismissResume}
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  className="ct-btn ct-btn-primary ct-btn-sm"
+                  onClick={resumeLastRun}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                  Restore session
+                </button>
+              </div>
+            </div>
+          </div>
         ) : null}
 
         <motion.div
@@ -1327,7 +1402,7 @@ setFailStreak((prev) => {
               clearDisabled={!raw.trim() && !items.length && !error}
             />
 
-            <ProgressStepper stage={stage} />
+            <ProgressStepper stage={stage} queueTotal={queueTotal} queueDone={queueDone} />
           </div>
           </div>
         </motion.div>
