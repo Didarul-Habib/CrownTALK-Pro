@@ -1,25 +1,25 @@
-const HMAC_SECRET = process.env.NEXT_PUBLIC_CT_HMAC_SECRET;
+// HMAC signing is performed server-side via /api/sign.
+// The secret lives in CT_HMAC_SECRET (no NEXT_PUBLIC_ prefix) and never reaches the browser.
+// If /api/sign is unavailable (static export / custom infra), signing is silently skipped
+// and the backend will treat the request as unsigned (allowed when HMAC is not enforced).
 
-async function hmacSha256Hex(secret: string, message: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function addRequestSignature(headers: Record<string, string>, body: string) {
-  if (!HMAC_SECRET) return;
-  const ts = Math.floor(Date.now() / 1000).toString();
-  headers["X-CT-Timestamp"] = ts;
-  headers["X-CT-Signature"] = await hmacSha256Hex(HMAC_SECRET, `${ts}.${body}`);
+async function addRequestSignature(headers: Record<string, string>, body: string): Promise<void> {
+  try {
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const res = await fetch("/api/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ts, body }),
+    });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    if (!data?.signature || !data?.ts) return;
+    headers["X-CT-Timestamp"] = String(data.ts);
+    headers["X-CT-Signature"] = String(data.signature);
+  } catch {
+    // Non-fatal: signature is best-effort. The backend allows unsigned requests
+    // when CROWNTALK_HMAC_ENFORCE is not set to "1".
+  }
 }
 
 function normalizeResultItem(raw: any, request?: any): ResultItem {
