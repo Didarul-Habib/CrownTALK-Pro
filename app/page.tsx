@@ -30,7 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { translate, useUiLang } from "@/lib/i18n";
 import { parseUrls } from "@/lib/validate";
-import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useUrlWorker } from "@/lib/useUrlWorker";
 import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
@@ -80,8 +80,8 @@ export default function Home() {
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
-  const debouncedRaw = useDebouncedValue(raw, 180);
-  const urls = useMemo(() => parseUrls(debouncedRaw), [debouncedRaw]);
+  const { urls: workerUrls, ready: urlWorkerReady } = useUrlWorker(raw, reduceFx ? 180 : 120);
+  const urls = useMemo(() => (urlWorkerReady ? workerUrls : parseUrls(raw)), [urlWorkerReady, workerUrls, raw]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const [inputMode, setInputMode] = useState<"urls" | "source">("urls");
@@ -165,7 +165,6 @@ export default function Home() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardRecord[]>([]);
   const [resumeCandidate, setResumeCandidate] = useState<RunRecord | null>(null);
-  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [dismissDiffId, setDismissDiffId] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
@@ -177,9 +176,6 @@ export default function Home() {
   const suppressAbortRef = useRef(false);
   const runStartedAtRef = useRef(0);
   const queueCancelRef = useRef(false);
-  // Prevents the runs persistence useEffect from writing [] to storage on mount
-  // before the IDB/LS load has completed and populated the real runs list.
-  const hasLoadedRunsRef = useRef(false);
 
   // Expose queue metrics for lightweight UI components (e.g., ProgressStepper) without widening props.
   useEffect(() => {
@@ -220,6 +216,91 @@ export default function Home() {
     return "finalizing";
   }
 
+  function stableResultKey(item: Pick<ResultItem, "url" | "input_url"> | string): string {
+    if (typeof item === "string") return item.trim();
+    return String(item.input_url || item.url || "").trim();
+  }
+
+  function makePendingResult(url: string): ResultItem {
+    return {
+      url,
+      input_url: url,
+      status: "pending",
+      comments: [],
+      reason: "Generating…",
+      in_last_run: true,
+      timeline: [{ at: Date.now(), stage: "queued" }],
+    };
+  }
+
+  function finalizeRunResults(requestUrls: string[], current: ResultItem[]): ResultItem[] {
+    const ordered = mergeIncomingResults(requestUrls.map((url) => makePendingResult(url)), current as any);
+    const requestSet = new Set(requestUrls);
+
+    const normalized = ordered.map((item) => {
+      const requestUrl = stableResultKey(item);
+      const comments = Array.isArray(item.comments) ? item.comments.filter(Boolean) : [];
+      const isTerminalOk = item.status === "ok" && comments.length > 0;
+      const isPending = item.status === "pending" || (!item.status && comments.length === 0);
+
+      if (requestSet.has(requestUrl) && !isTerminalOk && isPending) {
+        return {
+          ...item,
+          url: item.url || requestUrl,
+          input_url: requestUrl,
+          status: "error" as const,
+          comments: [],
+          reason: item.reason || "No comment returned for this URL.",
+          error_message:
+            item.error_message || item.reason || "No comment returned for this URL.",
+          timeline: [
+            ...(item.timeline || []),
+            { at: Date.now(), stage: "failed" as const, note: "Missing terminal result" },
+          ],
+        } as ResultItem;
+      }
+
+      return {
+        ...item,
+        url: item.url || requestUrl,
+        input_url: requestUrl || item.input_url,
+        comments,
+      } as ResultItem;
+    });
+
+    const seen = new Set<string>();
+    const final: ResultItem[] = [];
+
+    for (const url of requestUrls) {
+      const key = stableResultKey(url);
+      const found = normalized.find((item) => stableResultKey(item) === key);
+      if (found) {
+        final.push(found);
+        seen.add(key);
+        continue;
+      }
+      final.push({
+        ...makePendingResult(url),
+        status: "error",
+        reason: "No comment returned for this URL.",
+        error_message: "No comment returned for this URL.",
+        timeline: [
+          { at: Date.now(), stage: "queued" },
+          { at: Date.now(), stage: "failed", note: "Missing terminal result" },
+        ],
+      });
+      seen.add(key);
+    }
+
+    for (const item of normalized) {
+      const key = stableResultKey(item);
+      if (!key || seen.has(key)) continue;
+      final.push(item);
+      seen.add(key);
+    }
+
+    return final;
+  }
 
   function updateAvgMsPerUrl(durationMs: number, urlCount: number) {
     try {
@@ -453,10 +534,6 @@ const genMutation = useMutation({
     setClipboard(savedClipboard);
     setDismissDiffId(dismissDiff);
     setDismissDiffId(dismissedDiff);
-    // LS load is synchronous — flag is set before the first render so the
-    // persistence useEffect can safely write (it will see the real savedRuns, not []).
-    // IDB may upgrade this further when the async load below completes.
-    hasLoadedRunsRef.current = true;
 
 
 // Load prefs + IDB data (runs/clipboard/queued)
@@ -477,7 +554,6 @@ const genMutation = useMutation({
 
   const idbRuns = await idbGet<RunRecord[]>("ct:runs", []);
   const idbClip = await idbGet<ClipboardRecord[]>("ct:clipboard", []);
-  // IDB wins over LS if it has more runs (it's the more reliable store).
   if (idbRuns?.length) setRuns(idbRuns);
   if (idbClip?.length) setClipboard(idbClip);
 })().catch(() => {});
@@ -571,16 +647,11 @@ useEffect(() => {
   }, [user]);
 
   useEffect(() => {
-    // Guard: do NOT write to storage until the initial load (LS + IDB) has completed.
-    // Without this, the first render fires this with runs=[] and overwrites the real
-    // saved history before the async IDB read has a chance to populate state.
-    if (!hasLoadedRunsRef.current) return;
+    // Apply retention (prefs-based)
     const limit = prefs?.historyRetention ?? 20;
-    const trimmed = runs.slice(0, limit);
-    if (trimmed.length !== runs.length) setRuns(trimmed);
-    lsSetJson(LS.runs, trimmed);
-    idbSet("ct:runs", trimmed).catch(() => {});
-    broadcast({ type: "runs", value: trimmed, at: Date.now() });
+    if (runs.length > limit) {
+      setRuns(runs.slice(0, limit));
+    }
   }, [runs, prefs]);
 
   useEffect(() => {
@@ -652,6 +723,22 @@ useEffect(() => {
   function clearTimers() {
     for (const t of timers.current) window.clearTimeout(t);
     timers.current = [];
+  }
+
+  function persistRuns(nextRuns: RunRecord[]) {
+    const limit = prefs?.historyRetention ?? 20;
+    const trimmed = nextRuns.slice(0, limit);
+    lsSetJson(LS.runs, trimmed);
+    idbSet("ct:runs", trimmed).catch(() => {});
+    broadcast({ type: "runs", value: trimmed, at: Date.now() });
+    return trimmed;
+  }
+
+  function updateRuns(updater: RunRecord[] | ((prev: RunRecord[]) => RunRecord[])) {
+    setRuns((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      return persistRuns(next);
+    });
   }
 
 
@@ -756,22 +843,11 @@ async function queueRunOffline(requestUrls: string[]) {
     setError("");
     setLoading(true);
     setStage("fetching");
-    startPipeline(); // start timer-based stage progression so all 4 stages are shown
     setQueueTotal(allUrls.length);
     setQueueDone(0);
     activeRunOrderRef.current = allUrls;
     // Optimistic placeholders (skeleton cards) so the UI feels instant.
-    setItems(
-      allUrls.map((url) => ({
-        url,
-        input_url: url,
-        status: "pending" as const,
-        comments: [],
-        reason: "Generating…",
-        in_last_run: true,
-        timeline: [{ at: Date.now(), stage: "queued" as const }],
-      })) as any,
-    );
+    setItems(allUrls.map((url) => makePendingResult(url)) as any);
     setRunId("");
 
     const BATCH_SIZE = allUrls.length <= 8 ? 1 : 6;
@@ -783,14 +859,7 @@ async function queueRunOffline(requestUrls: string[]) {
       toast(`Queued ${batches.length} batches (${allUrls.length} URLs)`);
     }
 
-    let combined: ResultItem[] = allUrls.map((url) => ({
-      url,
-      input_url: url,
-      status: "pending" as const,
-      comments: [],
-      reason: "Generating…",
-      in_last_run: true,
-    })) as any;
+    let combined: ResultItem[] = allUrls.map((url) => makePendingResult(url)) as any;
     let lastRid = "";
     let runIdLocal = "";
     let doneSoFar = 0;
@@ -816,20 +885,8 @@ async function queueRunOffline(requestUrls: string[]) {
         for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
       }
 
-      // Synchronize display state with authoritative combined — resolves any
-      // React batching races where setItems(functional) inside generateOneBatch
-      // might have seen stale prev. This is the single source of truth for the UI.
+      combined = finalizeRunResults(allUrls, combined);
       setItems(combined);
-
-      // Force polishing → finalizing sequence so all 4 stages are always visible.
-      // We use setStage directly (not advanceStage) because stageFromProgress on the
-      // last batch may have already advanced to "finalizing" via advanceStage, making
-      // advanceStage("polishing") a no-op (it only moves forward). setStage always wins.
-      clearTimers();
-      setStage("polishing");
-      await new Promise<void>((r) => { timers.current.push(window.setTimeout(r, 600)); });
-      setStage("finalizing");
-      await new Promise<void>((r) => { timers.current.push(window.setTimeout(r, 400)); });
 
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
@@ -854,15 +911,8 @@ async function queueRunOffline(requestUrls: string[]) {
         failedCount,
       };
 
-      // Persist run immediately — also write directly to IDB so a same-tick
-      // page refresh doesn't lose the run before the useEffect fires.
-      setRuns((prev) => {
-        const limit = prefs?.historyRetention ?? 20;
-        const next = [record, ...prev.filter((r) => r.id !== record.id)].slice(0, limit);
-        idbSet("ct:runs", next).catch(() => {});
-        lsSetJson(LS.runs, next);
-        return next;
-      });
+      // Persist run immediately so it survives refresh and participates in Resume banner.
+      updateRuns((prev) => [record, ...prev.filter((r) => r.id !== record.id)]);
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
 
@@ -1068,11 +1118,7 @@ setFailStreak((prev) => {
         };
 
         // Persist run so it appears in History and can be resumed later.
-        setRuns((prev) => {
-          const limit = prefs?.historyRetention ?? 20;
-          const next = [record, ...prev].slice(0, limit);
-          return next;
-        });
+        updateRuns((prev) => [record, ...prev.filter((r) => r.id !== rid)]);
         lsSet(LS.lastRunResult, rid);
         lsSet(LS.dismissResume, "");
 
@@ -1152,27 +1198,21 @@ setFailStreak((prev) => {
     await runQueue(failedUrls);
   }
 
-  // Resume banner / restore modal on page load
-  const didShowRestoreRef = useRef(false);
+  // Resume banner selection
   useEffect(() => {
     const lastId = lsGet(LS.lastRunResult, "");
     const dismissed = lsGet(LS.dismissResume, "");
-    if (!lastId) {
+    const found = (lastId ? runs.find((r) => r.id === lastId) : null) || runs[0] || null;
+    if (!found) {
       setResumeCandidate(null);
       return;
     }
-    if (dismissed && dismissed === lastId) {
+    if (dismissed && dismissed === found.id) {
       setResumeCandidate(null);
       return;
     }
-    const found = runs.find((r) => r.id === lastId) || null;
     setResumeCandidate(found);
-    // Show restore modal on first load only (not during/after active generation)
-    if (found && !loading && !didShowRestoreRef.current) {
-      didShowRestoreRef.current = true;
-      setShowRestoreModal(true);
-    }
-  }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [runs]);
 
   const latestRun = runs[0] || null;
   const showSessionDiff = useMemo(() => {
@@ -1186,22 +1226,28 @@ setFailStreak((prev) => {
     return false;
   }, [latestRun, dismissDiffId, urls]);
 
+  function loadRunRecord(record: RunRecord) {
+    const isSourceRun = record.mode === "source" || record.request.mode === "source" || !!record.request.sourceUrl;
+    setInputMode(isSourceRun ? "source" : "urls");
+    setSourceUrl(isSourceRun ? record.request.sourceUrl || record.request.urls[0] || "" : "");
+    setRaw(isSourceRun ? "" : record.request.urls.join("\n"));
+    setSelectedUrls(record.request.urls);
+    setLangEn(record.request.langEn);
+    setLangNative(record.request.langNative);
+    setNativeLang(record.request.nativeLang);
+    setTone(record.request.tone);
+    setIntent(record.request.intent);
+    setIncludeAlternates(record.request.includeAlternates);
+    setItems(record.results);
+    setRunId(record.id);
+    setError("");
+  }
+
   function resumeLastRun() {
     if (!resumeCandidate) return;
     const r = resumeCandidate;
-    setRaw(r.request.urls.join("\n"));
-    setSelectedUrls(r.request.urls);
-    setLangEn(r.request.langEn);
-    setLangNative(r.request.langNative);
-    setNativeLang(r.request.nativeLang);
-    setTone(r.request.tone);
-    setIntent(r.request.intent);
-    setIncludeAlternates(r.request.includeAlternates);
-    setItems(r.results);
-    setRunId(r.id);
-    setError("");
+    loadRunRecord(r);
     setResumeCandidate(null);
-    setShowRestoreModal(false);
     lsSet(LS.dismissResume, r.id);
   }
 
@@ -1209,7 +1255,6 @@ setFailStreak((prev) => {
     if (!resumeCandidate) return;
     lsSet(LS.dismissResume, resumeCandidate.id);
     setResumeCandidate(null);
-    setShowRestoreModal(false);
   }
 
   function onCopied(text: string, url?: string) {
@@ -1271,56 +1316,8 @@ setFailStreak((prev) => {
           />
         ) : null}
 
-        {resumeCandidate && !items.length && !showRestoreModal ? (
+        {resumeCandidate && !items.length ? (
           <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
-        ) : null}
-
-        {/* Restore session modal — shown on page load/refresh when a previous run exists */}
-        {showRestoreModal && resumeCandidate && !loading ? (
-          <div
-            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4"
-            style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
-            onClick={(e) => { if (e.target === e.currentTarget) dismissResume(); }}
-          >
-            <div
-              className="w-full max-w-md rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-5 shadow-2xl"
-              style={{ boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06) inset" }}
-            >
-              <div className="flex items-start gap-3">
-                <div className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ct-accent)]/15">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[color:var(--ct-accent)]"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold tracking-tight">Restore previous session?</div>
-                  <div className="mt-1 text-[11px] opacity-70 truncate">
-                    {resumeCandidate.label || resumeCandidate.request.urls?.[0] || "Previous run"}
-                  </div>
-                  <div className="mt-0.5 text-[11px] opacity-60">
-                    {new Date(resumeCandidate.at).toLocaleString(undefined, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                    {" • "}{resumeCandidate.results.length} URL{resumeCandidate.results.length === 1 ? "" : "s"}
-                    {" • "}{resumeCandidate.okCount} ok
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  className="ct-btn ct-btn-sm"
-                  onClick={dismissResume}
-                >
-                  Dismiss
-                </button>
-                <button
-                  type="button"
-                  className="ct-btn ct-btn-primary ct-btn-sm"
-                  onClick={resumeLastRun}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-                  Restore session
-                </button>
-              </div>
-            </div>
-          </div>
         ) : null}
 
         <motion.div
@@ -1414,7 +1411,7 @@ setFailStreak((prev) => {
               clearDisabled={!raw.trim() && !items.length && !error}
             />
 
-            <ProgressStepper stage={stage} queueTotal={queueTotal} queueDone={queueDone} />
+            <ProgressStepper stage={stage} />
           </div>
           </div>
         </motion.div>
@@ -1483,19 +1480,9 @@ setFailStreak((prev) => {
             onLoad={(id) => {
               const r = runs.find((x) => x.id === id);
               if (!r) return;
-              setRaw(r.request.urls.join("\n"));
-              setSelectedUrls(r.request.urls);
-              setLangEn(r.request.langEn);
-              setLangNative(r.request.langNative);
-              setNativeLang(r.request.nativeLang);
-              setTone(r.request.tone);
-              setIntent(r.request.intent);
-              setIncludeAlternates(r.request.includeAlternates);
-              setItems(r.results);
-              setRunId(r.id);
-              setError("");
+              loadRunRecord(r);
             }}
-            onRemove={(id) => setRuns((prev) => prev.filter((r) => r.id !== id))}
+            onRemove={(id) => updateRuns((prev) => prev.filter((r) => r.id !== id))}
             onShare={prefs?.enableShareLinks ? (id) => {
               const r = runs.find((x) => x.id === id);
               if (!r) return;
@@ -1503,7 +1490,7 @@ setFailStreak((prev) => {
               const url = makeShareUrl(payload);
               navigator.clipboard.writeText(url).then(() => toast.success("Share link copied")).catch(() => toast.error("Couldn't copy"));
             } : undefined}
-            onClear={() => setRuns([])}
+            onClear={() => updateRuns([])}
             onExport={async () => {
               try {
                 const api = await import("@/lib/api");
