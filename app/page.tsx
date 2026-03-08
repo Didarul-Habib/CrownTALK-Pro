@@ -165,6 +165,7 @@ export default function Home() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [clipboard, setClipboard] = useState<ClipboardRecord[]>([]);
   const [resumeCandidate, setResumeCandidate] = useState<RunRecord | null>(null);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [dismissDiffId, setDismissDiffId] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
@@ -176,6 +177,9 @@ export default function Home() {
   const suppressAbortRef = useRef(false);
   const runStartedAtRef = useRef(0);
   const queueCancelRef = useRef(false);
+  // Prevents the runs persistence useEffect from writing [] to storage on mount
+  // before the IDB/LS load has completed and populated the real runs list.
+  const hasLoadedRunsRef = useRef(false);
 
   // Expose queue metrics for lightweight UI components (e.g., ProgressStepper) without widening props.
   useEffect(() => {
@@ -318,38 +322,36 @@ export default function Home() {
   }
 
 const genMutation = useMutation({
-  mutationFn: async (vars: {
-    requestUrls: string[];
-    signal?: AbortSignal;
-    onUpdate?: (u: import("@/lib/api").StreamUpdate) => void;
-  }) => {
+  mutationFn: async (vars: { requestUrls: string[]; signal?: AbortSignal }) => {
     const api = await import("@/lib/api");
-    const payload = {
-      urls: vars.requestUrls,
-      lang_en: langEn,
-      lang_native: langNative,
-      native_lang: langNative ? nativeLang : undefined,
-      tone: tone === "auto" ? undefined : tone,
-      intent: intent === "auto" ? undefined : intent,
-      voice,
-      include_alternates: includeAlternates,
-      quality_mode: qualityMode,
-      fast: qualityMode === "fast" || fastMode,
-      pro_mode: qualityMode === "pro",
-      preset: preset !== "auto" ? preset : undefined,
-      output_language: langNative
-        ? nativeLang === "auto"
-          ? "auto"
-          : nativeLang
-        : "en",
-    };
-    return api.generateCommentsStream(
+    return api.generateComments(
       baseUrl,
-      payload,
+      {
+        urls: vars.requestUrls,
+        lang_en: langEn,
+        lang_native: langNative,
+        native_lang: langNative ? nativeLang : undefined,
+        tone: tone === "auto" ? undefined : tone,
+        intent: intent === "auto" ? undefined : intent,
+        voice,
+        include_alternates: includeAlternates,
+        // Preferred quality mode; backend falls back to "balanced" when omitted.
+        quality_mode: qualityMode,
+        // Legacy flags for backwards compatibility with older backends.
+        fast: qualityMode === "fast" || fastMode,
+        pro_mode: qualityMode === "pro",
+        preset: preset !== "auto" ? preset : undefined,
+        // Preferred output language for the primary generation pass.
+        // When Native is on, let the backend auto-detect from the tweet unless user picked a specific code.
+        output_language: langNative
+          ? nativeLang === "auto"
+            ? "auto"
+            : nativeLang
+          : "en",
+      },
       token,
       authToken,
-      vars.signal,
-      vars.onUpdate ?? (() => {})
+      vars.signal
     );
   },
   retry: 0,
@@ -451,6 +453,10 @@ const genMutation = useMutation({
     setClipboard(savedClipboard);
     setDismissDiffId(dismissDiff);
     setDismissDiffId(dismissedDiff);
+    // LS load is synchronous — flag is set before the first render so the
+    // persistence useEffect can safely write (it will see the real savedRuns, not []).
+    // IDB may upgrade this further when the async load below completes.
+    hasLoadedRunsRef.current = true;
 
 
 // Load prefs + IDB data (runs/clipboard/queued)
@@ -471,6 +477,7 @@ const genMutation = useMutation({
 
   const idbRuns = await idbGet<RunRecord[]>("ct:runs", []);
   const idbClip = await idbGet<ClipboardRecord[]>("ct:clipboard", []);
+  // IDB wins over LS if it has more runs (it's the more reliable store).
   if (idbRuns?.length) setRuns(idbRuns);
   if (idbClip?.length) setClipboard(idbClip);
 })().catch(() => {});
@@ -564,7 +571,10 @@ useEffect(() => {
   }, [user]);
 
   useEffect(() => {
-    // Apply retention (prefs-based)
+    // Guard: do NOT write to storage until the initial load (LS + IDB) has completed.
+    // Without this, the first render fires this with runs=[] and overwrites the real
+    // saved history before the async IDB read has a chance to populate state.
+    if (!hasLoadedRunsRef.current) return;
     const limit = prefs?.historyRetention ?? 20;
     const trimmed = runs.slice(0, limit);
     if (trimmed.length !== runs.length) setRuns(trimmed);
@@ -721,35 +731,14 @@ async function queueRunOffline(requestUrls: string[]) {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const resp: GenerateResponse = await genMutation.mutateAsync({
-      requestUrls,
-      signal: controller.signal,
-      // Per-URL SSE callback: merge each result into display state as soon as it arrives.
-      // For single-URL batches this fires once the /comment/stream result event arrives,
-      // showing the card immediately without waiting for the full batch response.
-      onUpdate: (u) => {
-        if (u.type === "result") {
-          startTransition(() => {
-            setItems((prev) => mergeIncomingResults(prev, [u.item as any]));
-          });
-        }
-        if (u.type === "status" && u.stage) {
-          const s = String(u.stage);
-          if (s === "fetching" || s === "extracting") advanceStage("fetching");
-          else if (s === "generating") advanceStage("generating");
-          else if (s === "polishing") advanceStage("polishing");
-          else if (s === "finalizing") advanceStage("finalizing");
-        }
-      },
-    });
+    const resp: GenerateResponse = await genMutation.mutateAsync({ requestUrls, signal: controller.signal });
 
     const results = resp.results || [];
     const rid = resp.meta?.run_id || nowId("run");
     // Keep the runId stable across batches.
     setRunId((prev) => prev || rid);
 
-    // Final authoritative merge (catches any result that SSE onUpdate may have missed
-    // if the backend fell back to non-streaming JSON).
+    // Robust merge (dedupes by input_url / tweet_id and preserves the requested order).
     setItems((prev) => mergeIncomingResults(prev, results as any));
     return { results, rid };
   }
@@ -767,6 +756,7 @@ async function queueRunOffline(requestUrls: string[]) {
     setError("");
     setLoading(true);
     setStage("fetching");
+    startPipeline(); // start timer-based stage progression so all 4 stages are shown
     setQueueTotal(allUrls.length);
     setQueueDone(0);
     activeRunOrderRef.current = allUrls;
@@ -826,6 +816,21 @@ async function queueRunOffline(requestUrls: string[]) {
         for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
       }
 
+      // Synchronize display state with authoritative combined — resolves any
+      // React batching races where setItems(functional) inside generateOneBatch
+      // might have seen stale prev. This is the single source of truth for the UI.
+      setItems(combined);
+
+      // Force polishing → finalizing sequence so all 4 stages are always visible.
+      // We use setStage directly (not advanceStage) because stageFromProgress on the
+      // last batch may have already advanced to "finalizing" via advanceStage, making
+      // advanceStage("polishing") a no-op (it only moves forward). setStage always wins.
+      clearTimers();
+      setStage("polishing");
+      await new Promise<void>((r) => { timers.current.push(window.setTimeout(r, 600)); });
+      setStage("finalizing");
+      await new Promise<void>((r) => { timers.current.push(window.setTimeout(r, 400)); });
+
       // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
       const failedCount = combined.filter((i) => i.status === "error").length;
@@ -849,10 +854,13 @@ async function queueRunOffline(requestUrls: string[]) {
         failedCount,
       };
 
-      // Persist run immediately so it survives refresh and participates in Resume banner.
+      // Persist run immediately — also write directly to IDB so a same-tick
+      // page refresh doesn't lose the run before the useEffect fires.
       setRuns((prev) => {
         const limit = prefs?.historyRetention ?? 20;
         const next = [record, ...prev.filter((r) => r.id !== record.id)].slice(0, limit);
+        idbSet("ct:runs", next).catch(() => {});
+        lsSetJson(LS.runs, next);
         return next;
       });
       lsSet(LS.lastRunResult, record.id);
@@ -1144,7 +1152,8 @@ setFailStreak((prev) => {
     await runQueue(failedUrls);
   }
 
-  // Resume banner selection
+  // Resume banner / restore modal on page load
+  const didShowRestoreRef = useRef(false);
   useEffect(() => {
     const lastId = lsGet(LS.lastRunResult, "");
     const dismissed = lsGet(LS.dismissResume, "");
@@ -1158,7 +1167,12 @@ setFailStreak((prev) => {
     }
     const found = runs.find((r) => r.id === lastId) || null;
     setResumeCandidate(found);
-  }, [runs]);
+    // Show restore modal on first load only (not during/after active generation)
+    if (found && !loading && !didShowRestoreRef.current) {
+      didShowRestoreRef.current = true;
+      setShowRestoreModal(true);
+    }
+  }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const latestRun = runs[0] || null;
   const showSessionDiff = useMemo(() => {
@@ -1187,6 +1201,7 @@ setFailStreak((prev) => {
     setRunId(r.id);
     setError("");
     setResumeCandidate(null);
+    setShowRestoreModal(false);
     lsSet(LS.dismissResume, r.id);
   }
 
@@ -1194,6 +1209,7 @@ setFailStreak((prev) => {
     if (!resumeCandidate) return;
     lsSet(LS.dismissResume, resumeCandidate.id);
     setResumeCandidate(null);
+    setShowRestoreModal(false);
   }
 
   function onCopied(text: string, url?: string) {
@@ -1255,8 +1271,56 @@ setFailStreak((prev) => {
           />
         ) : null}
 
-        {resumeCandidate && !items.length ? (
+        {resumeCandidate && !items.length && !showRestoreModal ? (
           <ResumeBanner record={resumeCandidate} onResume={resumeLastRun} onDismiss={dismissResume} />
+        ) : null}
+
+        {/* Restore session modal — shown on page load/refresh when a previous run exists */}
+        {showRestoreModal && resumeCandidate && !loading ? (
+          <div
+            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) dismissResume(); }}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-5 shadow-2xl"
+              style={{ boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06) inset" }}
+            >
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ct-accent)]/15">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[color:var(--ct-accent)]"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold tracking-tight">Restore previous session?</div>
+                  <div className="mt-1 text-[11px] opacity-70 truncate">
+                    {resumeCandidate.label || resumeCandidate.request.urls?.[0] || "Previous run"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] opacity-60">
+                    {new Date(resumeCandidate.at).toLocaleString(undefined, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {" • "}{resumeCandidate.results.length} URL{resumeCandidate.results.length === 1 ? "" : "s"}
+                    {" • "}{resumeCandidate.okCount} ok
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="ct-btn ct-btn-sm"
+                  onClick={dismissResume}
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  className="ct-btn ct-btn-primary ct-btn-sm"
+                  onClick={resumeLastRun}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                  Restore session
+                </button>
+              </div>
+            </div>
+          </div>
         ) : null}
 
         <motion.div
@@ -1350,7 +1414,7 @@ setFailStreak((prev) => {
               clearDisabled={!raw.trim() && !items.length && !error}
             />
 
-            <ProgressStepper stage={stage} />
+            <ProgressStepper stage={stage} queueTotal={queueTotal} queueDone={queueDone} />
           </div>
           </div>
         </motion.div>
