@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { translate, useUiLang } from "@/lib/i18n";
 import { parseUrls } from "@/lib/validate";
 import { useUrlWorker } from "@/lib/useUrlWorker";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { ApiError, logout as apiLogout, cancelActiveRun } from "@/lib/api";
 import type { SourcePreview } from "@/lib/api";
 import { LS, lsGet, lsGetJson, lsSet, lsSetJson } from "@/lib/storage";
@@ -80,8 +81,9 @@ export default function Home() {
   const rawStack = useUndoStack("", 80);
   const raw = rawStack.value;
   const setRaw = rawStack.set;
-  const { urls: workerUrls, ready: urlWorkerReady } = useUrlWorker(raw, reduceFx ? 180 : 120);
-  const urls = useMemo(() => (urlWorkerReady ? workerUrls : parseUrls(raw)), [urlWorkerReady, workerUrls, raw]);
+  const debouncedRaw = useDebouncedValue(raw, 180);
+  const { urls: workerUrls, ready: urlWorkerReady } = useUrlWorker(debouncedRaw, reduceFx ? 180 : 120);
+  const urls = useMemo(() => (urlWorkerReady ? workerUrls : parseUrls(debouncedRaw)), [debouncedRaw, workerUrls, urlWorkerReady]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const [inputMode, setInputMode] = useState<"urls" | "source">("urls");
@@ -216,91 +218,6 @@ export default function Home() {
     return "finalizing";
   }
 
-  function stableResultKey(item: Pick<ResultItem, "url" | "input_url"> | string): string {
-    if (typeof item === "string") return item.trim();
-    return String(item.input_url || item.url || "").trim();
-  }
-
-  function makePendingResult(url: string): ResultItem {
-    return {
-      url,
-      input_url: url,
-      status: "pending",
-      comments: [],
-      reason: "Generating…",
-      in_last_run: true,
-      timeline: [{ at: Date.now(), stage: "queued" }],
-    };
-  }
-
-  function finalizeRunResults(requestUrls: string[], current: ResultItem[]): ResultItem[] {
-    const ordered = mergeIncomingResults(requestUrls.map((url) => makePendingResult(url)), current as any);
-    const requestSet = new Set(requestUrls);
-
-    const normalized = ordered.map((item) => {
-      const requestUrl = stableResultKey(item);
-      const comments = Array.isArray(item.comments) ? item.comments.filter(Boolean) : [];
-      const isTerminalOk = item.status === "ok" && comments.length > 0;
-      const isPending = item.status === "pending" || (!item.status && comments.length === 0);
-
-      if (requestSet.has(requestUrl) && !isTerminalOk && isPending) {
-        return {
-          ...item,
-          url: item.url || requestUrl,
-          input_url: requestUrl,
-          status: "error" as const,
-          comments: [],
-          reason: item.reason || "No comment returned for this URL.",
-          error_message:
-            item.error_message || item.reason || "No comment returned for this URL.",
-          timeline: [
-            ...(item.timeline || []),
-            { at: Date.now(), stage: "failed" as const, note: "Missing terminal result" },
-          ],
-        } as ResultItem;
-      }
-
-      return {
-        ...item,
-        url: item.url || requestUrl,
-        input_url: requestUrl || item.input_url,
-        comments,
-      } as ResultItem;
-    });
-
-    const seen = new Set<string>();
-    const final: ResultItem[] = [];
-
-    for (const url of requestUrls) {
-      const key = stableResultKey(url);
-      const found = normalized.find((item) => stableResultKey(item) === key);
-      if (found) {
-        final.push(found);
-        seen.add(key);
-        continue;
-      }
-      final.push({
-        ...makePendingResult(url),
-        status: "error",
-        reason: "No comment returned for this URL.",
-        error_message: "No comment returned for this URL.",
-        timeline: [
-          { at: Date.now(), stage: "queued" },
-          { at: Date.now(), stage: "failed", note: "Missing terminal result" },
-        ],
-      });
-      seen.add(key);
-    }
-
-    for (const item of normalized) {
-      const key = stableResultKey(item);
-      if (!key || seen.has(key)) continue;
-      final.push(item);
-      seen.add(key);
-    }
-
-    return final;
-  }
 
   function updateAvgMsPerUrl(durationMs: number, urlCount: number) {
     try {
@@ -402,6 +319,107 @@ export default function Home() {
     return Array.from(finalMap.values());
   }
 
+  function stableResultKey(item: Pick<ResultItem, "url" | "input_url"> | string): string {
+    if (typeof item === "string") return item.trim();
+    return String(item.input_url || item.url || "").trim();
+  }
+
+  function makePendingResult(url: string): ResultItem {
+    return {
+      url,
+      input_url: url,
+      status: "pending",
+      comments: [],
+      reason: "Generating…",
+      in_last_run: true,
+      timeline: [{ at: Date.now(), stage: "queued" }],
+    };
+  }
+
+  function finalizeRunResults(requestUrls: string[], current: ResultItem[]): ResultItem[] {
+    const ordered = mergeIncomingResults(requestUrls.map((url) => makePendingResult(url)), current as any);
+    const requestSet = new Set(requestUrls);
+
+    const normalized = ordered.map((item) => {
+      const requestUrl = stableResultKey(item);
+      const comments = Array.isArray(item.comments) ? item.comments.filter(Boolean) : [];
+      const isTerminalOk = item.status === "ok" && comments.length > 0;
+      const isPending = item.status === "pending" || (!item.status && comments.length === 0);
+
+      if (requestSet.has(requestUrl) && !isTerminalOk && isPending) {
+        return {
+          ...item,
+          url: item.url || requestUrl,
+          input_url: requestUrl,
+          status: "error" as const,
+          comments: [],
+          reason: item.reason || "No comment returned for this URL.",
+          error_message: item.error_message || item.reason || "No comment returned for this URL.",
+          timeline: [
+            ...(item.timeline || []),
+            { at: Date.now(), stage: "failed" as const, note: "Missing terminal result" },
+          ],
+        } as ResultItem;
+      }
+
+      return {
+        ...item,
+        url: item.url || requestUrl,
+        input_url: requestUrl || item.input_url,
+        comments,
+      } as ResultItem;
+    });
+
+    const seen = new Set<string>();
+    const final: ResultItem[] = [];
+
+    for (const url of requestUrls) {
+      const key = stableResultKey(url);
+      const found = normalized.find((item) => stableResultKey(item) === key);
+      if (found) {
+        final.push(found);
+        seen.add(key);
+        continue;
+      }
+      final.push({
+        ...makePendingResult(url),
+        status: "error",
+        reason: "No comment returned for this URL.",
+        error_message: "No comment returned for this URL.",
+        timeline: [
+          { at: Date.now(), stage: "queued" },
+          { at: Date.now(), stage: "failed", note: "Missing terminal result" },
+        ],
+      });
+      seen.add(key);
+    }
+
+    for (const item of normalized) {
+      const key = stableResultKey(item);
+      if (!key || seen.has(key)) continue;
+      final.push(item);
+      seen.add(key);
+    }
+
+    return final;
+  }
+
+  function persistRuns(nextRuns: RunRecord[]) {
+    const limit = prefs?.historyRetention ?? 20;
+    const trimmed = nextRuns.slice(0, limit);
+    lsSetJson(LS.runs, trimmed);
+    idbSet("ct:runs", trimmed).catch(() => {});
+    broadcast({ type: "runs", value: trimmed, at: Date.now() });
+    return trimmed;
+  }
+
+  function updateRuns(updater: RunRecord[] | ((prev: RunRecord[]) => RunRecord[])) {
+    setRuns((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      return persistRuns(next);
+    });
+  }
+
 const genMutation = useMutation({
   mutationFn: async (vars: { requestUrls: string[]; signal?: AbortSignal }) => {
     const api = await import("@/lib/api");
@@ -496,20 +514,29 @@ const genMutation = useMutation({
   // Thread/Article URL preview (debounced)
   useEffect(() => {
     if (inputMode !== "source") return;
-    if (!sourceUrl.trim()) {
+    const trimmed = sourceUrl.trim();
+    if (!trimmed) {
       setSourcePrev(null);
       return;
     }
+
+    const ac = new AbortController();
     const h = window.setTimeout(async () => {
       try {
         const api = await import("@/lib/api");
-        const prev = await api.sourcePreview(baseUrl, sourceUrl.trim(), token, authToken);
-        setSourcePrev(prev);
-      } catch {
-        setSourcePrev(null);
+        const prev = await api.sourcePreview(baseUrl, trimmed, token, authToken, ac.signal);
+        if (!ac.signal.aborted) setSourcePrev(prev);
+      } catch (err: any) {
+        if (!ac.signal.aborted && err?.name !== "AbortError") {
+          setSourcePrev(null);
+        }
       }
     }, 450);
-    return () => window.clearTimeout(h);
+
+    return () => {
+      window.clearTimeout(h);
+      ac.abort();
+    };
   }, [inputMode, sourceUrl, baseUrl, token, authToken]);
 
 
@@ -649,9 +676,11 @@ useEffect(() => {
   useEffect(() => {
     // Apply retention (prefs-based)
     const limit = prefs?.historyRetention ?? 20;
-    if (runs.length > limit) {
-      setRuns(runs.slice(0, limit));
-    }
+    const trimmed = runs.slice(0, limit);
+    if (trimmed.length !== runs.length) setRuns(trimmed);
+    lsSetJson(LS.runs, trimmed);
+    idbSet("ct:runs", trimmed).catch(() => {});
+    broadcast({ type: "runs", value: trimmed, at: Date.now() });
   }, [runs, prefs]);
 
   useEffect(() => {
@@ -723,22 +752,6 @@ useEffect(() => {
   function clearTimers() {
     for (const t of timers.current) window.clearTimeout(t);
     timers.current = [];
-  }
-
-  function persistRuns(nextRuns: RunRecord[]) {
-    const limit = prefs?.historyRetention ?? 20;
-    const trimmed = nextRuns.slice(0, limit);
-    lsSetJson(LS.runs, trimmed);
-    idbSet("ct:runs", trimmed).catch(() => {});
-    broadcast({ type: "runs", value: trimmed, at: Date.now() });
-    return trimmed;
-  }
-
-  function updateRuns(updater: RunRecord[] | ((prev: RunRecord[]) => RunRecord[])) {
-    setRuns((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      return persistRuns(next);
-    });
   }
 
 
@@ -846,49 +859,118 @@ async function queueRunOffline(requestUrls: string[]) {
     setQueueTotal(allUrls.length);
     setQueueDone(0);
     activeRunOrderRef.current = allUrls;
-    // Optimistic placeholders (skeleton cards) so the UI feels instant.
-    setItems(allUrls.map((url) => makePendingResult(url)) as any);
+
+    const placeholders = allUrls.map((url) => makePendingResult(url));
+    setItems(placeholders as any);
     setRunId("");
 
-    const BATCH_SIZE = allUrls.length <= 8 ? 1 : 6;
-    const batches: string[][] = [];
-    for (let i = 0; i < allUrls.length; i += BATCH_SIZE) {
-      batches.push(allUrls.slice(i, i + BATCH_SIZE));
-    }
-    if (batches.length > 1) {
-      toast(`Queued ${batches.length} batches (${allUrls.length} URLs)`);
-    }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-    let combined: ResultItem[] = allUrls.map((url) => makePendingResult(url)) as any;
-    let lastRid = "";
+    let combined: ResultItem[] = placeholders as any;
     let runIdLocal = "";
-    let doneSoFar = 0;
     let completedOk = false;
 
     try {
-      for (let bi = 0; bi < batches.length; bi++) {
-        if (queueCancelRef.current) throw Object.assign(new Error("Queue canceled"), { name: "AbortError" });
-        const batch = batches[bi];
-        toast(`Generating batch ${bi + 1}/${batches.length}…`);
-        advanceStage("generating");
-        addTimelineMany(batch, "sending");
+      const api = await import("@/lib/api");
+      const resp: GenerateResponse = await api.generateCommentsStream(
+        baseUrl,
+        {
+          urls: allUrls,
+          lang_en: langEn,
+          lang_native: langNative,
+          native_lang: langNative ? nativeLang : undefined,
+          tone: tone === "auto" ? undefined : tone,
+          intent: intent === "auto" ? undefined : intent,
+          voice,
+          include_alternates: includeAlternates,
+          quality_mode: qualityMode,
+          fast: qualityMode === "fast" || fastMode,
+          pro_mode: qualityMode === "pro",
+          preset: preset !== "auto" ? preset : undefined,
+          output_language: langNative
+            ? nativeLang === "auto"
+              ? "auto"
+              : nativeLang
+            : "en",
+        },
+        token,
+        authToken,
+        controller.signal,
+        (u) => {
+          if (u.type === "meta") {
+            if (u.run_id) {
+              runIdLocal = u.run_id;
+              setRunId(u.run_id);
+            }
+            if (typeof u.total === "number") setQueueTotal(u.total);
+            return;
+          }
 
-        const { results, rid } = await generateOneBatch(batch, { append: true });
-        lastRid = rid;
-        if (!runIdLocal && rid) runIdLocal = rid;
-        combined = mergeIncomingResults(combined, results as any);
-        doneSoFar = Math.min(allUrls.length, doneSoFar + batch.length);
-        const stageGuess = stageFromProgress(doneSoFar, allUrls.length);
-        advanceStage(stageGuess);
-        startTransition(() => setQueueDone(doneSoFar));
-        // Mark received/failed
-        for (const r of results as any[]) addTimelineEvent((r as any).input_url || r.url, r.status === "ok" ? "received" : "failed");
+          if (u.type === "status") {
+            const stageName = String(u.stage || "");
+            if (stageName === "fetching" || stageName === "queued") advanceStage("fetching");
+            else if (stageName === "generating") advanceStage("generating");
+            else if (stageName === "polishing") advanceStage("polishing");
+            else if (stageName === "finalizing") advanceStage("finalizing");
+            else if (stageName === "done") advanceStage("done");
+
+            if (typeof u.total === "number") setQueueTotal(u.total);
+            if (typeof u.done === "number") startTransition(() => setQueueDone(u.done || 0));
+
+            const statusUrl = typeof u.url === "string" ? u.url : "";
+            if (statusUrl) {
+              const timelineStage: TimelineStage | null =
+                stageName === "queued"
+                  ? "queued"
+                  : stageName === "fetching"
+                    ? "fetching"
+                    : stageName === "generating"
+                      ? "generating"
+                      : stageName === "polishing"
+                        ? "polishing"
+                        : stageName === "finalizing"
+                          ? "finalizing"
+                          : stageName === "done"
+                            ? "done"
+                            : stageName === "error"
+                              ? "failed"
+                              : null;
+              if (timelineStage) addTimelineEvent(statusUrl, timelineStage);
+            }
+            return;
+          }
+
+          if (u.type === "result") {
+            combined = mergeIncomingResults(combined, [u.item] as any);
+            setItems(combined);
+            const key = stableResultKey(u.item);
+            addTimelineEvent(key, u.item.status === "ok" ? "received" : "failed");
+            const terminalCount = combined.filter((item) => item.status === "ok" || item.status === "error").length;
+            startTransition(() => setQueueDone(Math.min(allUrls.length, terminalCount)));
+            return;
+          }
+
+          if (u.type === "done") {
+            if (u.run_id) {
+              runIdLocal = u.run_id;
+              setRunId(u.run_id);
+            }
+            if (typeof u.total === "number") setQueueTotal(u.total);
+            if (typeof u.done === "number") startTransition(() => setQueueDone(u.done || 0));
+          }
+        }
+      );
+
+      if (resp.meta?.run_id) {
+        runIdLocal = resp.meta.run_id;
+        setRunId(resp.meta.run_id);
       }
 
-      combined = finalizeRunResults(allUrls, combined);
+      combined = finalizeRunResults(allUrls, mergeIncomingResults(combined, (resp.results || []) as any));
       setItems(combined);
 
-      // Persist to run history
       const okCount = combined.filter((i) => i.status === "ok").length;
       const failedCount = combined.filter((i) => i.status === "error").length;
       const request: RunRequestSnapshot = {
@@ -902,7 +984,7 @@ async function queueRunOffline(requestUrls: string[]) {
         includeAlternates,
       };
       const record: RunRecord = {
-        id: runIdLocal || lastRid || nowId("run"),
+        id: runIdLocal || nowId("run"),
         mode: "urls",
         at: Date.now(),
         request,
@@ -911,7 +993,6 @@ async function queueRunOffline(requestUrls: string[]) {
         failedCount,
       };
 
-      // Persist run immediately so it survives refresh and participates in Resume banner.
       updateRuns((prev) => [record, ...prev.filter((r) => r.id !== record.id)]);
       lsSet(LS.lastRunResult, record.id);
       lsSet(LS.dismissResume, "");
@@ -919,33 +1000,28 @@ async function queueRunOffline(requestUrls: string[]) {
       updateAvgMsPerUrl(Date.now() - (runStartedAtRef.current || Date.now()), allUrls.length);
       completedOk = true;
 
+      setQueueDone(allUrls.length);
       setStage("done");
       toast.success(`Generation finished (${okCount} ok${failedCount ? `, ${failedCount} failed` : ""})`);
 
-      // Confetti (subtle) — respects reduced-motion / reduced-data
       if (okCount > 0 && !shouldReduceEffects(lsGet(LS.fxMode, "auto") as any)) {
         try {
           confetti({ particleCount: 70, spread: 65, startVelocity: 18, origin: { y: 0.35 } });
         } catch {}
       }
 
-      // Auto-scroll to results (mobile only, and only if results are off-screen).
       window.requestAnimationFrame(() => {
         const el = document.getElementById("ct-results");
         if (!el) return;
 
         const active = document.activeElement as HTMLElement | null;
-        // Don't scroll if the user is typing in any input/textarea (including the URL box).
         if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
         const inputRoot = document.getElementById("ct-url-input");
         if (active && inputRoot && inputRoot.contains(active)) return;
-
-        // On larger screens keep the controls in view; avoid surprising jumps.
         if (window.innerWidth >= 768) return;
 
         const rect = el.getBoundingClientRect();
         const viewportH = window.innerHeight || 0;
-        // Only nudge the view if the results panel is mostly below the fold.
         if (rect.top > viewportH * 0.75) {
           el.scrollIntoView({
             behavior: prefersReducedMotion() ? "auto" : "smooth",
@@ -965,23 +1041,20 @@ async function queueRunOffline(requestUrls: string[]) {
       setError(msg);
       setStage("idle");
 
-// Circuit breaker: if we keep failing, cool down briefly to avoid a bad loop.
-setFailStreak((prev) => {
-  const next = prev + 1;
-  if (next >= 3) {
-    const until = Date.now() + 30_000;
-    setCooldownUntil((cur) => (cur > until ? cur : until));
-    try { toast.error("Backend busy. Cooling down for 30s."); } catch {}
-    return 0;
-  }
-  return next;
-});
-
+      setFailStreak((prev) => {
+        const next = prev + 1;
+        if (next >= 3) {
+          const until = Date.now() + 30_000;
+          setCooldownUntil((cur) => (cur > until ? cur : until));
+          try { toast.error("Backend busy. Cooling down for 30s."); } catch {}
+          return 0;
+        }
+        return next;
+      });
 
       const status: number | undefined = e && typeof e.status === "number" ? (e.status as number) : undefined;
       const code = e?.body?.code;
 
-      // Run lock conflicts: surface a clear, non-fatal message.
       if (status === 409 || code === "run_conflict") {
         try {
           toast.error("A run is already active. Cancel it first.");
@@ -1013,20 +1086,8 @@ setFailStreak((prev) => {
     } finally {
       abortRef.current = null;
       clearTimers();
-      // If a run fails or is cancelled mid-way, mark any remaining pending
-      // cards as errors so the shimmer skeleton disappears and the user can retry.
       if (!completedOk) {
-        setItems((prev) =>
-          prev.map((it) =>
-            it.status === "pending" && (!it.comments || it.comments.length === 0)
-              ? {
-                  ...it,
-                  status: "error",
-                  reason: queueCancelRef.current ? "Cancelled." : "No comment generated (run did not complete).",
-                }
-              : it,
-          ),
-        );
+        setItems((prev) => finalizeRunResults(allUrls, prev as ResultItem[]));
       }
       setLoading(false);
       window.setTimeout(() => setStage("idle"), 1600);
@@ -1118,7 +1179,7 @@ setFailStreak((prev) => {
         };
 
         // Persist run so it appears in History and can be resumed later.
-        updateRuns((prev) => [record, ...prev.filter((r) => r.id !== rid)]);
+        updateRuns((prev) => [record, ...prev.filter((r) => r.id !== record.id)]);
         lsSet(LS.lastRunResult, rid);
         lsSet(LS.dismissResume, "");
 
@@ -1193,6 +1254,23 @@ setFailStreak((prev) => {
     return out;
   }, [items]);
 
+  function loadRunRecord(record: RunRecord) {
+    const isSourceRun = record.mode === "source" || record.request.mode === "source" || !!record.request.sourceUrl;
+    setInputMode(isSourceRun ? "source" : "urls");
+    setSourceUrl(isSourceRun ? record.request.sourceUrl || record.request.urls[0] || "" : "");
+    setRaw(isSourceRun ? "" : record.request.urls.join("\n"));
+    setSelectedUrls(record.request.urls);
+    setLangEn(record.request.langEn);
+    setLangNative(record.request.langNative);
+    setNativeLang(record.request.nativeLang);
+    setTone(record.request.tone);
+    setIntent(record.request.intent);
+    setIncludeAlternates(record.request.includeAlternates);
+    setItems(record.results);
+    setRunId(record.id);
+    setError("");
+  }
+
   async function retryFailedOnly() {
     if (!failedUrls.length) return;
     await runQueue(failedUrls);
@@ -1226,27 +1304,20 @@ setFailStreak((prev) => {
     return false;
   }, [latestRun, dismissDiffId, urls]);
 
-  function loadRunRecord(record: RunRecord) {
-    const isSourceRun = record.mode === "source" || record.request.mode === "source" || !!record.request.sourceUrl;
-    setInputMode(isSourceRun ? "source" : "urls");
-    setSourceUrl(isSourceRun ? record.request.sourceUrl || record.request.urls[0] || "" : "");
-    setRaw(isSourceRun ? "" : record.request.urls.join("\n"));
-    setSelectedUrls(record.request.urls);
-    setLangEn(record.request.langEn);
-    setLangNative(record.request.langNative);
-    setNativeLang(record.request.nativeLang);
-    setTone(record.request.tone);
-    setIntent(record.request.intent);
-    setIncludeAlternates(record.request.includeAlternates);
-    setItems(record.results);
-    setRunId(record.id);
-    setError("");
-  }
-
   function resumeLastRun() {
     if (!resumeCandidate) return;
     const r = resumeCandidate;
-    loadRunRecord(r);
+    setRaw(r.request.urls.join("\n"));
+    setSelectedUrls(r.request.urls);
+    setLangEn(r.request.langEn);
+    setLangNative(r.request.langNative);
+    setNativeLang(r.request.nativeLang);
+    setTone(r.request.tone);
+    setIntent(r.request.intent);
+    setIncludeAlternates(r.request.includeAlternates);
+    setItems(r.results);
+    setRunId(r.id);
+    setError("");
     setResumeCandidate(null);
     lsSet(LS.dismissResume, r.id);
   }
@@ -1337,6 +1408,7 @@ setFailStreak((prev) => {
             {inputMode === "urls" ? (
               <UrlInput
                 value={raw}
+                parsedUrls={urls}
                 onChange={setRaw}
                 onUndo={rawStack.undo}
                 onRedo={rawStack.redo}
@@ -1480,9 +1552,19 @@ setFailStreak((prev) => {
             onLoad={(id) => {
               const r = runs.find((x) => x.id === id);
               if (!r) return;
-              loadRunRecord(r);
+              setRaw(r.request.urls.join("\n"));
+              setSelectedUrls(r.request.urls);
+              setLangEn(r.request.langEn);
+              setLangNative(r.request.langNative);
+              setNativeLang(r.request.nativeLang);
+              setTone(r.request.tone);
+              setIntent(r.request.intent);
+              setIncludeAlternates(r.request.includeAlternates);
+              setItems(r.results);
+              setRunId(r.id);
+              setError("");
             }}
-            onRemove={(id) => updateRuns((prev) => prev.filter((r) => r.id !== id))}
+            onRemove={(id) => setRuns((prev) => prev.filter((r) => r.id !== id))}
             onShare={prefs?.enableShareLinks ? (id) => {
               const r = runs.find((x) => x.id === id);
               if (!r) return;
@@ -1490,7 +1572,7 @@ setFailStreak((prev) => {
               const url = makeShareUrl(payload);
               navigator.clipboard.writeText(url).then(() => toast.success("Share link copied")).catch(() => toast.error("Couldn't copy"));
             } : undefined}
-            onClear={() => updateRuns([])}
+            onClear={() => setRuns([])}
             onExport={async () => {
               try {
                 const api = await import("@/lib/api");
