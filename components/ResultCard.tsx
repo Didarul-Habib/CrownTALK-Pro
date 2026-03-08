@@ -81,10 +81,18 @@ export default function ResultCard({
   const project = (item as any).project as any | null | undefined;
 
   useEffect(() => {
-    // Reset local editable text when the item changes (reroll/retry)
+    // Reset local editable text when the item changes (reroll/retry).
+    // Deps: url + status handle the obvious cases (retry, new URL).
+    // commentsSig handles reroll: same URL + same "ok" status, but new comment text.
     setTexts((item.comments || []).map((c: any) => String(c?.text ?? c ?? "")));
     setEditingKey("");
-  }, [item.url, item.status]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    item.url,
+    item.status,
+    // Stable content fingerprint — changes on every reroll without needing deep equality.
+    (item.comments || []).map((c: any) => String(c?.text ?? c ?? "")).join("\x00"),
+  ]);
 
   useEffect(() => {
     return () => {
