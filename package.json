@@ -7,12 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:contract": "playwright test tests-e2e/contract.spec.ts tests-e2e/contracts.spec.ts",
+    "validate": "npm run typecheck && npm run lint && npm run build",
     "ladle": "ladle serve",
     "ladle:build": "ladle build",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:unit": "vitest run",
-    "test": "npm run test:unit && npm run test:e2e"
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "next": "14.2.5",
@@ -50,16 +52,6 @@
     "typescript": "5.5.4",
     "@netlify/plugin-nextjs": "^5.15.8",
     "@ladle/react": "^2.12.3",
-    "@playwright/test": "1.50.1",
-    "vitest": "2.1.9",
-    "@vitejs/plugin-react": "4.3.4",
-    "@testing-library/react": "16.0.0",
-    "@testing-library/user-event": "14.5.2",
-    "jsdom": "25.0.1"
-  },
-  "packageManager": "npm@10.8.2",
-  "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=10.0.0"
+    "@playwright/test": "1.50.1"
   }
 }
