@@ -16,8 +16,6 @@ async function hmacSha256Hex(secret: string, message: string): Promise<string> {
 }
 
 async function addRequestSignature(headers: Record<string, string>, body: string) {
-  // Browser code does not hold a trusted signing secret. When this module is
-  // executed server-side, CT_HMAC_SECRET can still be used for trusted callers.
   if (!HMAC_SECRET) return;
   const ts = Math.floor(Date.now() / 1000).toString();
   headers["X-CT-Timestamp"] = ts;
@@ -454,14 +452,14 @@ export async function generateCommentsStream(
   const base = baseUrl.replace(/\/$/, "");
   const firstUrl = Array.isArray((payload as any).urls) ? String((payload as any).urls[0] || "") : "";
   const streamUrl = `${base}/comment/stream`;
+  const reqBody = Array.isArray((payload as any).urls) && (payload as any).urls.length === 1 && firstUrl
+    ? (() => {
+        const { urls, ...rest } = payload as any;
+        return { ...rest, url: firstUrl };
+      })()
+    : payload;
   let res: Response | null = null;
   try {
-    const reqBody = Array.isArray((payload as any).urls) && (payload as any).urls.length === 1 && firstUrl
-      ? (() => {
-          const { urls, ...rest } = payload as any;
-          return { ...rest, url: firstUrl };
-        })()
-      : payload;
     const bodyStr = JSON.stringify(reqBody);
     await addRequestSignature(headers, bodyStr);
     res = await fetch(streamUrl, { method: "POST", headers, body: bodyStr, signal });
@@ -626,7 +624,8 @@ export async function sourcePreview(
   baseUrl: string,
   source_url: string,
   accessToken: string,
-  authToken: string
+  authToken: string,
+  signal?: AbortSignal
 ): Promise<SourcePreview> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (accessToken) headers[ACCESS_HEADER] = accessToken;
@@ -639,6 +638,7 @@ export async function sourcePreview(
     method: "POST",
     headers,
     body: bodyStr,
+    signal,
   });
 
   const body = await readBody(res);
