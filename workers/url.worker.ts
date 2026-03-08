@@ -9,10 +9,7 @@ type WorkerMessageOut = {
   invalid: string[];
 };
 
-// Matches: https://x.com/handle/status/123 and twitter.com variants
-// Also matches /i/status/{id} (anonymous tweet links)
-const X_URL_RE =
-  /^https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/(?:(?:[A-Za-z0-9_]{1,15}\/(?:status|statuses))|i\/(?:web\/)?status)\/\d+/i;
+const X_URL_RE = /^(https?:\/\/)?(www\.)?(x\.com|twitter\.com|mobile\.twitter\.com|m\.twitter\.com)\/(?:[A-Za-z0-9_]+|i(?:\/web)?)\/status(?:es)?\/\d+$/i;
 
 function normalizeUrl(u: string) {
   let url = u.trim();
