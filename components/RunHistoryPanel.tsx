@@ -7,7 +7,6 @@ import {
   Trash2,
   ChevronRight,
   Download,
-  Search,
   Pin,
   PinOff,
   Tag,
@@ -65,40 +64,19 @@ export default function RunHistoryPanel({
   const t = (key: string) => translate(key, uiLang);
 
   const [modeFilter, setModeFilter] = useState<"all" | "urls" | "source">("all");
-  const [query, setQuery] = useState("");
 
   const filteredRuns = useMemo(() => {
     if (!runs.length) return [];
-
     let list = [...runs];
-
     if (modeFilter === "urls") {
       list = list.filter((r) => r.mode !== "source");
     } else if (modeFilter === "source") {
       list = list.filter((r) => r.mode === "source");
     }
-
-    const q = query.trim().toLowerCase();
-    if (q) {
-      list = list.filter((r) => {
-        const parts: string[] = [];
-        if (r.label) parts.push(r.label);
-        if (r.request.sourceUrl) parts.push(r.request.sourceUrl);
-        if (r.request.urls?.length) parts.push(...r.request.urls);
-        if (r.results?.length) {
-          const c = r.results[0]?.comments?.[0]?.text || "";
-          if (c) parts.push(c);
-        }
-        return parts.join(" ").toLowerCase().includes(q);
-      });
-    }
-
     const pinned = list.filter((r) => r.pinned);
     const unpinned = list.filter((r) => !r.pinned);
-
-    // Pinned sessions always on top
     return [...pinned, ...unpinned];
-  }, [runs, modeFilter, query]);
+  }, [runs, modeFilter]);
 
   const handleExport = async () => {
     if (!onExport) return;
@@ -189,16 +167,6 @@ export default function RunHistoryPanel({
               {label}
             </button>
           ))}
-        </div>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-70" />
-          <input
-            className="w-full rounded-full border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)]/80 py-1.5 pl-7 pr-3 text-[11px] outline-none focus:ring-1 focus:ring-white/30"
-            placeholder={t("history.searchPlaceholder")}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
         </div>
       </div>
 

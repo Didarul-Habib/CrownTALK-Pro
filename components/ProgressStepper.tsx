@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import clsx from "clsx";
 import { translate, useUiLang } from "@/lib/i18n";
 import { LS, lsGet } from "@/lib/storage";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type Stage = "idle" | "fetching" | "generating" | "polishing" | "finalizing" | "done";
 
@@ -21,166 +21,196 @@ function stepIndex(stage: Stage) {
   return STEPS.findIndex((s) => s.id === stage);
 }
 
-export default function ProgressStepper({ stage }: { stage: Stage }) {
+/**
+ * Pipeline progress stepper.
+ * queueTotal / queueDone are passed as props from page state — not window globals —
+ * so they are always in sync with React's render cycle.
+ */
+export default function ProgressStepper({
+  stage,
+  queueTotal = 0,
+  queueDone = 0,
+}: {
+  stage: Stage;
+  queueTotal?: number;
+  queueDone?: number;
+}) {
   const uiLang = useUiLang();
   const t = (key: string) => translate(key, uiLang);
 
-  const isLowMotion =
-    typeof window !== "undefined" &&
-    window.document?.documentElement?.dataset?.fx === "low";
+  // Read low-motion preference once after mount to avoid hydration mismatch.
+  const [lowFx, setLowFx] = useState(false);
+  useEffect(() => {
+    const isLow =
+      document.documentElement.dataset?.fx === "low" ||
+      document.documentElement.dataset?.fx === "lite" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setLowFx(isLow);
+  }, []);
 
-  // Non-breaking: the page writes queue stats into window for this component.
-  const queueTotal = typeof window !== "undefined" ? Number((window as any).__ct_queueTotal || 0) : 0;
-  const queueDone = typeof window !== "undefined" ? Number((window as any).__ct_queueDone || 0) : 0;
-
+  // Tick-based animation clock — resets on stage or progress changes.
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (isLowMotion) return;
+    if (lowFx) return;
     if (stage === "idle" || stage === "done") return;
-    // Reset the animation clock whenever a new segment starts.
     setTick(0);
-    const id = window.setInterval(() => setTick((x) => x + 1), 250);
+    const id = window.setInterval(() => setTick((x) => x + 1), 200);
     return () => window.clearInterval(id);
-  }, [stage, isLowMotion, queueDone, queueTotal]);
+  }, [stage, queueDone, queueTotal, lowFx]);
 
   const idx = stepIndex(stage);
 
-  // Animated "feel" progress.
-  // Goal: make the bar move in a time-realistic way (learned ms/url), so we can
-  // preview Polishing/Finalizing on single-link runs without hardcoded timers.
+  // Animated progress bar value (0-100).
   const progress = useMemo(() => {
     if (stage === "idle") return 0;
     if (stage === "done") return 100;
 
-    // If queue info is available, animate within the current URL segment.
-    if (queueTotal && queueTotal > 0) {
-      const done = Math.max(0, Math.min(queueTotal, queueDone));
-      const base = Math.floor((done / queueTotal) * 100);
-      const next = Math.floor((Math.min(done + 1, queueTotal) / queueTotal) * 100);
+    const realIdx = stepIndex(stage);
+    // Floor at the real stage's position so bar never regresses.
+    const stagePct = Math.max(0, realIdx) / STEPS.length * 100;
 
-      // Never exceed the next real milestone (keeps it honest).
-      const cap = Math.max(base, Math.min(99, next - 1));
+    if (queueTotal > 0) {
+      const done = Math.max(0, Math.min(queueTotal, queueDone));
+      const base = Math.max(stagePct, Math.floor((done / queueTotal) * 100));
+      const nextMs = Math.floor((Math.min(done + 1, queueTotal) / queueTotal) * 100);
+      const cap = Math.min(99, Math.max(base, nextMs - 1));
       const span = Math.max(0, cap - base);
       if (span <= 0) return Math.min(99, base);
 
-      // Learned average (ms/url). Falls back to a sane default.
       const learned = Number(lsGet(LS.avgMsPerUrl, ""));
-      const expectedMsPerItem = Number.isFinite(learned) ? learned : 14000;
-      const expected = Math.max(4000, Math.min(60000, expectedMsPerItem));
-
-      // Ease curve: reaches ~90% of the span around `expected`.
-      const elapsedMs = tick * 250;
-      const tau = expected * 0.45;
-      const k = Math.min(0.985, 1 - Math.exp(-elapsedMs / Math.max(1, tau)));
-
+      const expectedMs = Number.isFinite(learned) && learned > 0 ? learned : 13000;
+      const expected = Math.max(3000, Math.min(60000, expectedMs));
+      const elapsedMs = tick * 200;
+      const k = Math.min(0.98, 1 - Math.exp(-elapsedMs / Math.max(1, expected * 0.4)));
       return Math.min(99, Math.round(base + span * k));
     }
 
-    // Fallback: stage-only progress.
-    const clampedIdx = Math.max(0, idx);
-    const base = (clampedIdx / STEPS.length) * 100;
-    const extra = stage === "finalizing" ? 8 : 0;
-    return Math.min(99, Math.round(base + extra));
+    // No queue info: animate within the current stage's band.
+    const bandWidth = 100 / STEPS.length;
+    const k = Math.min(0.9, 1 - Math.exp(-(tick * 200) / 8000));
+    return Math.min(99, Math.round(stagePct + bandWidth * k * 0.85));
   }, [stage, idx, queueTotal, queueDone, tick]);
 
-  // Display stage: allow a gentle "preview" of Polishing/Finalizing based on animated progress.
-  // This fixes the UX where 1-link runs look stuck in Generating then instantly complete.
+  // displayStage: mirrors the real stage prop (which startPipeline timers + advanceStage
+  // drive correctly now). Only preview the next stage when progress crosses a threshold
+  // AND we're already in the preceding stage — prevents false "Polishing Done" jumps.
   const displayStage = useMemo<Stage>(() => {
     if (stage === "idle" || stage === "done") return stage;
 
-    const p = Math.max(0, Math.min(99, progress));
-
-    // Progress bands (in %). Tuned so Polishing/Finalizing become visible *before* completion.
-    // Single-link runs get slightly earlier thresholds so the UI never feels stuck.
-    const single = !queueTotal || queueTotal <= 1;
-    const tFetch = single ? 18 : 22;
-    const tPolish = single ? 70 : 82;
-    const tFinal = single ? 88 : 94;
-    const simIdx = p < tFetch ? 0 : p < tPolish ? 1 : p < tFinal ? 2 : 3;
     const realIdx = stepIndex(stage);
-    const di = Math.max(realIdx, simIdx);
+    const p = Math.max(0, Math.min(99, progress));
+    const single = !queueTotal || queueTotal <= 1;
+    const tPolish = single ? 64 : 78;
+    const tFinal  = single ? 83 : 91;
 
-    const step = STEPS[Math.max(0, Math.min(STEPS.length - 1, di))];
-    return (step?.id as Stage) || stage;
+    let simIdx = realIdx;
+    // Only preview ahead from "generating" onwards.
+    if (realIdx >= 1) {
+      if (p >= tFinal) simIdx = Math.max(simIdx, 3);
+      else if (p >= tPolish) simIdx = Math.max(simIdx, 2);
+    }
+    const di = Math.min(STEPS.length - 1, simIdx);
+    return (STEPS[di]?.id as Stage) ?? stage;
   }, [stage, progress, queueTotal]);
 
   const displayIdx = stepIndex(displayStage);
   const active = displayStage !== "idle" && displayStage !== "done";
 
   return (
-    <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-3 backdrop-blur-xl">
+    <div className="relative overflow-hidden rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-panel)] p-3">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold tracking-tight">{t("pipeline.title")}</div>
         <div className={clsx("text-xs", active ? "opacity-80" : "opacity-60")}>
-          {displayStage === "idle" ? "Ready" : displayStage === "done" ? "Completed" : "Working…"}
+          {displayStage === "idle"
+            ? "Ready"
+            : displayStage === "done"
+              ? "Completed"
+              : queueTotal > 0
+                ? `${queueDone} / ${queueTotal}`
+                : "Working…"}
         </div>
       </div>
 
-      {/* Premium progress rail */}
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full border border-[color:var(--ct-border)] bg-white/5">
-        <motion.div
-          className="h-full rounded-full"
-          style={{
-            background:
-              "linear-gradient(90deg, var(--ct-accent), color-mix(in srgb, var(--ct-accent-2) 85%, white 15%))",
-          }}
-          initial={false}
-          animate={{ width: `${progress}%` }}
-          transition={{ type: "spring", stiffness: 220, damping: 28 }}
-        />
+      {/* Progress rail */}
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+        {lowFx ? (
+          <div
+            className="h-full rounded-full transition-[width] duration-500"
+            style={{
+              width: `${progress}%`,
+              background: "linear-gradient(90deg, var(--ct-accent), var(--ct-accent-2, var(--ct-accent)))",
+            }}
+          />
+        ) : (
+          <motion.div
+            className="h-full rounded-full"
+            style={{
+              background:
+                "linear-gradient(90deg, var(--ct-accent), color-mix(in srgb, var(--ct-accent-2, var(--ct-accent)) 85%, white 15%))",
+            }}
+            initial={false}
+            animate={{ width: `${progress}%` }}
+            transition={{ type: "spring", stiffness: 160, damping: 28 }}
+          />
+        )}
       </div>
 
-      {/* Use `lg` so \"Desktop site\" on mobile doesn't squeeze the pipeline grid */}
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Step cards — 2-col on mobile, 4-col on desktop */}
+      <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
         {STEPS.map((s, i) => {
-          const done = displayIdx > i || displayStage === "done";
+          const done    = displayIdx > i || displayStage === "done";
           const current = displayIdx === i && displayStage !== "done";
           return (
             <div
               key={s.id}
               className={clsx(
-                "relative overflow-hidden rounded-2xl border px-3 py-3",
+                "relative overflow-hidden rounded-xl border px-2.5 py-2.5",
                 "border-[color:var(--ct-border)] bg-[color:var(--ct-surface)]",
-                current ? "shadow-[0_18px_60px_rgba(0,0,0,.45)]" : ""
               )}
             >
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold">{t(s.labelKey)}</div>
+              <div className="flex items-center justify-between gap-1">
+                <div className="text-[11px] font-semibold leading-tight">{t(s.labelKey)}</div>
                 <div
-                  className="h-2.5 w-2.5 rounded-full"
+                  className="shrink-0 h-2 w-2 rounded-full transition-colors duration-300"
                   style={{
                     background: done
                       ? "var(--ct-accent)"
                       : current
-                        ? "rgba(255,255,255,.45)"
-                        : "rgba(255,255,255,.16)",
-                    boxShadow: done ? "0 0 16px rgba(255,255,255,.18)" : "none",
+                        ? "rgba(255,255,255,.55)"
+                        : "rgba(255,255,255,.14)",
                   }}
                 />
               </div>
 
-              <div className="mt-2 text-[11px] opacity-70">
-                {done ? t("pipeline.step.done") : current ? t("pipeline.step.inProgress") : t("pipeline.step.pending")}
+              <div className="mt-1.5 text-[10px] opacity-60">
+                {done
+                  ? t("pipeline.step.done")
+                  : current
+                    ? t("pipeline.step.inProgress")
+                    : t("pipeline.step.pending")}
               </div>
 
-              {current && !isLowMotion ? (
+              {/* Shimmer on active step — skipped in low-motion */}
+              {current && !lowFx ? (
                 <motion.div
-                  className="absolute inset-0 opacity-30"
+                  className="absolute inset-0 opacity-20"
                   style={{
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,.20), transparent)",
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent)",
                   }}
                   initial={{ x: "-120%" }}
                   animate={{ x: "120%" }}
-                  transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
                 />
               ) : null}
 
-              {current ? (
+              {/* Accent glow border on active step */}
+              {current && !lowFx ? (
                 <div
-                  className="absolute inset-0"
+                  className="pointer-events-none absolute inset-0 rounded-xl"
                   style={{
                     boxShadow:
-                      "0 0 0 1px rgba(255,255,255,.08) inset, 0 0 40px color-mix(in srgb, var(--ct-accent) 16%, transparent)",
+                      "0 0 0 1px color-mix(in srgb, var(--ct-accent) 35%, transparent) inset",
                   }}
                 />
               ) : null}
