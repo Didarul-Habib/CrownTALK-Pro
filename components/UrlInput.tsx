@@ -33,6 +33,7 @@ function faviconFor(u: string) {
 
 export default function UrlInput({
   value,
+  parsedUrls,
   onChange,
   selected,
   onSelectedChange,
@@ -46,6 +47,7 @@ export default function UrlInput({
   canRedo,
 }: {
   value: string;
+  parsedUrls?: string[];
   onChange: (v: string) => void;
   selected?: string[];
   onSelectedChange?: (urls: string[]) => void;
@@ -65,7 +67,7 @@ export default function UrlInput({
 
   // Parse URLs immediately from the live textarea value so the radar
   // and counts update as soon as the user pastes.
-  const urls = useMemo(() => parseUrls(value), [value]);
+  const urls = useMemo(() => parsedUrls ?? parseUrls(value), [parsedUrls, value]);
   // Heavier per-line classification can stay debounced.
   const lineInfo = useMemo(() => classifyLines(debouncedValue), [debouncedValue]);
 

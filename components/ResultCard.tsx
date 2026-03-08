@@ -7,8 +7,32 @@ import type { ResultItem } from "@/lib/types";
 import { getQualityInfo } from "@/lib/quality";
 
 function copyText(text: string) {
-  navigator.clipboard.writeText(text).catch(() => {});
-  // Subtle haptic confirmation on mobile (safe no-op on unsupported devices).
+  const fallbackCopy = () => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "true");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      ta.style.pointerEvents = "none";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch {}
+  };
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+  } catch {
+    fallbackCopy();
+  }
+
   try {
     (navigator as any)?.vibrate?.(10);
   } catch {}
@@ -79,7 +103,6 @@ export default function ResultCard({
 
   const tweetPreview = (item as any).tweet as any | undefined;
   const project = (item as any).project as any | null | undefined;
-
   const commentStateKey = (item.comments || [])
     .map((c: any) => {
       const text = String(c?.text ?? c ?? "");
@@ -89,7 +112,7 @@ export default function ResultCard({
     .join("␞");
 
   useEffect(() => {
-    // Reset local editable text when the item changes (reroll/retry/new comments)
+    // Reset local editable text when the item changes (reroll/retry)
     setTexts((item.comments || []).map((c: any) => String(c?.text ?? c ?? "")));
     setEditingKey("");
   }, [item.input_url, item.url, item.status, commentStateKey]);
@@ -108,7 +131,12 @@ export default function ResultCard({
   }
 
   return (
-    <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_10px_28px_rgba(0,0,0,0.42)] md:shadow-[0_18px_80px_rgba(0,0,0,0.75)] backdrop-blur-sm md:backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
+    <div className={clsx(
+      "rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3",
+      "shadow-[0_10px_28px_rgba(0,0,0,0.42)] md:shadow-[0_18px_80px_rgba(0,0,0,0.75)]",
+      "backdrop-blur-sm md:backdrop-blur-md lg:backdrop-blur-xl",
+      showSkeleton && "min-h-[120px]"
+    )}>
       <div className="flex items-start justify-between gap-3">
         <a
           href={getDisplayUrl(item) || item.url}

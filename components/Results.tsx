@@ -28,7 +28,7 @@ function downloadTxt(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-function resultKey(item: ResultItem) {
+function stableItemKey(item: ResultItem) {
   return String(item.input_url || item.url || "");
 }
 
@@ -70,7 +70,7 @@ const totalUrls = items.length;
   const primaryPairs = useMemo(() => {
     return items
       .filter((i) => i.status === "ok")
-      .map((i) => ({ url: resultKey(i), text: i.comments?.[0]?.text || "" }))
+      .map((i) => ({ url: stableItemKey(i), text: i.comments?.[0]?.text || "" }))
       .filter((p) => p.text.trim());
   }, [items]);
 
@@ -85,7 +85,7 @@ const totalUrls = items.length;
       if (it.status !== "ok") continue;
       const t = it.comments?.[0]?.text || "";
       const reason = detectSpammy(t);
-      if (reason) m.set(resultKey(it), reason);
+      if (reason) m.set(stableItemKey(it), reason);
     }
     return m;
   }, [items]);
@@ -101,19 +101,19 @@ const totalUrls = items.length;
     let keptOne = false;
     for (const it of items) {
       if (it.status !== "ok") continue;
-      if (!similarMap.has(resultKey(it))) continue;
+      if (!similarMap.has(stableItemKey(it))) continue;
       if (!keptOne) {
         keptOne = true;
         continue;
       }
-      toHide.add(resultKey(it));
+      toHide.add(stableItemKey(it));
     }
     return toHide;
   }, [hideNearDuplicates, items, similarMap]);
 
   const displayItemsDedup = useMemo(() => {
     if (!hideNearDuplicates) return items;
-    return items.filter((it) => !hideSet.has(resultKey(it)));
+    return items.filter((it) => !hideSet.has(stableItemKey(it)));
   }, [hideNearDuplicates, items, hideSet]);
 
   const displayItems = useMemo(() => {
@@ -121,17 +121,13 @@ const totalUrls = items.length;
 
     // While generating, keep pending cards visible (skeletons) so users see progress.
     if (loading) {
-      return showFailedCards ? base : base.filter((it) => it.status === "ok" || it.status === "pending");
+      return showFailedCards ? base : base.filter((it) => it.status === "ok" || it.status === "pending" || it.status === "error");
     }
 
-    if (showFailedCards) return base.filter((it) => it.status !== "pending");
+    if (showFailedCards) return base;
 
-    // Default: keep terminal failures visible so a missing URL cannot disappear silently.
-    return base.filter(
-      (it) =>
-        (it.status === "ok" && (it.comments?.length ?? 0) > 0) ||
-        it.status === "error",
-    );
+    // Default: show only items that actually produced comments (clean UI on mobile).
+    return base.filter((it) => (it.status === "ok" && (it.comments?.length ?? 0) > 0) || it.status === "error");
   }, [displayItemsDedup, loading, showFailedCards]);
 
 
@@ -177,8 +173,8 @@ const totalUrls = items.length;
     return lines.join("\n\n").trim();
   }, [items]);
 
-  const allUrlsText = useMemo(() => items.map((i) => resultKey(i) || i.url).join("\n"), [items]);
-  const failedUrlsText = useMemo(() => failedItems.map((i) => resultKey(i) || i.url).join("\n"), [failedItems]);
+  const allUrlsText = useMemo(() => items.map((i) => i.url).join("\n"), [items]);
+  const failedUrlsText = useMemo(() => failedItems.map((i) => i.url).join("\n"), [failedItems]);
 
   if (!items.length) {
     if (loading) {
@@ -406,7 +402,7 @@ const totalUrls = items.length;
 
           <div className="mt-3 space-y-2">
             {failedItems.map((f) => (
-              <div key={resultKey(f) || f.url} className={clsx("ct-card-surface", "p-3")}
+              <div key={f.url} className={clsx("ct-card-surface", "p-3")}
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -417,14 +413,14 @@ const totalUrls = items.length;
                     <button
                       type="button"
                       className="ct-btn ct-btn-xs"
-                      onClick={() => onRerollUrl(resultKey(f) || f.url)}
+                      onClick={() => onRerollUrl(stableItemKey(f) || f.url)}
                     >
                       Retry
                     </button>
                     <button
                       type="button"
                       className="ct-btn ct-btn-xs"
-                      onClick={() => { copyText(resultKey(f) || f.url); toast.success("Copied URL"); }}
+                      onClick={() => { copyText(f.url); toast.success("Copied URL"); }}
                     >
                       <Copy className="h-4 w-4 opacity-80" />
                       Copy
@@ -438,7 +434,7 @@ const totalUrls = items.length;
       ) : null}
 
       {displayItems.map((it, idx) => {
-        const key = resultKey(it) || it.url;
+        const key = stableItemKey(it) || it.url;
         const sim = similarMap.get(key);
         const spam = spamMap.get(key) || null;
         const delay = idx * 0.03;
