@@ -1,25 +1,27 @@
-// HMAC signing is performed server-side via /api/sign.
-// The secret lives in CT_HMAC_SECRET (no NEXT_PUBLIC_ prefix) and never reaches the browser.
-// If /api/sign is unavailable (static export / custom infra), signing is silently skipped
-// and the backend will treat the request as unsigned (allowed when HMAC is not enforced).
+const HMAC_SECRET = typeof window === "undefined" ? process.env.CT_HMAC_SECRET : undefined;
 
-async function addRequestSignature(headers: Record<string, string>, body: string): Promise<void> {
-  try {
-    const ts = Math.floor(Date.now() / 1000).toString();
-    const res = await fetch("/api/sign", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ts, body }),
-    });
-    if (!res.ok) return;
-    const data = await res.json().catch(() => null);
-    if (!data?.signature || !data?.ts) return;
-    headers["X-CT-Timestamp"] = String(data.ts);
-    headers["X-CT-Signature"] = String(data.signature);
-  } catch {
-    // Non-fatal: signature is best-effort. The backend allows unsigned requests
-    // when CROWNTALK_HMAC_ENFORCE is not set to "1".
-  }
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function addRequestSignature(headers: Record<string, string>, body: string) {
+  // Browser code does not hold a trusted signing secret. When this module is
+  // executed server-side, CT_HMAC_SECRET can still be used for trusted callers.
+  if (!HMAC_SECRET) return;
+  const ts = Math.floor(Date.now() / 1000).toString();
+  headers["X-CT-Timestamp"] = ts;
+  headers["X-CT-Signature"] = await hmacSha256Hex(HMAC_SECRET, `${ts}.${body}`);
 }
 
 function normalizeResultItem(raw: any, request?: any): ResultItem {
@@ -452,12 +454,9 @@ export async function generateCommentsStream(
   const base = baseUrl.replace(/\/$/, "");
   const firstUrl = Array.isArray((payload as any).urls) ? String((payload as any).urls[0] || "") : "";
   const streamUrl = `${base}/comment/stream`;
-  const bulkUrl = `${base}/comment`;
-  const useDedicatedStream = Array.isArray((payload as any).urls) && (payload as any).urls.length === 1 && firstUrl;
-  const url = useDedicatedStream ? streamUrl : bulkUrl;
   let res: Response | null = null;
   try {
-    const reqBody = useDedicatedStream
+    const reqBody = Array.isArray((payload as any).urls) && (payload as any).urls.length === 1 && firstUrl
       ? (() => {
           const { urls, ...rest } = payload as any;
           return { ...rest, url: firstUrl };
@@ -465,7 +464,7 @@ export async function generateCommentsStream(
       : payload;
     const bodyStr = JSON.stringify(reqBody);
     await addRequestSignature(headers, bodyStr);
-    res = await fetch(url, { method: "POST", headers, body: bodyStr, signal });
+    res = await fetch(streamUrl, { method: "POST", headers, body: bodyStr, signal });
   } catch (e: any) {
     // network error -> fall back to normal (will throw a better ApiError)
     return await generateComments(baseUrl, payload, accessToken, authToken, signal);
