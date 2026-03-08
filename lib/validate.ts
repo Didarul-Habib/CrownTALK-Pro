@@ -60,10 +60,14 @@ export function normalizeXUrl(u: string): string {
   s = s.replace(/^[\s\("'\[]+/, "").replace(/[\s\)\]">'.,!]+$/, "");
   // drop query/hash
   s = s.replace(/[?#].*$/, "");
-  // normalize host to x.com
-  s = s.replace(/^https?:\/\/(?:www\.)?twitter\.com\//i, "https://x.com/");
-  s = s.replace(/^https?:\/\/(?:www\.)?mobile\.twitter\.com\//i, "https://x.com/");
-  s = s.replace(/^https?:\/\/(?:www\.)?m\.twitter\.com\//i, "https://x.com/");
+  // always use https — backend clean_and_normalize_urls always returns https:// URLs,
+  // so keeping http:// in the frontend key causes a mergeIncomingResults miss
+  s = s.replace(/^http:\/\//i, "https://");
+  // normalize host to x.com (twitter.com, mobile variants, www.x.com)
+  s = s.replace(/^https:\/\/(?:www\.)?twitter\.com\//i, "https://x.com/");
+  s = s.replace(/^https:\/\/(?:www\.)?mobile\.twitter\.com\//i, "https://x.com/");
+  s = s.replace(/^https:\/\/(?:www\.)?m\.twitter\.com\//i, "https://x.com/");
+  s = s.replace(/^https:\/\/www\.x\.com\//i, "https://x.com/");
   // normalize /i/web/status -> /i/status
   s = s.replace(/\/i\/web\/status\//i, "/i/status/");
   return s;
