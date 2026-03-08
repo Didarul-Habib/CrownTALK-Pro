@@ -67,14 +67,19 @@ export default function RunHistoryPanel({
 
   const filteredRuns = useMemo(() => {
     if (!runs.length) return [];
+
     let list = [...runs];
+
     if (modeFilter === "urls") {
       list = list.filter((r) => r.mode !== "source");
     } else if (modeFilter === "source") {
       list = list.filter((r) => r.mode === "source");
     }
+
     const pinned = list.filter((r) => r.pinned);
     const unpinned = list.filter((r) => !r.pinned);
+
+    // Pinned sessions always on top
     return [...pinned, ...unpinned];
   }, [runs, modeFilter]);
 
@@ -168,6 +173,7 @@ export default function RunHistoryPanel({
             </button>
           ))}
         </div>
+
       </div>
 
       <div className="mt-3 space-y-2 max-h-[420px] overflow-y-auto pr-1">

@@ -28,6 +28,10 @@ function downloadTxt(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+function resultKey(item: ResultItem) {
+  return String(item.input_url || item.url || "");
+}
+
 export default function Results({
   items,
   runId,
@@ -66,7 +70,7 @@ const totalUrls = items.length;
   const primaryPairs = useMemo(() => {
     return items
       .filter((i) => i.status === "ok")
-      .map((i) => ({ url: i.url, text: i.comments?.[0]?.text || "" }))
+      .map((i) => ({ url: resultKey(i), text: i.comments?.[0]?.text || "" }))
       .filter((p) => p.text.trim());
   }, [items]);
 
@@ -81,7 +85,7 @@ const totalUrls = items.length;
       if (it.status !== "ok") continue;
       const t = it.comments?.[0]?.text || "";
       const reason = detectSpammy(t);
-      if (reason) m.set(it.url, reason);
+      if (reason) m.set(resultKey(it), reason);
     }
     return m;
   }, [items]);
@@ -97,19 +101,19 @@ const totalUrls = items.length;
     let keptOne = false;
     for (const it of items) {
       if (it.status !== "ok") continue;
-      if (!similarMap.has(it.url)) continue;
+      if (!similarMap.has(resultKey(it))) continue;
       if (!keptOne) {
         keptOne = true;
         continue;
       }
-      toHide.add(it.url);
+      toHide.add(resultKey(it));
     }
     return toHide;
   }, [hideNearDuplicates, items, similarMap]);
 
   const displayItemsDedup = useMemo(() => {
     if (!hideNearDuplicates) return items;
-    return items.filter((it) => !hideSet.has(it.url));
+    return items.filter((it) => !hideSet.has(resultKey(it)));
   }, [hideNearDuplicates, items, hideSet]);
 
   const displayItems = useMemo(() => {
@@ -120,10 +124,14 @@ const totalUrls = items.length;
       return showFailedCards ? base : base.filter((it) => it.status === "ok" || it.status === "pending");
     }
 
-    if (showFailedCards) return base;
+    if (showFailedCards) return base.filter((it) => it.status !== "pending");
 
-    // Default: show only items that actually produced comments (clean UI on mobile).
-    return base.filter((it) => it.status === "ok" && (it.comments?.length ?? 0) > 0);
+    // Default: keep terminal failures visible so a missing URL cannot disappear silently.
+    return base.filter(
+      (it) =>
+        (it.status === "ok" && (it.comments?.length ?? 0) > 0) ||
+        it.status === "error",
+    );
   }, [displayItemsDedup, loading, showFailedCards]);
 
 
@@ -169,8 +177,8 @@ const totalUrls = items.length;
     return lines.join("\n\n").trim();
   }, [items]);
 
-  const allUrlsText = useMemo(() => items.map((i) => i.url).join("\n"), [items]);
-  const failedUrlsText = useMemo(() => failedItems.map((i) => i.url).join("\n"), [failedItems]);
+  const allUrlsText = useMemo(() => items.map((i) => resultKey(i) || i.url).join("\n"), [items]);
+  const failedUrlsText = useMemo(() => failedItems.map((i) => resultKey(i) || i.url).join("\n"), [failedItems]);
 
   if (!items.length) {
     if (loading) {
@@ -398,7 +406,7 @@ const totalUrls = items.length;
 
           <div className="mt-3 space-y-2">
             {failedItems.map((f) => (
-              <div key={f.url} className={clsx("ct-card-surface", "p-3")}
+              <div key={resultKey(f) || f.url} className={clsx("ct-card-surface", "p-3")}
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -409,14 +417,14 @@ const totalUrls = items.length;
                     <button
                       type="button"
                       className="ct-btn ct-btn-xs"
-                      onClick={() => onRerollUrl(f.url)}
+                      onClick={() => onRerollUrl(resultKey(f) || f.url)}
                     >
                       Retry
                     </button>
                     <button
                       type="button"
                       className="ct-btn ct-btn-xs"
-                      onClick={() => { copyText(f.url); toast.success("Copied URL"); }}
+                      onClick={() => { copyText(resultKey(f) || f.url); toast.success("Copied URL"); }}
                     >
                       <Copy className="h-4 w-4 opacity-80" />
                       Copy
@@ -430,24 +438,33 @@ const totalUrls = items.length;
       ) : null}
 
       {displayItems.map((it, idx) => {
-        const sim = similarMap.get(it.url);
-        const spam = spamMap.get(it.url) || null;
+        const key = resultKey(it) || it.url;
+        const sim = similarMap.get(key);
+        const spam = spamMap.get(key) || null;
         const delay = idx * 0.03;
+        const card = (
+          <ResultCard
+            item={it}
+            onReroll={() => onRerollUrl(key || it.url)}
+            onCopy={onCopy}
+            onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(key || it.url) : undefined}
+            warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
+            warnSpam={spam}
+          />
+        );
+
+        if (!canAnimateCards) {
+          return <div key={key}>{card}</div>;
+        }
+
         return (
           <motion.div
-            key={it.url}
-            initial={canAnimateCards ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0 }}
-            animate={canAnimateCards ? { opacity: 1, y: 0, scale: 1 } : { opacity: 1, y: 0 }}
-            transition={canAnimateCards ? { duration: 0.25, delay } : undefined}
+            key={key}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.25, delay }}
           >
-            <ResultCard
-              item={it}
-              onReroll={() => onRerollUrl(it.url)}
-              onCopy={onCopy}
-              onRetry={it.status !== "ok" && it.status !== "pending" ? () => onRetryUrl(it.url) : undefined}
-              warnSimilar={sim ? { score: sim.maxSim, withUrl: sim.withUrl } : null}
-              warnSpam={spam}
-            />
+            {card}
           </motion.div>
         );
       })}

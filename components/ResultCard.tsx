@@ -80,19 +80,19 @@ export default function ResultCard({
   const tweetPreview = (item as any).tweet as any | undefined;
   const project = (item as any).project as any | null | undefined;
 
+  const commentStateKey = (item.comments || [])
+    .map((c: any) => {
+      const text = String(c?.text ?? c ?? "");
+      const gloss = typeof c?.translation_en === "string" ? c.translation_en : "";
+      return `${text}::${gloss}`;
+    })
+    .join("␞");
+
   useEffect(() => {
-    // Reset local editable text when the item changes (reroll/retry).
-    // Deps: url + status handle the obvious cases (retry, new URL).
-    // commentsSig handles reroll: same URL + same "ok" status, but new comment text.
+    // Reset local editable text when the item changes (reroll/retry/new comments)
     setTexts((item.comments || []).map((c: any) => String(c?.text ?? c ?? "")));
     setEditingKey("");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    item.url,
-    item.status,
-    // Stable content fingerprint — changes on every reroll without needing deep equality.
-    (item.comments || []).map((c: any) => String(c?.text ?? c ?? "")).join("\x00"),
-  ]);
+  }, [item.input_url, item.url, item.status, commentStateKey]);
 
   useEffect(() => {
     return () => {
@@ -108,7 +108,7 @@ export default function ResultCard({
   }
 
   return (
-    <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_18px_80px_rgba(0,0,0,0.75)] backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
+    <div className={clsx("rounded-[var(--ct-radius)] border border-[color:var(--ct-border)] bg-[color:var(--ct-surface-elevated)] p-3 space-y-3 shadow-[0_10px_28px_rgba(0,0,0,0.42)] md:shadow-[0_18px_80px_rgba(0,0,0,0.75)] backdrop-blur-sm md:backdrop-blur-md lg:backdrop-blur-xl", showSkeleton && "min-h-[120px]")}>
       <div className="flex items-start justify-between gap-3">
         <a
           href={getDisplayUrl(item) || item.url}
